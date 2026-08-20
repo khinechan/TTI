@@ -252,14 +252,12 @@ def char_name(ch):
 # ─────────────────────────── the streaming scan ────────────────────────
 
 def scan_file(path, rows_only=False):
-    """One pass, line by line — never slurps. Classifies every line as
-    CODE_FENCE, HTML_COMMENT, TABLE_ROW, or PROSE; fenced and commented
-    lines are excluded from row parsing and prose scanning (a pasted
-    example table must never become a phantom decision).
-
-    Returns a dict of everything the checks need. rows_only=True is the
-    light mode used for --also-scan archives (index building only).
-    """
+    """Thin I/O wrapper around scan_lines(). Opens with errors="replace"
+    — this tool is read-only and must never crash on a hand-edited file
+    — and delegates every classification decision to scan_lines().
+    Callers with a different read policy (vault_repair strict-decodes)
+    do their own read and call scan_lines()/detect() directly: one
+    source of truth for DETECTION, two policies for READING."""
     if not os.path.isfile(path):
         raise ToolError("file not found: %s" % path)
     try:
@@ -267,9 +265,26 @@ def scan_file(path, rows_only=False):
         handle = open(path, "r", encoding="utf-8", errors="replace")
     except OSError as exc:
         raise ToolError("cannot read %s: %s" % (path, exc))
+    with handle:
+        scan = scan_lines(handle, rows_only=rows_only)
+    scan["path"] = path
+    scan["size"] = size
+    return scan
 
+
+def scan_lines(lines, rows_only=False):
+    """One pass, line by line — never slurps. PURE: no I/O; `lines` is
+    any iterable of lines in the shape a text-handle iteration yields
+    (terminators attached; rstrip happens here). Classifies every line
+    as CODE_FENCE, HTML_COMMENT, TABLE_ROW, or PROSE; fenced and
+    commented lines are excluded from row parsing and prose scanning (a
+    pasted example table must never become a phantom decision).
+
+    Returns a dict of everything the checks need. rows_only=True is the
+    light mode used for --also-scan archives (index building only).
+    """
     scan = {
-        "path": path, "size": size, "lines": 0,
+        "lines": 0,
         "rows": [], "broken": [], "malformed": [],
         "mentions": [], "ranges": [], "decode_lines": [],
         "excluded_lines": 0, "fences": 0, "comments": 0,
@@ -294,103 +309,102 @@ def scan_file(path, rows_only=False):
             }
             pending = None
 
-    with handle:
-        for lineno, line in enumerate(handle, 1):
-            scan["lines"] = lineno
-            raw = line.rstrip("\r\n")     # explicit: CRLF-safe before any test
-            rst = raw.rstrip()            # rstrip() before every end-of-line test
-            stripped = raw.strip()
+    for lineno, line in enumerate(lines, 1):
+        scan["lines"] = lineno
+        raw = line.rstrip("\r\n")     # explicit: CRLF-safe before any test
+        rst = raw.rstrip()            # rstrip() before every end-of-line test
+        stripped = raw.strip()
 
-            if "\ufffd" in raw and not rows_only:
-                scan["decode_lines"].append(lineno)
+        if "\ufffd" in raw and not rows_only:
+            scan["decode_lines"].append(lineno)
 
-            # ── structure pre-pass: fences and comments exclude a line
-            # from every check. Counted, never silently skipped.
-            if in_fence:
-                scan["excluded_lines"] += 1
-                if stripped.startswith(FENCE_MARKERS):
-                    in_fence = False
-                attach_next(lineno, raw, stripped, True, False)
-                continue
+        # ── structure pre-pass: fences and comments exclude a line
+        # from every check. Counted, never silently skipped.
+        if in_fence:
+            scan["excluded_lines"] += 1
             if stripped.startswith(FENCE_MARKERS):
-                in_fence = True
-                scan["fences"] += 1
-                scan["excluded_lines"] += 1
-                attach_next(lineno, raw, stripped, True, False)
-                continue
-            if in_comment:
-                scan["excluded_lines"] += 1
-                if HTML_COMMENT_CLOSE in raw:
-                    in_comment = False
-                attach_next(lineno, raw, stripped, True, False)
-                continue
-            if stripped.startswith(HTML_COMMENT_OPEN):
-                scan["comments"] += 1
-                scan["excluded_lines"] += 1
-                if HTML_COMMENT_CLOSE not in stripped[len(HTML_COMMENT_OPEN):]:
-                    in_comment = True
-                attach_next(lineno, raw, stripped, True, False)
-                continue
+                in_fence = False
+            attach_next(lineno, raw, stripped, True, False)
+            continue
+        if stripped.startswith(FENCE_MARKERS):
+            in_fence = True
+            scan["fences"] += 1
+            scan["excluded_lines"] += 1
+            attach_next(lineno, raw, stripped, True, False)
+            continue
+        if in_comment:
+            scan["excluded_lines"] += 1
+            if HTML_COMMENT_CLOSE in raw:
+                in_comment = False
+            attach_next(lineno, raw, stripped, True, False)
+            continue
+        if stripped.startswith(HTML_COMMENT_OPEN):
+            scan["comments"] += 1
+            scan["excluded_lines"] += 1
+            if HTML_COMMENT_CLOSE not in stripped[len(HTML_COMMENT_OPEN):]:
+                in_comment = True
+            attach_next(lineno, raw, stripped, True, False)
+            continue
 
-            if stripped.startswith("|") and len(scan["pipe_samples"]) < SAMPLE_PIPE_LINES:
-                scan["pipe_samples"].append((lineno, raw[:80]))
+        if stripped.startswith("|") and len(scan["pipe_samples"]) < SAMPLE_PIPE_LINES:
+            scan["pipe_samples"].append((lineno, raw[:80]))
 
-            # ── row classification
-            match = _ROW_RE.match(rst)
-            if match:
-                attach_next(lineno, raw, stripped, False, True)
-                digits = match.group(1)
-                parts = rst.split("|")
-                cells = parts[1:-1] if rst.endswith("|") else parts[1:]
-                record = {
-                    "line": lineno, "raw": rst, "digits": digits,
-                    "num": int(digits), "pipes": rst.count("|"),
-                    "cells": cells, "id_cell": parts[1] if len(parts) > 1 else "",
-                    "closed": rst.endswith("|"), "next": None,
-                }
-                scan["rows"].append(record)
-                pending = record
-                continue
+        # ── row classification
+        match = _ROW_RE.match(rst)
+        if match:
+            attach_next(lineno, raw, stripped, False, True)
+            digits = match.group(1)
+            parts = rst.split("|")
+            cells = parts[1:-1] if rst.endswith("|") else parts[1:]
+            record = {
+                "line": lineno, "raw": rst, "digits": digits,
+                "num": int(digits), "pipes": rst.count("|"),
+                "cells": cells, "id_cell": parts[1] if len(parts) > 1 else "",
+                "closed": rst.endswith("|"), "next": None,
+            }
+            scan["rows"].append(record)
+            pending = record
+            continue
 
-            if not rows_only and _MALFORMED_RE.match(rst):
-                attach_next(lineno, raw, stripped, False, False)
-                lax = _ROW_LAX_RE.match(rst)
-                if lax and not rst.endswith("|"):
-                    record = {"line": lineno, "raw": rst,
-                              "digits": lax.group(1), "num": int(lax.group(1)),
-                              "next": None}
-                    scan["broken"].append(record)
-                    pending = record
-                else:
-                    hint = _MALFORMED_ID_RE.search(rst)
-                    scan["malformed"].append({
-                        "line": lineno, "raw": rst,
-                        "hint": hint.group(0) if hint else None,
-                        "num": (int(hint.group(1))
-                                if hint and hint.group(1).isdigit() else None),
-                    })
-                continue
-
+        if not rows_only and _MALFORMED_RE.match(rst):
             attach_next(lineno, raw, stripped, False, False)
-
-            # ── prose scan (anything not rowish, headings included)
-            if rows_only or stripped.startswith("|"):
-                continue
-            spans = []
-            for rmatch in _RANGE_RE.finditer(raw):
-                spans.append((rmatch.start(), rmatch.end()))
-                lo, hi = int(rmatch.group(1)), int(rmatch.group(2))
-                if lo <= hi and hi - lo <= RANGE_EXPANSION_LIMIT:
-                    scan["ranges"].append({"line": lineno, "lo": lo, "hi": hi})
-            for mmatch in _MENTION_RE.finditer(raw):
-                if any(lo <= mmatch.start() < hi for lo, hi in spans):
-                    continue   # endpoint of a range — the expansion covers it
-                if _is_negated(raw, mmatch.start()):
-                    continue
-                scan["mentions"].append({
-                    "line": lineno, "digits": mmatch.group(1),
-                    "num": int(mmatch.group(1)),
+            lax = _ROW_LAX_RE.match(rst)
+            if lax and not rst.endswith("|"):
+                record = {"line": lineno, "raw": rst,
+                          "digits": lax.group(1), "num": int(lax.group(1)),
+                          "next": None}
+                scan["broken"].append(record)
+                pending = record
+            else:
+                hint = _MALFORMED_ID_RE.search(rst)
+                scan["malformed"].append({
+                    "line": lineno, "raw": rst,
+                    "hint": hint.group(0) if hint else None,
+                    "num": (int(hint.group(1))
+                            if hint and hint.group(1).isdigit() else None),
                 })
+            continue
+
+        attach_next(lineno, raw, stripped, False, False)
+
+        # ── prose scan (anything not rowish, headings included)
+        if rows_only or stripped.startswith("|"):
+            continue
+        spans = []
+        for rmatch in _RANGE_RE.finditer(raw):
+            spans.append((rmatch.start(), rmatch.end()))
+            lo, hi = int(rmatch.group(1)), int(rmatch.group(2))
+            if lo <= hi and hi - lo <= RANGE_EXPANSION_LIMIT:
+                scan["ranges"].append({"line": lineno, "lo": lo, "hi": hi})
+        for mmatch in _MENTION_RE.finditer(raw):
+            if any(lo <= mmatch.start() < hi for lo, hi in spans):
+                continue   # endpoint of a range — the expansion covers it
+            if _is_negated(raw, mmatch.start()):
+                continue
+            scan["mentions"].append({
+                "line": lineno, "digits": mmatch.group(1),
+                "num": int(mmatch.group(1)),
+            })
 
     return scan
 
@@ -650,6 +664,20 @@ def sort_findings(findings):
         f["check"],
         f["dnum"] if f["dnum"] is not None else -1,
     ))
+
+
+def detect(lines):
+    """Pure detection over in-memory lines: scan + every check +
+    precedence + deterministic sort, no I/O anywhere. This is the API
+    repair tooling calls after doing its OWN strict read — one source
+    of truth for what 'broken' (and every other class) means, two
+    policies for reading (this tool's CLI reads with errors="replace";
+    vault_repair must strict-decode or abort)."""
+    scan = scan_lines(lines)
+    index_nums = {r["num"] for r in scan["rows"]}
+    findings, shape = run_checks(scan, index_nums, set(CHECKS))
+    return {"scan": scan, "shape": shape,
+            "findings": sort_findings(apply_precedence(findings))}
 
 
 # ───────────────────── baseline ratchet (adoption) ─────────────────────

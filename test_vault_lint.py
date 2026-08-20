@@ -627,6 +627,47 @@ class TestReadOnlyGuarantee(Fixture):
         self.assertNotIn("--fix", help_text)
 
 
+class TestScanLinesEquivalence(Fixture):
+
+    def test_scan_file_equals_scan_lines(self):
+        """The refactor contract: scan_file(path) is a thin I/O wrapper
+        and scan_lines(lines) is the single source of classification
+        truth. Both must produce identical results on the same content
+        — including CRLF files (whose handle-iterated lines end \n
+        after universal-newline translation while a raw keepends split
+        yields \r\n; rstrip inside scan_lines absorbs the difference)
+        and U+2028 (which neither Python text I/O nor a \n-only split
+        treats as a line break)."""
+        fixtures = {
+            "plain.md": HEADER + row(100) + row(101) +
+                        "\nSee D-900.\n| D-102\ncontinues | FILED |\n",
+            "crlf.md": (HEADER + row(100) + row(101)).replace("\n", "\r\n"),
+            "u2028.md": HEADER + row(100) +
+                        "prose with\u2028inside one line\n" + row(101),
+            "nofinal.md": HEADER + row(100) + "| D-101 | x | y | FILED |",
+        }
+        for name, content in fixtures.items():
+            path = self.write(name, content, newline="")
+            via_file = vl.scan_file(path)
+            for key in ("path", "size"):
+                via_file.pop(key)
+            parts = content.split("\n")
+            lines = [p + "\n" for p in parts[:-1]]
+            if parts[-1] != "":
+                lines.append(parts[-1])
+            via_lines = vl.scan_lines(lines)
+            self.assertEqual(via_file, via_lines, name)
+
+    def test_detect_is_pure_and_matches_cli_findings(self):
+        path = self.write("STATE.md", HEADER + row(100) + row(100) +
+                          "\nSee D-900.\n")
+        with open(path, "r", encoding="utf-8") as handle:
+            det = vl.detect(handle.readlines())
+        _, out, _ = run([path, "--json"])
+        cli = json.loads(out)["findings"]
+        self.assertEqual(det["findings"], cli)
+
+
 class TestExplain(Fixture):
 
     def test_explain_carries_the_institutional_memory(self):
