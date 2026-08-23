@@ -119,16 +119,21 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | test_thumb_check.py | 30 tests incl. the 75px adjacency regression (test 15). | 1 |
 | vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] only; strict decode; byte-faithful; descending apply; verified backup. | 1 |
 | test_vault_repair.py | 33 tests incl. the war-game closures (U+2028, CRLF, BOM, identity-compare). | 1 |
-| .gitignore | Ignores Python bytecode and config/identity.json. Protects W2/W3 — treat as TIER 0. | 0 |
+| gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. | 1 |
+| test_gate_run.py | 29 tests (T1-T28 + env-requirement case): pipe-bug lock, HUNG/grandchild, write-surface snapshot diff, partial-never-pass. | 1 |
+| .gitignore | Ignores Python bytecode, config/identity.json, and gate_run's write surfaces (gate_receipts.jsonl, reports/). Protects W2/W3 — treat as TIER 0. | 0 |
 | CLAUDE.md | This contract. | 2 |
 
-Full suite baseline 2026-08-23: **149 tests, all green**
-(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_thumb_check`).
+Full suite baseline 2026-08-23: **178 tests, all green**
+(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_thumb_check test_gate_run`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of
 2026-08-23): publisher.py, config/pricing.json, config/identity.json,
 sku_check.py, link_audit.py, heartbeat_check.py, runlog.py,
-gate_menu.py, gate_run.py, Tools/Automation/, STATE.md. They live on
+gate_menu.py, Tools/Automation/, STATE.md. (gate_run.py now lives HERE;
+court waived the fleet-file commit 2026-08-23 — the fleet stays
+vault-side, and gate_run's pre-flight reports the absent tools as
+CANT_START on any box where they are missing, which is the design.) They live on
 Sonnet's machine / the vault. An earlier push from this environment
 failed (403 — the GitHub grant for khinechan/TTI is read-only), so
 GitHub's copy of this repo is EMPTY and this clone carries unpushed

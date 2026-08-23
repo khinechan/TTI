@@ -5,3 +5,8 @@ __pycache__/
 # Never commit business identifiers (W2/W3). The file may not exist
 # in every clone; the ignore protects the day it lands.
 config/identity.json
+
+# gate_run.py write surfaces — machine-generated, never committed.
+gate_receipts.jsonl
+reports/
+vault_lint_baseline.json
