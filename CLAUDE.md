@@ -117,16 +117,16 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | test_vault_lint.py | 51 tests: 42 base + 6 addendum-convention (31-36) + 3 console-encoding. | 1 |
 | thumb_check.py | Thumbnail legibility gate: loads the PNG, two-map adjacency (restricted candidate set), blob verdicts, survival, --audit-palette. Pillow is its single allowed dependency. | 1 |
 | test_thumb_check.py | 30 tests incl. the 75px adjacency regression (test 15). | 1 |
-| vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] plus the v1.1 --close-only batch mode (frozen class v1.0, one confirmation, no bypass, never a gate stage). Strict decode; byte-faithful; descending apply; verified backup. | 1 |
+| vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] plus the v1.1 --close-only batch mode (frozen class v1.1 per D-382, one confirmation, no bypass, never a gate stage). Strict decode; byte-faithful; descending apply; verified backup. | 1 |
 | test_vault_repair.py | 33 v1.0 tests incl. the war-game closures (U+2028, CRLF, BOM, identity-compare). UNEDITED since v1.0. | 1 |
-| test_vault_repair_close.py | 24 v1.1 tests: D-363 ground truth (33-in/6-out exactly), frozen-class boundary, no-bypass source scan, gate exclusion, batch byte fidelity. | 1 |
+| test_vault_repair_close.py | 25 v1.1 tests: D-363 ground truth + D-382 backtick-decoy regression, (33-in/6-out exactly), frozen-class boundary, no-bypass source scan, gate exclusion, batch byte fidelity. | 1 |
 | PLAN_vault_repair_v1.1.md | The TIER-0 plan for the --close-only build (survives compaction). | 2 |
 | gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. | 1 |
 | test_gate_run.py | 29 tests (T1-T28 + env-requirement case): pipe-bug lock, HUNG/grandchild, write-surface snapshot diff, partial-never-pass. | 1 |
 | .gitignore | Ignores Python bytecode, config/identity.json, and gate_run's write surfaces (gate_receipts.jsonl, reports/). Protects W2/W3 — treat as TIER 0. | 0 |
 | CLAUDE.md | This contract. | 2 |
 
-Full suite baseline 2026-08-23: **211 tests, all green**
+Full suite baseline 2026-08-23: **212 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of

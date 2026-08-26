@@ -187,7 +187,28 @@ class TestPredicate(Fixture):
         eight = approved_body(97, "DOCTRINE", "D-090, D-026")
         self.assertEqual(eight.rstrip().count("|"), 8)
         self.assertTrue(vr.is_close_only(candidate(eight, 97))[0])
-        self.assertEqual(vr.CLOSE_ONLY_CLASS_VERSION, "1.0")
+        # class v1.1 (D-382): backticked pipes no longer count toward
+        # the separator bar. D-097's STRIPPED count is exactly the bar
+        # (5), so it still classifies — the raw 8 never mattered.
+        self.assertEqual(vr.CLOSE_ONLY_CLASS_VERSION, "1.1")
+
+    def test_T02b_d382_backticked_decoy_pipes_do_not_classify(self):
+        """D-382 regression, caught by the live canary: a row whose
+        backtick-quoted pipes push its RAW count to the threshold must
+        NOT classify. The real-world case is the D-316 shape — its
+        prose contains '| D-316 |' inside backticks, the row literally
+        describing this bug class. Verify caught the v1.0 escape before
+        any write; this test keeps the predicate honest forever."""
+        body = ("| D-316 | 2026-01-01 | the row `| D-316 |` describes "
+                "this bug class")
+        self.assertEqual(body.count("|"), 5)          # raw hits the bar
+        ok, reason = vr.is_close_only(candidate(body, 316))
+        self.assertFalse(ok)
+        self.assertIn("backtick-quoted pipes excluded", reason)
+        self.assertIn("D-382", reason)
+        # an UNPAIRED backtick stays literal — the regex eats pairs only
+        unpaired = "| D-200 | 2026-01-01 | text with one ` mark | ACTIVE | D-100"
+        self.assertTrue(vr.is_close_only(candidate(unpaired, 200))[0])
 
     def test_T03_addendum_format_row_is_not_close_only(self):
         """Upstream-coupling guard: ROW_PATTERN was widened in D-376 to
@@ -414,7 +435,8 @@ class TestBatchMode(Fixture):
         receipts = os.path.join(self.dir, vr.RECEIPTS_NAME)
         with open(receipts, encoding="utf-8") as handle:
             receipt = json.loads(handle.readline())
-        self.assertEqual(receipt["class_version"], "1.0")
+        self.assertEqual(receipt["class_version"],
+                         vr.CLOSE_ONLY_CLASS_VERSION)
         for field in ("candidates_total", "classified_close_only",
                       "classified_other", "verify_passed",
                       "verify_failed", "applied", "skipped"):

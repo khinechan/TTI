@@ -64,8 +64,21 @@ TEMP_SUFFIX = ".vault_repair.tmp"
 # 2026-08-20). The predicate is frozen by fixture: any edit that changes
 # what it matches fails the ground-truth test, so widening the class is
 # a deliberate act with a court ruling behind it, not a quiet commit.
-CLOSE_ONLY_CLASS_VERSION = "1.0"
+# v1.1 (D-382): the live canary caught v1.0 of this class counting
+# backtick-quoted decoy pipes — D-316's prose contains "| D-316 |"
+# inside backticks, the row literally describing this bug class, and
+# the decoys pushed its raw count to the threshold. Verify caught it
+# before any write; the predicate now counts pipes on a
+# backtick-stripped copy. Narrowing the class is a deliberate act with
+# a ruling behind it — this is the ruling.
+CLOSE_ONLY_CLASS_VERSION = "1.1"
 CLOSE_CHAR = "|"
+
+# Backtick-paired spans are prose quoting, not cell structure; the
+# regex eats PAIRS only, so an unpaired backtick stays literal (which
+# is correct). Used by CLASSIFICATION only — verify's raw-count
+# comparison stays as is.
+BACKTICK_SPAN = r"`[^`]*`"
 CLOSE_ONLY_PIPES_OFFSET = -1     # a finished row's pipe count, minus its
                                  # missing closing pipe: every separator
                                  # must already be present on the line
@@ -253,15 +266,19 @@ def is_close_only(candidate):
         return False, ("no dominant column shape to judge the separator "
                        "count against")
     required = dominant + CLOSE_ONLY_PIPES_OFFSET
-    pipes = rst.count(CLOSE_CHAR)
+    # D-382: count on a backtick-stripped copy — backticked pipes are
+    # quoted prose, not separators, and counting them classified the
+    # exact row that describes this bug.
+    pipes = re.sub(BACKTICK_SPAN, "", rst).count(CLOSE_CHAR)
     if pipes < required:
         return False, ("only %d of the %d separators a finished row "
-                       "carries before its closing pipe — cells are "
-                       "missing or continue on later lines"
-                       % (pipes, required))
-    return True, ("all cell separators present (%d pipes, dominant %d); "
-                  "content complete on this line — the fix is appending "
-                  "the single closing '%s'" % (pipes, dominant, CLOSE_CHAR))
+                       "carries before its closing pipe (backtick-quoted "
+                       "pipes excluded, D-382) — cells are missing or "
+                       "continue on later lines" % (pipes, required))
+    return True, ("all cell separators present (%d structural pipes, "
+                  "dominant %d; backtick-quoted pipes excluded); content "
+                  "complete on this line — the fix is appending the "
+                  "single closing '%s'" % (pipes, dominant, CLOSE_CHAR))
 
 
 def build_candidates(lines, det):
@@ -817,8 +834,9 @@ Post-apply verification is therefore a second net, not the only one.
 
 --close-only (v1.1) batches exactly one class: rows whose content is
 complete on a single line, missing only the closing pipe (class
-v1.0, frozen against the 33-yes/6-no D-363 ground truth — widening
-it is a test failure, not a judgment call). Batch approval is never
+v1.1, frozen against the 33-yes/6-no D-363 ground truth — widening
+it is a test failure, not a judgment call; v1.1 = D-382, backticked
+decoy pipes no longer count toward the separator bar). Batch approval is never
 batch trust: every match passes the same per-candidate dry-verify, the
 dry-run listing is the approval artifact, and --apply asks exactly
 once. There is no bypass. Live canary: today's STATE.md holds ZERO

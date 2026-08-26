@@ -66,3 +66,10 @@ apply.
 - [x] v1.1 code + tests
 - [x] full suite green (33 unedited + 24 new + rest)
 - [x] CLAUDE.md updated, committed
+
+## D-382 (2026-08-26, court-ordered)
+Live canary caught v1.0 of the class counting backticked decoy
+pipes (the D-316 shape). Fix: classification counts pipes on a
+backtick-stripped copy (BACKTICK_SPAN eats pairs only); verify's
+raw comparison unchanged. CLOSE_ONLY_CLASS_VERSION -> 1.1.
+T1 still exact 33/6 (D-097 stripped count = 5 = the bar).
