@@ -13,8 +13,10 @@ file it cannot faithfully reproduce.
 
 Nothing is written without --apply AND an interactive approval. Dry-run
 performs zero filesystem writes of any kind. --json plus --apply is
-refused (no terminal, no human, no write). There is no --yes, no
---force, no batch mode.
+refused (no terminal, no human, no write). There is no --yes and no
+--force; the --close-only batch mode (v1.1) still confirms
+interactively, exactly once, and a gate_run-launched process is
+refused outright.
 
 Built from the PM FORGE hardened spec (forged 2026-08-20; the document
 header's "2026-08-13" is a recurring template quirk).
@@ -34,6 +36,8 @@ import json
 import os
 import re
 import sys
+import uuid
+from collections import Counter
 from datetime import datetime, timezone
 
 import vault_lint as vl
@@ -54,6 +58,30 @@ JOIN_SEPARATOR = " "
 
 BACKUP_SUFFIX = ".vault_repair.%s.bak"
 TEMP_SUFFIX = ".vault_repair.tmp"
+
+# ── v1.1 close-only batch class (court-ratified 2026-08-26; class
+# definition verbatim from "Vault Repair - 33 Rows for Fable Review.md",
+# 2026-08-20). The predicate is frozen by fixture: any edit that changes
+# what it matches fails the ground-truth test, so widening the class is
+# a deliberate act with a court ruling behind it, not a quiet commit.
+CLOSE_ONLY_CLASS_VERSION = "1.0"
+CLOSE_CHAR = "|"
+CLOSE_ONLY_PIPES_OFFSET = -1     # a finished row's pipe count, minus its
+                                 # missing closing pipe: every separator
+                                 # must already be present on the line
+CLOSE_ONLY_ALLOWS_ADDENDUM = False   # the class was derived from D-363,
+                                     # all plain-numeric IDs; an upstream
+                                     # ROW_PATTERN widening (D-376) must
+                                     # never silently widen this class
+
+# W-F cross-tool contract, repair's half (gate_run's marker-setting half
+# is a queued future ruling): --apply refuses when this is set.
+GATE_RUN_MARKER_ENV = "KCT_GATE_RUN_STAGE"
+
+# The one v1.1 write surface beyond v1.0's: an append-only receipt line
+# per successful batch apply, in the target's own directory. Dry-run
+# writes nothing, ever.
+RECEIPTS_NAME = "vault_repair_receipts.jsonl"
 
 HEADING_PREFIX = vl.HEADING_PREFIX
 FENCE_MARKERS = vl.FENCE_MARKERS
@@ -176,6 +204,66 @@ def _consumable(body):
     return None
 
 
+def _closed_dominant(det):
+    """Dominant column shape from CLOSED rows only (shared by the v1.0
+    interactive path and the v1.1 batch classifier — one definition)."""
+    closed = Counter(r["pipes"] for r in det["scan"]["rows"]
+                     if r["closed"])
+    if not closed:
+        return None, False
+    dominant, dom_n = sorted(closed.items(),
+                             key=lambda kv: (-kv[1], kv[0]))[0]
+    return dominant, (dom_n / sum(closed.values())) >= vl.DOMINANT_MAJORITY
+
+
+def _dry_verify_new_findings(lines, cand, pre_identity):
+    """THE per-candidate dry-verify (W-A: interactive and batch share
+    this exact code path — not a copy, not a fast path): apply just this
+    candidate to an in-memory copy, re-detect, and return the set of
+    findings that are NEW by identity."""
+    trial = apply_to_lines(lines, [cand])
+    post = vl.detect(trial)
+    return _identity(post["findings"]) - pre_identity
+
+
+def is_close_only(candidate):
+    """v1.1 batch classifier, CLOSE_ONLY_CLASS_VERSION above. Pure, no
+    I/O. The class, verbatim from the coining doc: "Full content already
+    present (decision text + status cell + supersedes cell, all there
+    and correct), just missing the single closing |. Nothing to rejoin,
+    no paragraph to merge, no editorial call."
+
+    candidate: {"body": line text without terminator, "pipes": int,
+    "dominant": int or None, "dnum": int}. Returns (bool, reason) — a
+    classification a human cannot audit is not auditable. Structural
+    only: never depends on content bytes. Frozen by the D-363
+    ground-truth fixture (33 in, 6 out, exactly)."""
+    rst = candidate["body"].rstrip()
+    dominant = candidate["dominant"]
+    match = _ROW_RE.match(rst)
+    if not match:
+        return False, ("unclosed ID cell — content may continue onto "
+                       "later lines (split-row class, not close-only)")
+    if not CLOSE_ONLY_ALLOWS_ADDENDUM and match.group(2):
+        return False, ("addendum-format ID — outside the plain-numeric "
+                       "D-363 class this predicate was derived from")
+    if rst.endswith(CLOSE_CHAR):
+        return False, "line already ends with '%s' — not broken" % CLOSE_CHAR
+    if dominant is None:
+        return False, ("no dominant column shape to judge the separator "
+                       "count against")
+    required = dominant + CLOSE_ONLY_PIPES_OFFSET
+    pipes = rst.count(CLOSE_CHAR)
+    if pipes < required:
+        return False, ("only %d of the %d separators a finished row "
+                       "carries before its closing pipe — cells are "
+                       "missing or continue on later lines"
+                       % (pipes, required))
+    return True, ("all cell separators present (%d pipes, dominant %d); "
+                  "content complete on this line — the fix is appending "
+                  "the single closing '%s'" % (pipes, dominant, CLOSE_CHAR))
+
+
 def build_candidates(lines, det):
     """Turn vault_lint's live broken findings into proposals or named
     skips. Every skip names its failing condition; nothing is guessed.
@@ -184,14 +272,7 @@ def build_candidates(lines, det):
     vault_lint's shape statistics include unclosed (broken) rows, so in
     a small file the very rows being repaired would erode the
     confidence needed to validate their own repair."""
-    from collections import Counter
-    closed = Counter(r["pipes"] for r in det["scan"]["rows"]
-                     if r["closed"])
-    dominant, confident = None, False
-    if closed:
-        dominant, dom_n = sorted(closed.items(),
-                                 key=lambda kv: (-kv[1], kv[0]))[0]
-        confident = (dom_n / sum(closed.values())) >= vl.DOMINANT_MAJORITY
+    dominant, confident = _closed_dominant(det)
     broken = [f for f in det["findings"] if f["check"] == "broken"]
     proposals, skipped = [], []
 
@@ -284,9 +365,7 @@ def build_candidates(lines, det):
     pre_identity = _identity(det["findings"])
     verified = []
     for cand in proposals:
-        trial = apply_to_lines(lines, [cand])
-        post = vl.detect(trial)
-        fresh = _identity(post["findings"]) - pre_identity
+        fresh = _dry_verify_new_findings(lines, cand, pre_identity)
         if fresh:
             names = sorted("%s %s" % (check, dlabel or "(file-wide)")
                            for check, dlabel in fresh)
@@ -431,6 +510,220 @@ def atomic_write(path, new_content):
             "and the temp file was removed" % exc)
 
 
+# ──────────────────── v1.1 close-only batch mode ───────────────────────
+
+def classify_close_only(lines, det):
+    """Classify every broken finding against the frozen predicate and
+    dry-verify the matches — the same primitives the interactive path
+    uses. Returns (verified, verify_failed, classified_other)."""
+    dominant, confident = _closed_dominant(det)
+    broken = [f for f in det["findings"] if f["check"] == "broken"]
+    pre_identity = _identity(det["findings"])
+
+    close_list, other_list = [], []
+    for finding in sorted(broken, key=lambda f: f["line"]):
+        body, term = split_terminator(lines[finding["line"] - 1])
+        ok, reason = is_close_only({
+            "body": body, "pipes": body.rstrip().count(CLOSE_CHAR),
+            "dominant": dominant if confident else None,
+            "dnum": finding["dnum"]})
+        entry = {"dnum": finding["dnum"], "dlabel": finding["dlabel"],
+                 "line": finding["line"], "reason": reason}
+        if not ok:
+            other_list.append(entry)
+            continue
+        appended = (CLOSE_CHAR if body and body[-1].isspace()
+                    else JOIN_SEPARATOR + CLOSE_CHAR)
+        proposed_body = body + appended
+        entry.update({
+            "original_body": body,
+            "proposed_body": proposed_body,
+            "proposed_line": proposed_body + term,
+            "appended": appended,
+            "consumed": [],           # close-only consumes nothing, ever
+            "pipes": proposed_body.rstrip().count(CLOSE_CHAR),
+        })
+        close_list.append(entry)
+
+    verified, verify_failed = [], []
+    for cand in close_list:
+        prst = cand["proposed_body"].rstrip()
+        match = _ROW_RE.match(prst)
+        if not match or int(match.group(1)) != cand["dnum"]:
+            cand["condition"] = ("closed row no longer parses as %s"
+                                 % cand["dlabel"])
+            verify_failed.append(cand)
+            continue
+        if dominant is not None and cand["pipes"] != dominant:
+            cand["condition"] = ("closed row has %d pipes, dominant is "
+                                 "%d — honest skip to the interactive "
+                                 "path (W-H)" % (cand["pipes"], dominant))
+            verify_failed.append(cand)
+            continue
+        fresh = _dry_verify_new_findings(lines, cand, pre_identity)
+        if fresh:
+            names = sorted("%s %s" % (check, dlabel or "(file-wide)")
+                           for check, dlabel in fresh)
+            cand["condition"] = ("repair would create new finding(s): %s"
+                                 % ", ".join(names))
+            verify_failed.append(cand)
+            continue
+        verified.append(cand)
+    return broken, verified, verify_failed, other_list
+
+
+def render_close_report(report):
+    """The dry-run listing IS the approval artifact (W-C): a human must
+    be able to tell from it why every candidate was classified as it
+    was. Every count is stated, never derived (W-G)."""
+    out = ["══ VAULT REPAIR — CLOSE-ONLY BATCH ══ %s (%s)  class v%s"
+           % (report["file"], report["mode"], report["class_version"])]
+    c = report["counts"]
+    out.append("candidates_total: %d | classified_close_only: %d | "
+               "classified_other: %d | verify_passed: %d | "
+               "verify_failed: %d | applied: %d | skipped: %d"
+               % (c["candidates_total"], c["classified_close_only"],
+                  c["classified_other"], c["verify_passed"],
+                  c["verify_failed"], c["applied"], c["skipped"]))
+    for cand in report["verified"]:
+        out.append("")
+        out.append("── CLOSE-ONLY ── %s  L%d" % (cand["dlabel"], cand["line"]))
+        out.append("  - %s" % cand["original_body"])
+        out.append("  + %s" % cand["proposed_body"])
+        out.append("    appended: %r   pipes: %d   verify: PASS — 0 new "
+                   "findings by identity" % (cand["appended"], cand["pipes"]))
+        out.append("    reason: %s" % cand["reason"])
+    for cand in report["verify_failed"]:
+        out.append("── VERIFY FAILED ── %s L%d: %s — SKIPPED, routed to "
+                   "the interactive path"
+                   % (cand["dlabel"], cand["line"], cand["condition"]))
+    for entry in report["other"]:
+        out.append("── NOT CLOSE-ONLY ── %s L%d: %s"
+                   % (entry["dlabel"], entry["line"], entry["reason"]))
+    for note in report["notes"]:
+        out.append("NOTE: %s" % note)
+    if report["mode"] == "dry-run":
+        out.append("")
+        out.append("DRY-RUN: zero filesystem writes. This listing is what "
+                   "you approve — re-run with --apply for the single "
+                   "class-level confirmation.")
+    return "\n".join(out)
+
+
+def run_close_only(args):
+    """The batch path. It never enters collect_approvals() — the
+    interactive prompt loop is a separate function this mode does not
+    call (W-E). One confirmation, no bypass (W-D)."""
+    content = read_strict(args.path)
+    fingerprint = file_fingerprint(args.path)
+    lines = split_lines_keepends(content)
+    det = vl.detect(lines)
+    broken, verified, verify_failed, other = classify_close_only(lines, det)
+
+    report = {
+        "file": args.path,
+        "mode": "apply" if args.apply else "dry-run",
+        "class_version": CLOSE_ONLY_CLASS_VERSION,
+        "counts": {
+            "candidates_total": len(broken),
+            "classified_close_only": len(verified) + len(verify_failed),
+            "classified_other": len(other),
+            "verify_passed": len(verified),
+            "verify_failed": len(verify_failed),
+            "applied": 0,
+            "skipped": len(other) + len(verify_failed),
+        },
+        "verified": verified,
+        "verify_failed": verify_failed,
+        "other": other,
+        "notes": [],
+    }
+    proposed = report["counts"]["classified_close_only"]
+    exit_code = EXIT_REPAIRS if proposed else EXIT_NOTHING
+    if not proposed:
+        report["notes"].append("no close-only candidates found — nothing "
+                               "for the batch path to do")
+
+    if not args.apply:
+        print(json.dumps(report, indent=2, sort_keys=True) if args.json
+              else render_close_report(report))
+        return exit_code
+
+    # ── apply ──
+    print(render_close_report(report))
+    if not verified:
+        print("nothing passed verify — nothing to confirm, nothing "
+              "written")
+        return exit_code
+    try:
+        key = read_key("Apply %d close-only fixes?  (class v%s)  [y/N] "
+                       % (len(verified), CLOSE_ONLY_CLASS_VERSION))
+    except (EOFError, KeyboardInterrupt):
+        key = ""
+    if key.strip().lower() != "y":
+        raise RepairError("confirmation declined — nothing written")
+
+    # W8: re-verify in the same code path as the write.
+    if file_fingerprint(args.path) != fingerprint:
+        raise RepairError("file changed between classify and write "
+                          "(sha/size/mtime mismatch) — aborting, nothing "
+                          "written. Re-run to classify fresh content.")
+    new_lines = apply_to_lines(lines, verified)     # W7 descending, shared
+    backup_dir = args.backup_dir or os.path.dirname(
+        os.path.abspath(args.path))
+    backup = write_backup(args.path, content, backup_dir)
+    atomic_write(args.path, "".join(new_lines))
+    report["counts"]["applied"] = len(verified)
+    report["backup_path"] = backup
+
+    post = vl.detect(split_lines_keepends(read_strict(args.path)))
+    post_broken = sum(1 for f in post["findings"] if f["check"] == "broken")
+    fresh = _identity(post["findings"]) - _identity(det["findings"])
+    expected = len(broken) - len(verified)
+    print("applied: %d | backup: %s" % (len(verified), backup))
+    if fresh or post_broken != expected:
+        print("VERIFICATION FAILED: %s. The backup is intact at %s — "
+              "restoring it is a single copy command. Not auto-reverting."
+              % ("new finding(s): %s" % ", ".join(
+                    sorted("%s %s" % p for p in fresh)) if fresh
+                 else "broken count is %d, expected %d"
+                 % (post_broken, expected), backup))
+        return EXIT_ERROR
+    print("verified: broken count %d -> %d, 0 new findings by identity"
+          % (len(broken), post_broken))
+
+    # The one v1.1 write surface beyond v1.0: an append-only receipt.
+    receipt = {
+        "run_id": uuid.uuid4().hex,
+        "written_utc": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"),
+        "file": args.path,
+        "class_version": CLOSE_ONLY_CLASS_VERSION,
+        "counts": report["counts"],
+        "backup_path": backup,
+        "sha_before": fingerprint["sha256"],
+        "sha_after": file_fingerprint(args.path)["sha256"],
+    }
+    receipts_path = os.path.join(os.path.dirname(
+        os.path.abspath(args.path)), RECEIPTS_NAME)
+    try:
+        with open(receipts_path, "a", encoding="utf-8",
+                  newline="") as handle:
+            handle.write(json.dumps(receipt, sort_keys=True,
+                                    separators=(",", ":")) + "\n")
+    except OSError as exc:
+        print("NOTE: receipt not recorded (%s); the apply itself "
+              "succeeded and the backup stands" % exc)
+
+    remaining = len(other) + len(verify_failed)
+    if remaining:
+        print("%d candidate%s remain for the interactive path. Line "
+              "numbers from this run are now STALE — re-run vault_repair "
+              "fresh. Do not reuse this finding list."
+              % (remaining, "" if remaining == 1 else "s"))
+    return EXIT_REPAIRS
+
+
 # ───────────────────────────── rendering ───────────────────────────────
 
 def render_candidate(cand):
@@ -521,6 +814,16 @@ offered: the full rejoin is applied to a copy and any NEW finding
 (compared by identity — (check, D-number), never by line, because every
 repair shifts every later line) refuses the candidate before any write.
 Post-apply verification is therefore a second net, not the only one.
+
+--close-only (v1.1) batches exactly one class: rows whose content is
+complete on a single line, missing only the closing pipe (class
+v1.0, frozen against the 33-yes/6-no D-363 ground truth — widening
+it is a test failure, not a judgment call). Batch approval is never
+batch trust: every match passes the same per-candidate dry-verify, the
+dry-run listing is the approval artifact, and --apply asks exactly
+once. There is no bypass. Live canary: today's STATE.md holds ZERO
+close-only rows — if a run matches anything there, the predicate is
+wider than the class: stop and report, never apply.
 A failed post-apply verification reports loudly and prints the backup
 path; restoring is a single copy. It never auto-reverts — an automatic
 revert is another unapproved write.
@@ -536,7 +839,12 @@ def build_parser():
                     "approve -> apply. Dry-run by default; nothing is "
                     "written without --apply and an interactive y.",
         epilog="exit codes: 0 nothing to repair / 1 repairs proposed or "
-               "applied / 2 tool error or abort")
+               "applied / 2 tool error or abort. In --close-only, a "
+               "declined confirmation is exit 2; the interactive path's "
+               "q remains exit 1 (proposals existed, none applied). "
+               "Repair is human-invoked and never a gate stage: --apply "
+               "refuses outright when " + GATE_RUN_MARKER_ENV + " is "
+               "set in the environment.")
     parser.add_argument("path", nargs="?", help="the STATE.md file")
     parser.add_argument("--json", action="store_true",
                         help="machine-readable dry-run (refused with "
@@ -547,6 +855,14 @@ def build_parser():
     parser.add_argument("--backup-dir", metavar="DIR",
                         help="write the backup here instead of the "
                              "target's directory (must exist)")
+    parser.add_argument("--close-only", action="store_true",
+                        help="batch mode for one class only: rows whose "
+                             "content is complete on one line, missing "
+                             "the single closing pipe. Dry-run lists and "
+                             "classifies; --apply asks exactly once for "
+                             "the whole class. Declining the batch "
+                             "confirmation is exit 2 (interactive q "
+                             "remains exit 1).")
     parser.add_argument("--explain", action="store_true",
                         help="the walls and the verified failures "
                              "behind them")
@@ -578,6 +894,14 @@ def main(argv=None):
         if args.backup_dir and not os.path.isdir(args.backup_dir):
             raise RepairError("--backup-dir does not exist: %s"
                               % args.backup_dir)
+        if args.apply and os.environ.get(GATE_RUN_MARKER_ENV):
+            raise RepairError(
+                "refusing --apply: %s is set in the environment — this "
+                "process was launched by gate_run. Repair is "
+                "human-invoked and never a gate stage (W-F); nothing "
+                "was written." % GATE_RUN_MARKER_ENV)
+        if args.close_only:
+            return run_close_only(args)
 
         # SECTION 1: fresh scan, never stale — live detection at
         # execution time, own strict read.

@@ -10,3 +10,4 @@ config/identity.json
 gate_receipts.jsonl
 reports/
 vault_lint_baseline.json
+vault_repair_receipts.jsonl
