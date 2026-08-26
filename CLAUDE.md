@@ -113,8 +113,8 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 |---|---|---|
 | color_check.py | Design color validator: garment palettes, contrast floors, explicit bars, outline rules. Fail-closed gate, exit 0/1/2. Source of truth for palettes — thumb_check imports from it. | 1 |
 | test_color_check.py | 44 tests incl. the rule audit (test 18) and regression-locked ratios. | 1 |
-| vault_lint.py | Read-only integrity linter for STATE.md decision logs. No --fix flag, ever. Pure detection API: scan_lines() / detect(). Heartbeat appends to runlog.txt only if it exists. | 1 |
-| test_vault_lint.py | 42 tests incl. three-layer read-only guarantee and scan_file/scan_lines equivalence. | 1 |
+| vault_lint.py | Read-only integrity linter for STATE.md decision logs. No --fix flag, ever. Pure detection API: scan_lines() / detect(). ROW_PATTERN knows the two addendum ID shapes (D-376); UTF-8 console reconfigure (D-380). | 1 |
+| test_vault_lint.py | 51 tests: 42 base + 6 addendum-convention (31-36) + 3 console-encoding. | 1 |
 | thumb_check.py | Thumbnail legibility gate: loads the PNG, two-map adjacency (restricted candidate set), blob verdicts, survival, --audit-palette. Pillow is its single allowed dependency. | 1 |
 | test_thumb_check.py | 30 tests incl. the 75px adjacency regression (test 15). | 1 |
 | vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] only; strict decode; byte-faithful; descending apply; verified backup. | 1 |
@@ -124,7 +124,7 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | .gitignore | Ignores Python bytecode, config/identity.json, and gate_run's write surfaces (gate_receipts.jsonl, reports/). Protects W2/W3 — treat as TIER 0. | 0 |
 | CLAUDE.md | This contract. | 2 |
 
-Full suite baseline 2026-08-23: **178 tests, all green**
+Full suite baseline 2026-08-23: **187 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_thumb_check test_gate_run`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of

@@ -19,6 +19,11 @@ Exit codes:
     2 = tool/input error — file missing, unreadable, ROW_PATTERN matched
         nothing, bad CLI argument
 
+Windows console encoding is handled: stdout/stderr are reconfigured to
+UTF-8 (errors="replace") at startup, so the ══ banners below never raise
+UnicodeEncodeError on a cp1252 console (STATE.md D-378 class). Display
+only -- never touches what gets written to STATE.md/RUNLOG/JSON.
+
 Standard library only.
 """
 
@@ -48,7 +53,24 @@ from datetime import datetime, timezone
 # (Note: zero-width characters are NOT matched by \s, so an ID cell
 # containing one fails this pattern and is caught by the malformed
 # check instead — same alarm, higher precedence.)
-ROW_PATTERN = r"^\|\s*D-(\d+)\s*\|"
+#
+# Group 2 (optional) admits the vault's two historical sub-decision-ID
+# conventions — found D-359 (2026-08-19), taught here per D-376
+# (2026-08-23, court ruling "B — teach vault_lint the old formats"):
+#   - a single lowercase letter directly after the digits: "D-102b"
+#   - the word "addendum" after a run of \s (still Unicode-aware, so
+#     \xa0 works here too): "D-144 addendum"
+# Both shapes land in the SAME group so digits (group 1) stays pure
+# numeric — int(group(1)) must never see a letter. A row matched via
+# group 2 is flagged is_addendum=True downstream and excluded from the
+# padding and order checks: an addendum legitimately reuses its
+# parent's number out of sequence, and reuses it on purpose — that is
+# not a defect. Anything that doesn't cleanly fit one of these two
+# exact shapes ("D-102bb", "D-144addendum" with no space) is
+# deliberately left UNMATCHED so it still falls through to the
+# malformed check — this pattern stays strict, it just now recognizes
+# two more strict shapes instead of going loose in general.
+ROW_PATTERN = r"^\|\s*D-(\d+)(\s+addendum|[a-z])?\s*\|"
 
 # A laxer prefix used only to salvage a D-number from a damaged row for
 # reporting (e.g. "| D-316" with no closing pipe). Never used to admit a
@@ -353,14 +375,17 @@ def scan_lines(lines, rows_only=False):
         match = _ROW_RE.match(rst)
         if match:
             attach_next(lineno, raw, stripped, False, True)
-            digits = match.group(1)
+            base_digits = match.group(1)
+            suffix = match.group(2) or ""
+            digits = base_digits + suffix
             parts = rst.split("|")
             cells = parts[1:-1] if rst.endswith("|") else parts[1:]
             record = {
                 "line": lineno, "raw": rst, "digits": digits,
-                "num": int(digits), "pipes": rst.count("|"),
+                "num": int(base_digits), "pipes": rst.count("|"),
                 "cells": cells, "id_cell": parts[1] if len(parts) > 1 else "",
                 "closed": rst.endswith("|"), "next": None,
+                "is_addendum": bool(suffix),
             }
             scan["rows"].append(record)
             pending = record
@@ -584,6 +609,10 @@ def run_checks(scan, index_nums, selected):
     if "padding" in selected:
         forms = {}
         for rec in rows:
+            if rec["is_addendum"]:
+                continue   # a "D-144 addendum"/"D-102b" row legitimately
+                           # reuses its parent's number — not a padding
+                           # collision, so it never enters this comparison
             forms.setdefault(rec["num"], set()).add(rec["digits"])
         for num in sorted(forms):
             if len(forms[num]) > 1:
@@ -628,6 +657,10 @@ def run_checks(scan, index_nums, selected):
     if "order" in selected:
         max_seen = None
         for rec in rows:
+            if rec["is_addendum"]:
+                continue   # addenda don't participate in the ascending
+                           # walk and never advance max_seen — they're
+                           # expected to sit out of sequence, by design
             if max_seen is not None and rec["num"] < max_seen:
                 add("order", rec["num"], rec["line"], "L%d" % rec["line"],
                     "D-%s appears after D-%d — out of ascending order; "
@@ -886,7 +919,33 @@ def _emit_error(message, as_json):
         sys.stderr.write("ERROR: %s\n" % message)
 
 
+def _ensure_utf8_console():
+    """Reconfigure stdout/stderr for UTF-8 display, substituting any
+    character the console codepage can't render instead of crashing.
+    Windows consoles default to the system codepage (cp1252 etc.), not
+    UTF-8 -- the ══ VAULT LINT ══ banner below raised UnicodeEncodeError
+    there (STATE.md D-378 class -- same bug, third file: color_check.py
+    and thumb_check.py first, this one unmasked once the separate
+    GATE_RUN_STATE_MD path fix let vault_lint actually reach its own
+    render_human() print instead of dying on file-not-found first).
+    Display only -- this never touches what gets written to
+    STATE.md/RUNLOG/JSON, which stay real UTF-8 bytes regardless (same
+    display-vs-stored split as gate_run.py's own W14 stdout_text/
+    stderr_text decode). No-op if the stream doesn't support
+    .reconfigure (e.g. a test harness's captured StringIO) -- the fix
+    itself must never become a new crash site.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv=None):
+    _ensure_utf8_console()
     parser = build_parser()
     if argv is None:
         argv = sys.argv[1:]

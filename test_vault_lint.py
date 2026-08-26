@@ -490,6 +490,97 @@ class TestModesAndRobustness(Fixture):
         self.assertIn("rows: 50000", out)
 
 
+# ── 31-36: the D-102b / "D-NNN addendum" historical ID conventions ─────
+# Found D-359 (2026-08-19), left as an undecided court call. Taught to
+# ROW_PATTERN per D-376 (2026-08-23, court ruling "B — teach vault_lint
+# the old formats"). Three-condition court order: both real shapes get
+# a recognition test (31, 32); the shared-base-number case that makes
+# these risky (11 of 13 real addendum rows share a number with an
+# existing separate parent row) gets isolated proofs against dupes,
+# padding, and order specifically (33-35); and the pattern must still
+# reject anything that isn't one of the two exact real shapes (36) —
+# proving it was widened, not loosened.
+
+class TestAddendumRowIDs(Fixture):
+
+    def test_31_letter_suffix_row_is_recognized_not_malformed(self):
+        """'D-102b' is a real historical sub-decision convention, not a
+        typo — a single lowercase letter directly after the digits.
+        Must be recognized as a healthy row: zero findings at all."""
+        path = self.write("STATE.md", HEADER + row(100) + row("101b") + row(102))
+        code, out, _ = run([path, "--json"])
+        self.assertEqual(code, CLEAN_EXIT, out)
+        self.assertEqual(self.findings_of(out), [])
+        with open(path, "r", encoding="utf-8") as handle:
+            scan = vl.scan_lines(handle.readlines())
+        rec = next(r for r in scan["rows"] if r["digits"] == "101b")
+        self.assertTrue(rec["is_addendum"])
+        self.assertEqual(rec["num"], 101)
+
+    def test_32_word_form_addendum_row_is_recognized_not_malformed(self):
+        """'D-144 addendum' is the more common historical form (13 of
+        the 14 live rows use this shape). Must be recognized as a
+        healthy row: zero findings at all, even though it shares its
+        base number with an existing separate parent row here."""
+        path = self.write("STATE.md", HEADER + row(100) +
+                          row("100 addendum") + row(101))
+        code, out, _ = run([path, "--json"])
+        self.assertEqual(code, CLEAN_EXIT, out)
+        self.assertEqual(self.findings_of(out), [])
+        with open(path, "r", encoding="utf-8") as handle:
+            scan = vl.scan_lines(handle.readlines())
+        rec = next(r for r in scan["rows"] if r["digits"] == "100 addendum")
+        self.assertTrue(rec["is_addendum"])
+        self.assertEqual(rec["num"], 100)
+
+    def test_33_addendum_sharing_parent_number_is_not_a_dupe(self):
+        """The real risk: an addendum sharing a base number with an
+        existing separate parent row (D-100 and D-100 addendum) is the
+        whole point of the convention, not a copy-paste collision."""
+        path = self.write("STATE.md", HEADER + row(100) +
+                          row("100 addendum") + row(101))
+        _, out, _ = run([path, "--json"])
+        dupes = [f for f in self.findings_of(out) if f["check"] == "dupes"]
+        self.assertEqual(dupes, [])
+
+    def test_34_addendum_sharing_parent_number_is_not_padding(self):
+        """Same scenario as 33, checked against the padding check: two
+        different digit-strings under one num (100, '100 addendum')
+        must not read as a mixed zero-padding collision."""
+        path = self.write("STATE.md", HEADER + row(100) +
+                          row("100 addendum") + row(101))
+        _, out, _ = run([path, "--json"])
+        padding = [f for f in self.findings_of(out) if f["check"] == "padding"]
+        self.assertEqual(padding, [])
+
+    def test_35_addendum_out_of_sequence_is_not_an_order_finding(self):
+        """An addendum row legitimately reuses its parent's (earlier,
+        lower) number on purpose, however much later it's filed — that
+        is not an insertion error and must not trip the order check."""
+        path = self.write("STATE.md", HEADER + row(100) + row(150) +
+                          row("100 addendum") + row(151))
+        _, out, _ = run([path, "--json"])
+        order = [f for f in self.findings_of(out) if f["check"] == "order"]
+        self.assertEqual(order, [])
+
+    def test_36_genuine_near_miss_is_still_malformed(self):
+        """The pattern was widened by exactly two shapes, not loosened
+        in general. A double-letter suffix or a missing space before
+        'addendum' are not conventions found anywhere in the vault and
+        must still be caught, same as any other malformed row."""
+        path = self.write("STATE.md", HEADER + row(100) +
+                          "| D-102bb | 2026-07-23 | text | FILED |\n" +
+                          "| D-144addendum | 2026-07-01 | text | FILED |\n" +
+                          row(103))
+        code, out, _ = run([path, "--json"])
+        self.assertEqual(code, FINDINGS_EXIT)
+        malformed_msgs = [f["message"] for f in self.findings_of(out)
+                          if f["check"] == "malformed"]
+        self.assertEqual(len(malformed_msgs), 2)
+        self.assertTrue(any("102bb" in m for m in malformed_msgs))
+        self.assertTrue(any("144addendum" in m for m in malformed_msgs))
+
+
 # ── the read-only guarantee: three independent layers ──────────────────
 
 class TestReadOnlyGuarantee(Fixture):
@@ -680,6 +771,55 @@ class TestExplain(Fixture):
         self.assertIn("root mechanism unconfirmed", out)   # truthful history
         self.assertIn("PREVENTIVE", out)                   # NBSP not claimed as cause
         self.assertIn("never modifies", out)
+
+
+# ── Windows console-encoding fix (STATE.md D-378 class, 3rd file) ──────
+
+class TestConsoleEncoding(Fixture):
+    """vault_lint.py crashed with UnicodeEncodeError on a real Windows
+    cp1252 console the moment its own GATE_RUN_STATE_MD path bug got
+    fixed and it could finally reach render_human()'s print -- the
+    ══ VAULT LINT ══ banner isn't representable in that codepage
+    (STATE.md D-378 class, same bug already fixed in color_check.py and
+    thumb_check.py). Fixed the same way: reconfigure stdout/stderr to
+    UTF-8 (errors="replace") at the top of main(). These tests exist
+    because the fix itself is a way this suite could quietly stop
+    testing anything: every test above runs main() under
+    redirect_stdout(io.StringIO()), and io.StringIO has no .reconfigure
+    -- a careless fix would have broken the whole suite the instant it
+    landed, not just the Windows crash it was meant to close.
+    """
+
+    def test_reconfigure_is_a_noop_on_a_plain_stringio(self):
+        """io.StringIO has no .reconfigure -- the same shape every test
+        above's own run() helper swaps in. If this raised, the whole
+        suite would already be red; this names the reason it isn't."""
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            vl._ensure_utf8_console()  # must not raise AttributeError
+
+    def test_reconfigure_is_called_with_utf8_replace_when_supported(self):
+        """When the stream DOES support .reconfigure (the real case on
+        a live console), confirm the fix calls it with the right args --
+        not just that it's safe to call when it's absent."""
+        calls = []
+
+        class FakeStream:
+            def reconfigure(self, **kwargs):
+                calls.append(kwargs)
+
+        with redirect_stdout(FakeStream()), redirect_stderr(FakeStream()):
+            vl._ensure_utf8_console()
+        self.assertEqual(calls, [{"encoding": "utf-8", "errors": "replace"}] * 2)
+
+    def test_human_report_banner_survives_the_fix(self):
+        """The exact crash site: a clean run's human-mode report prints
+        the ══ VAULT LINT ══ banner through render_human(). Confirms it
+        still comes through whole post-fix."""
+        path = self.clean_state()
+        code, out, _ = run([path])
+        self.assertEqual(code, CLEAN_EXIT, out)
+        self.assertIn("VAULT LINT", out)
 
 
 if __name__ == "__main__":
