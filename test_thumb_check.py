@@ -65,6 +65,19 @@ class Fixture(unittest.TestCase):
         img.save(path)
         return path
 
+    def flat_soft(self, left, right, blur, garment, name="flat.png"):
+        """Flattened 2-color art with soft (anti-aliased) edges on the
+        garment color — what a generator export or Photoshop flatten
+        produces. The construction that reproduced both real-run
+        phantom-color false positives."""
+        from PIL import ImageFilter
+        garment_rgb = tc.hex_to_rgb(cc.GARMENTS[garment]["hex"])
+        img = Image.new("RGB", (1400, 1400), garment_rgb)
+        img.paste(left, (200, 300, 700, 1100))
+        img.paste(right, (700, 300, 1200, 1100))
+        img = img.filter(ImageFilter.GaussianBlur(blur)).convert("RGBA")
+        return self.save(img, name)
+
     def touching_pair(self, left, right, name="design.png"):
         """Two large rectangles sharing a vertical center edge."""
         img = self.canvas()
@@ -246,11 +259,16 @@ class TestOriginal(Fixture):
             self.assertLess(size_rep["off_pct_tile"], tc.OFF_PALETTE_ERROR_PCT)
 
     def test_14_outline_ring_is_exempt_from_blob_verdicts(self):
+        """RULING UPDATE D-341/D-342/D-343: outlines are per-garment.
+        Black's outline is now gold (aliasing the gold bucket — no
+        separate outline bucket exists there), so the exempt-outline
+        mechanism lives on sport grey, whose ruled outline #0C0C0C has
+        its own bucket."""
         img = self.canvas((800, 800))
         self.rect(img, (188, 188, 612, 612), OUTLINE)   # ring under...
-        self.rect(img, (200, 200, 600, 600), GOLD)      # ...the gold field
+        self.rect(img, (200, 200, 600, 600), FOREST)    # ...a forest field
         path = self.save(img)
-        code, out, _ = run([path, "black", "--json"])
+        code, out, _ = run([path, "sport grey", "--json"])
         report = self.report_of(out)
         self.assertNotEqual(report["verdict"], "FAIL")
         self.assertTrue(report["outline_declared"])
@@ -263,6 +281,17 @@ class TestOriginal(Fixture):
             for row in s["buckets"]:
                 if row["name"] == "outline":
                     self.assertIsNone(row["caveat"])
+
+    def test_14b_black_outline_aliases_gold_no_phantom_bucket(self):
+        """On black the ruled outline IS gold: outline pixels count as
+        gold and no separate outline bucket exists — two buckets with
+        one RGB would make nearest-neighbor attribution ambiguous."""
+        names = [n for n, _h, _r in tc.palette_for("black")]
+        self.assertNotIn("outline", names)
+        self.assertIn("outline", [n for n, _h, _r
+                                  in tc.palette_for("sport grey")])
+        self.assertNotIn("outline", [n for n, _h, _r
+                                     in tc.palette_for("dark heather")])
 
 
 # ── 15-24: ways this gate could be wrong while looking right ───────────
@@ -310,22 +339,22 @@ class TestGateIntegrity(Fixture):
         self.assertNotIn(frozenset(("gold", "dusty blue")), pairs45)
 
     def test_16_blend_pollution_is_caveated_never_fact(self):
-        """VERIFIED: on an outline-free fixture the outline bucket picks
-        up design-vs-GARMENT edge blends passing near #0C0C0C on dark
-        garments (this machine: 1.5% of the 75px tile, 5.7% at 45px).
-        The bucket must be zero or explicitly caveated."""
-        path = self.touching_pair(GOLD, DBLUE)
-        _, out, _ = run([path, "black", "--json"])
+        """RULE-CHANGE UPDATE (2026-08-28 phantom fix): the caveat is
+        generalized — ANY bucket without near-exact pixels at full res
+        is blend pollution and says so. The canonical case is the
+        phantom-plum fixture: plum shows in the tolerance bucket map,
+        carries the caveat, and never reaches a verdict."""
+        path = self.flat_soft(CHOCOLATE, FOREST, 5, "sport grey")
+        _, out, _ = run([path, "sport grey", "--json"])
         report = self.report_of(out)
-        self.assertFalse(report["outline_declared"])
         caveated = 0
         for size_rep in report["sizes"].values():
             for row in size_rep["buckets"]:
-                if row["name"] == "outline" and row["px"] > 0:
+                if row["name"] == "plum" and row["px"] > 0:
                     self.assertIsNotNone(row["caveat"], row)
                     caveated += 1
         self.assertGreater(caveated, 0)   # the pollution actually occurs
-        _, human, _ = run([path, "black"])
+        _, human, _ = run([path, "sport grey"])
         self.assertIn("CAVEAT", human)
 
     def test_17_palette_audit_locks_todays_reality(self):
@@ -462,7 +491,7 @@ class TestGateIntegrity(Fixture):
         wiring is live, not a stale copy."""
         self.assertIs(tc.GARMENTS, cc.GARMENTS)
         self.assertIs(tc.PALETTES, cc.PALETTES)
-        self.assertIs(tc.OUTLINE, cc.OUTLINE)
+        self.assertIs(tc.OUTLINES, cc.OUTLINES)
 
     def test_explain_carries_the_verified_numbers(self):
         code, out, _ = run(["--explain"])
@@ -472,7 +501,9 @@ class TestGateIntegrity(Fixture):
         self.assertIn("sage wall", out)
         self.assertIn("80 / 45 / 27", out)
         self.assertIn("0 of 10", out)
-        self.assertIn("D-311", out)
+        self.assertIn("D-341", out)          # per-garment outline ruling
+        self.assertIn("phantom", out)        # the 2026-08-28 fix
+        self.assertIn("declared", out)
 
     def test_footer_and_help_state_simulation_scope(self):
         path = self.touching_pair(GOLD, DBLUE)
@@ -482,6 +513,82 @@ class TestGateIntegrity(Fixture):
         help_text = tc.build_parser().format_help()
         self.assertIn("not a promise", help_text)
         self.assertIn("DTG ink", help_text)
+
+
+# ── phantom third color (Open Flags 2026-08-28) ────────────────────────
+
+class TestPhantomColorRegression(Fixture):
+    """Both real-run false positives, synthesized and pixel-verified in
+    this repo BEFORE the fix landed (session receipts, 2026-08-28):
+
+      ink+forest, flattened, blur 5, sport grey — PRE-FIX output:
+        detected included 'plum';
+        WARN chocolate ink / plum at 140, 75, AND 45px (1.33:1)
+      ink+burgundy, flattened, blur 6, sport grey — PRE-FIX output:
+        detected included 'plum';
+        FAIL burgundy / plum 1.03:1 at 140 and 45px -> exit 1
+
+    Mechanism: ink+garment and ink+fill edge blends land inside plum's
+    tolerance-40 bucket (72% ink + 28% grey buckets to plum) and
+    crossed the 0.5% detection floor. The fix declares colors from
+    near-exact pixels only, so a legal 2-color design can never report
+    a third. W5: these assertions must never be loosened to pass."""
+
+    def declared_and_pair_names(self, path, garment):
+        code, out, _ = run([path, garment, "--json"])
+        report = self.report_of(out)
+        names = set()
+        for size_rep in report["sizes"].values():
+            for p in size_rep["pairs"]:
+                names.add(p["a"])
+                names.add(p["b"])
+        return code, report, names
+
+    def test_25_ink_forest_reports_no_phantom_plum(self):
+        path = self.flat_soft(CHOCOLATE, FOREST, 5, "sport grey")
+        code, report, pair_names = self.declared_and_pair_names(
+            path, "sport grey")
+        self.assertEqual(code, PASS)
+        self.assertNotIn("plum", report["full_res"]["detected"])
+        self.assertLessEqual(pair_names,
+                             {"chocolate ink", "forest", "outline"})
+        self.assertFalse([f for f in report["findings"]
+                          if "plum" in f["name"]])
+
+    def test_26_ink_burgundy_never_crosses_into_a_phantom_fail(self):
+        path = self.flat_soft(CHOCOLATE, BURGUNDY, 6, "sport grey")
+        code, report, pair_names = self.declared_and_pair_names(
+            path, "sport grey")
+        self.assertEqual(code, PASS)          # pre-fix: exit 1
+        self.assertNotIn("plum", report["full_res"]["detected"])
+        self.assertFalse([f for f in report["findings"]
+                          if f["severity"] == "FAIL"])
+        # the REAL pair may warn honestly — burgundy/ink is 1.37, in
+        # the band — but no pair may involve an undeclared color.
+        self.assertLessEqual(pair_names,
+                             {"chocolate ink", "burgundy", "outline"})
+
+    def test_27_soft_edges_still_detect_both_real_colors(self):
+        """Strict declaration must not throw away the REAL colors:
+        blurred plateaus keep near-exact interiors."""
+        path = self.flat_soft(CHOCOLATE, FOREST, 6, "sport grey")
+        _, out, _ = run([path, "sport grey", "--json"])
+        detected = self.report_of(out)["full_res"]["detected"]
+        self.assertIn("chocolate ink", detected)
+        self.assertIn("forest", detected)
+
+    def test_28_hard_edged_two_color_design_unchanged(self):
+        """The fix must not disturb exact-hex flat art: the adjacency
+        regression numbers (test 15) still hold, asserted here on the
+        sport grey legal pair."""
+        path = self.touching_pair(FOREST, CHOCOLATE)
+        code, out, _ = run([path, "sport grey", "--json"])
+        self.assertEqual(code, PASS)
+        report = self.report_of(out)
+        pair = report["sizes"]["140"]["pairs"][0]
+        self.assertEqual({pair["a"], pair["b"]},
+                         {"forest", "chocolate ink"})
+        self.assertEqual(pair["verdict"], "OK")
 
 
 # ── Windows console-encoding fix (STATE.md D-378) ───────────────────────

@@ -60,10 +60,15 @@ PALETTES = {
 
 # The outline role. Never inferred from a hex — the caller declares it
 # with --outline, because the tool cannot see the art.
-OUTLINE = {
-    "hex": "#0C0C0C",
-    "name": "outline black",
-    "allowed_classes": ["dark"],
+# PER-GARMENT since D-341/D-342/D-343: each garment has exactly one
+# ruled outline colour, and on the outline path the OUTLINE carries the
+# legibility — it must clear MIN_CONTRAST against the garment (rule R8)
+# while the fill underneath is exempt from the garment-contrast floor.
+# A garment with no entry here has NO ruled outline: the outline path
+# is refused on it, fail closed (dark heather is unruled today).
+OUTLINES = {
+    "black":      {"hex": "#D9A441", "name": "outline gold"},
+    "sport grey": {"hex": "#0C0C0C", "name": "outline black"},
 }
 
 # Checked BEFORE the allowlist so the reason is specific, never generic.
@@ -81,8 +86,10 @@ THRESHOLDS = {
     "MARGINAL_BAND":           0.5,   # passes, but flagged
     "MAX_DESIGN_COLORS":       2,     # outline excluded
     "MIN_INTER_COLOR":         1.5,   # design colour vs design colour
-    "OUTLINE_VISIBILITY_WARN": 1.5,   # outline vs garment
 }
+# (OUTLINE_VISIBILITY_WARN removed with D-341/D-342/D-343: outlines are
+# now the visible boundary element by ruling, so "may read as a visible
+# ring" stopped being a warning and became the intent.)
 
 # Euclidean RGB distance under which a non-allowlisted hex earns a
 # "did you mean ...?" hint. A HINT IN A FAILURE MESSAGE — never a pass.
@@ -93,9 +100,12 @@ RULES = {
     "R2": "design colour must be on this garment's allowlist",
     "R3": "design colour must clear {min}:1 contrast against the garment",
     "R4": "explicit bar for this hex on this garment",
-    "R5": "outline role is permitted on {classes} garments only",
+    "R5": "outline must be this garment's ruled outline colour "
+          "(per-garment since D-341/D-342/D-343)",
     "R6": "garment must be a known garment",
     "R7": "a design must contain at least one colour",
+    "R8": "on the outline path the outline must clear {min}:1 against "
+          "the garment (the fill underneath is unconstrained)",
 }
 
 FOOTER_NOTE = (
@@ -225,12 +235,16 @@ def validate_config():
                 normalize_hex(hex_color)
             except InputError as exc:
                 raise ConfigError("palette '%s' has a bad hex: %s" % (cls, exc))
-    try:
-        normalize_hex(OUTLINE["hex"])
-    except (InputError, KeyError, TypeError) as exc:
-        raise ConfigError("outline config is broken: %s" % exc)
-    if not OUTLINE.get("allowed_classes"):
-        raise ConfigError("outline config declares no allowed classes")
+    for gname, ruled in OUTLINES.items():
+        if normalize_garment_name(gname) not in GARMENTS:
+            raise ConfigError("OUTLINES names unknown garment '%s'" % gname)
+        try:
+            normalize_hex(ruled["hex"])
+        except (InputError, KeyError, TypeError) as exc:
+            raise ConfigError("outline config for '%s' is broken: %s"
+                              % (gname, exc))
+        if not ruled.get("name"):
+            raise ConfigError("outline for '%s' has no name" % gname)
     for bar in EXPLICIT_BARS:
         for field in ("hex", "name", "garment", "reason"):
             if field not in bar:
@@ -245,7 +259,6 @@ def rule_text(rule_id):
     return RULES[rule_id].format(
         max=THRESHOLDS["MAX_DESIGN_COLORS"],
         min=THRESHOLDS["MIN_CONTRAST"],
-        classes="/".join(OUTLINE["allowed_classes"]),
     )
 
 
@@ -289,8 +302,6 @@ def run_check(garment_input, color_inputs, outline_input=None):
     marginal_ceiling = min_contrast + THRESHOLDS["MARGINAL_BAND"]
     max_colors = THRESHOLDS["MAX_DESIGN_COLORS"]
     min_inter = THRESHOLDS["MIN_INTER_COLOR"]
-    outline_warn = THRESHOLDS["OUTLINE_VISIBILITY_WARN"]
-    outline_hex_canonical = normalize_hex(OUTLINE["hex"])
 
     report = {
         "verdict": "PASS",
@@ -405,9 +416,11 @@ def run_check(garment_input, color_inputs, outline_input=None):
                        "%s against %s %s (rule R2)"
                        % (hex_color, garment_class, fmt_ratio(ratio),
                           garment_name, garment_hex))
-            if hex_color == outline_hex_canonical:
-                hint = ("this is the outline colour — declare the role "
-                        "explicitly with --outline; it is never inferred")
+            ruled = OUTLINES.get(garment_name)
+            if ruled and hex_color == normalize_hex(ruled["hex"]):
+                hint = ("this is %s's ruled outline colour — declare the "
+                        "role explicitly with --outline; it is never "
+                        "inferred" % garment_name)
                 entry["notes"].append(hint)
                 message += " — " + hint
             else:
@@ -424,9 +437,16 @@ def run_check(garment_input, color_inputs, outline_input=None):
             continue
 
         # 7. CONTRAST vs the SPECIFIC GARMENT HEX, never the class.
+        # On the OUTLINE PATH (an outline was declared) the fill is
+        # exempt from the garment-contrast floor: the outline carries
+        # the legibility (D-341/D-342/D-343). Ratio still reported.
         entry["allowed"] = True
         entry["ratio"] = round(ratio, 2)
-        if ratio < min_contrast:
+        if outline_hex is not None:
+            entry["status"] = ("fill under outline — %s vs garment; floor "
+                               "not applied (outline carries legibility)"
+                               % fmt_ratio(ratio))
+        elif ratio < min_contrast:
             entry["status"] = "below %.1f floor" % min_contrast
             entry["rule"] = "R3"
             fail("R3", "%s %s is %s against %s %s — below the %.1f:1 floor"
@@ -444,49 +464,59 @@ def run_check(garment_input, color_inputs, outline_input=None):
             entry["status"] = "OK"
         report["entries"].append(entry)
 
-    # OUTLINE — declared role only. Uncounted, exempt from the floor,
-    # ratio ALWAYS reported.
+    # OUTLINE — declared role only, PER-GARMENT (D-341/D-342/D-343).
+    # Uncounted toward the max. On the outline path the outline itself
+    # carries the legibility: it must clear MIN_CONTRAST against the
+    # garment (rule R8). Ratio ALWAYS reported.
     if outline_hex is not None:
+        ruled = OUTLINES.get(garment_name)
+        ratio = contrast_ratio(outline_hex, garment_hex)
         entry = {
             "hex": outline_hex,
-            "name": OUTLINE["name"],
+            "name": ruled["name"] if ruled else None,
             "role": "outline",
             "allowed": False,
-            "ratio": round(contrast_ratio(outline_hex, garment_hex), 2),
+            "ratio": round(ratio, 2),
             "status": "",
             "counted": False,
             "notes": [],
             "rule": None,
         }
-        ratio = contrast_ratio(outline_hex, garment_hex)
-        if outline_hex != outline_hex_canonical:
-            entry["name"] = None
-            entry["status"] = "not the allowed outline colour"
-            entry["rule"] = "R2"
-            fail("R2", "outline %s is not the allowed outline colour %s — "
-                       "measured %s against %s"
-                       % (outline_hex, outline_hex_canonical,
-                          fmt_ratio(ratio), garment_name))
-        elif garment_class not in OUTLINE["allowed_classes"]:
-            entry["status"] = "outline not permitted on %s garments" % garment_class
+        if ruled is None:
+            entry["status"] = "no outline ruled for this garment"
             entry["rule"] = "R5"
-            fail("R5", "outline %s is not permitted on %s (%s class) — "
-                       "outline is %s-only; measured %s against the garment"
-                       % (outline_hex, garment_name, garment_class,
-                          "/".join(OUTLINE["allowed_classes"]), fmt_ratio(ratio)))
+            fail("R5", "no outline is ruled for %s — D-341/D-342/D-343 "
+                       "rule black (gold #D9A441) and sport grey "
+                       "(#0C0C0C) only; measured %s against the garment"
+                       % (garment_name, fmt_ratio(ratio)))
+        elif outline_hex != normalize_hex(ruled["hex"]):
+            entry["name"] = None
+            entry["status"] = "not this garment's ruled outline"
+            entry["rule"] = "R5"
+            fail("R5", "outline %s is not %s's ruled outline %s (%s) — "
+                       "measured %s against the garment"
+                       % (outline_hex, garment_name,
+                          normalize_hex(ruled["hex"]), ruled["name"],
+                          fmt_ratio(ratio)))
+        elif ratio < min_contrast:
+            entry["status"] = "below %.1f floor" % min_contrast
+            entry["rule"] = "R8"
+            fail("R8", "outline %s is %s against %s %s — below the "
+                       "%.1f:1 floor; on the outline path the outline "
+                       "carries the legibility"
+                       % (outline_hex, fmt_ratio(ratio), garment_name,
+                          garment_hex, min_contrast))
         else:
             entry["allowed"] = True
             entry["status"] = "outline role, not counted"
-            if ratio > outline_warn:
-                warning = (
-                    "outline may read as a visible ring on this garment, not a "
-                    "hidden one — verify against D-311 intent."
-                )
-                entry["notes"].append("%s — %s" % (fmt_ratio(ratio), warning))
+            if ratio < marginal_ceiling:
+                note = ("%s — passes, but within measurement error of "
+                        "the floor. Garment dye lots vary."
+                        % fmt_ratio(ratio))
+                entry["notes"].append(note)
                 report["warnings"].append(
-                    "OUTLINE: %s vs %s = %s — %s"
-                    % (outline_hex, garment_name, fmt_ratio(ratio), warning)
-                )
+                    "MARGINAL: %s outline %s %s"
+                    % (garment_name, outline_hex, note))
         report["entries"].append(entry)
 
     # 8. COLOUR COUNT — after dedupe, outline excluded.
@@ -590,7 +620,9 @@ def list_garments(as_json):
                 {"hex": normalize_hex(h), "name": n}
                 for h, n in PALETTES[spec["class"]].items()
             ],
-            "outline_allowed": spec["class"] in OUTLINE["allowed_classes"],
+            "outline": ({"hex": normalize_hex(OUTLINES[name]["hex"]),
+                         "name": OUTLINES[name]["name"]}
+                        if name in OUTLINES else None),
         })
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -604,10 +636,14 @@ def list_garments(as_json):
         for color in item["allowed_colors"]:
             ratio = contrast_ratio(color["hex"], item["hex"])
             print("  %-8s %-14s %s" % (color["hex"], color["name"], fmt_ratio(ratio)))
-        if item["outline_allowed"]:
-            ratio = contrast_ratio(normalize_hex(OUTLINE["hex"]), item["hex"])
+        if item["outline"]:
+            ratio = contrast_ratio(item["outline"]["hex"], item["hex"])
             print("  %-8s %-14s %s  (declare with --outline)"
-                  % (normalize_hex(OUTLINE["hex"]), "outline", fmt_ratio(ratio)))
+                  % (item["outline"]["hex"], item["outline"]["name"],
+                     fmt_ratio(ratio)))
+        else:
+            print("  (no outline ruled for this garment — outline path "
+                  "refused, D-341/D-342/D-343)")
     print("\nNOTE: %s" % FOOTER_NOTE)
     return EXIT_PASS
 
@@ -638,15 +674,21 @@ def audit_rules(as_json):
             rows.append(row)
             if status == "FAIL":
                 failures.append(row)
-        if spec["class"] in OUTLINE["allowed_classes"]:
-            outline_hex = normalize_hex(OUTLINE["hex"])
-            rows.append({
+        ruled = OUTLINES.get(garment_name)
+        if ruled:
+            outline_hex = normalize_hex(ruled["hex"])
+            ratio = contrast_ratio(outline_hex, garment_hex)
+            status = ("FAIL" if ratio < min_contrast
+                      else "MARGINAL" if ratio < marginal_ceiling else "OK")
+            row = {
                 "garment": garment_name, "garment_hex": garment_hex,
-                "class": spec["class"], "color": OUTLINE["name"],
+                "class": spec["class"], "color": ruled["name"],
                 "hex": outline_hex,
-                "ratio": round(contrast_ratio(outline_hex, garment_hex), 2),
-                "status": "EXEMPT (outline)",
-            })
+                "ratio": round(ratio, 2), "status": status,
+            }
+            rows.append(row)
+            if status == "FAIL":
+                failures.append(row)
 
     pairs = []
     for cls in sorted(PALETTES):
@@ -709,7 +751,8 @@ behave like emissive pixels on a screen. A PASS here is a file-level PASS only.
 
 examples:
   color_check.py "black" "#D9A441" "#7A9CB0"
-  color_check.py "black" "#D9A441" --outline "#0C0C0C"
+  color_check.py "black" "#7A9CB0" --outline "#D9A441"
+  color_check.py "sport grey" "#3E5C46" --outline "#0C0C0C"
   color_check.py "sport grey" "#3E5C46" --json
   color_check.py --list-garments
   color_check.py --audit-rules
@@ -766,9 +809,11 @@ def build_parser():
                         help="design colours as #RRGGBB, RRGGBB, or #RGB")
     parser.add_argument("--outline", metavar="HEX", default=None,
                         help="declare a colour as the outline role. Never "
-                             "inferred from the hex — the tool cannot see the "
-                             "art. Uncounted and exempt from the contrast "
-                             "floor; dark garments only.")
+                             "inferred from the hex — the tool cannot see "
+                             "the art. Per-garment (D-341/D-342/D-343): "
+                             "black -> gold #D9A441, sport grey -> #0C0C0C. "
+                             "Uncounted; must clear 3.0:1 vs the garment; "
+                             "the fill underneath is unconstrained.")
     parser.add_argument("--json", action="store_true",
                         help="machine-readable output; same verdict as human mode")
     parser.add_argument("--list-garments", action="store_true",

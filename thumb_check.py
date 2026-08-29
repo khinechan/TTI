@@ -40,7 +40,7 @@ from PIL import Image
 # the source of truth. A palette change lands here automatically and
 # test_thumb_check asserts the regression-locked ratios still agree.
 from color_check import (
-    GARMENTS, PALETTES, OUTLINE, PROVISIONAL_WARNING,
+    GARMENTS, PALETTES, OUTLINES, PROVISIONAL_WARNING,
     contrast_ratio, normalize_garment_name, normalize_hex,
 )
 
@@ -91,6 +91,22 @@ ADJ_CANDIDATE_MIN_PCT = 0.5
 # the artifact wall: 80 / 45 / 27 pairs at 140 / 75 / 45. A design with
 # real sage at full res keeps sage in the set — legitimate separators
 # are preserved; only artifacts dissolve.
+
+DECLARE_TOLERANCE = 8.0
+# A color is DECLARED only when it appears NEAR-EXACTLY at full
+# resolution (RGB distance <= this) above ADJ_CANDIDATE_MIN_PCT of ink.
+# THE PHANTOM-COLOR FIX (Open Flags 2026-08-28, pixel-verified in this
+# repo): flattened art with soft/anti-aliased edges puts ink+garment
+# and ink+fill blend pixels inside a THIRD palette color's tolerance-40
+# bucket — measured: a legal ink+forest design on sport grey put 0.54%
+# of ink into the plum bucket and reported "chocolate ink / plum" WARN
+# at every size; ink+burgundy crossed into a phantom "burgundy / plum"
+# FAIL at 1.03. KCT art is flat exact-hex pools (Style DNA), so a real
+# color always has near-exact pixels; blends never do. Declaring from
+# strict counts means edge-blend pixels are attributed to their
+# neighboring DECLARED colors in the adjacency map, and a legal 2-color
+# design can never report a third. The tolerance-40 bucket map is
+# unchanged (reporting only) — undeclared buckets carry a caveat.
 
 FULLRES_DISTINCT_CAP = 1 << 20  # getcolors cap before octree fallback
 
@@ -150,12 +166,19 @@ def resolve_garment(garment_input):
 
 
 def palette_for(garment_name):
-    """[(name, hex, rgb)] for the garment's class, outline last."""
+    """[(name, hex, rgb)] for the garment's class, plus the garment's
+    RULED outline (per-garment since D-341/D-342/D-343). When the ruled
+    outline aliases a palette color (black's outline is gold), no
+    separate outline bucket exists — outline pixels ARE that color; a
+    garment with no ruled outline (dark heather) gets none either."""
     spec = GARMENTS[garment_name]
     entries = [(cname, normalize_hex(chex), hex_to_rgb(chex))
                for chex, cname in PALETTES[spec["class"]].items()]
-    entries.append(("outline", normalize_hex(OUTLINE["hex"]),
-                    hex_to_rgb(OUTLINE["hex"])))
+    ruled = OUTLINES.get(garment_name)
+    if ruled:
+        ohex = normalize_hex(ruled["hex"])
+        if ohex not in {h for _n, h, _r in entries}:
+            entries.append(("outline", ohex, hex_to_rgb(ohex)))
     return entries
 
 
@@ -210,7 +233,9 @@ def full_res_stats(comp, garment_rgb, buckets):
     """Stage 3: quantize at native resolution before any downsampling."""
     histogram, approximate = color_histogram(comp)
     tol2 = QUANT_TOLERANCE * QUANT_TOLERANCE
+    strict2 = DECLARE_TOLERANCE * DECLARE_TOLERANCE
     counts = Counter()
+    strict_counts = Counter()
     off = Counter()
     total = 0
     all_buckets = [("garment", rgb_to_hex(garment_rgb), garment_rgb)] + buckets
@@ -222,9 +247,12 @@ def full_res_stats(comp, garment_rgb, buckets):
             off[rgb] += count
         else:
             counts[name] += count
+            if bucket_of(rgb, all_buckets, strict2) == name:
+                strict_counts[name] += count
     ink = total - counts["garment"]
     return {
         "total": total, "ink": ink, "counts": counts, "off": off,
+        "strict_counts": strict_counts,
         "approximate": approximate,
         "off_pct_tile": 100.0 * counts["off-palette"] / total if total else 0.0,
     }
@@ -232,13 +260,18 @@ def full_res_stats(comp, garment_rgb, buckets):
 
 def adjacency_candidates(full_stats, garment_rgb, buckets):
     """Rider-verified fix: nearest-neighbor with NO tolerance cutoff,
-    candidate set restricted to {garment} ∪ {palette colors detected at
-    FULL resolution above ADJ_CANDIDATE_MIN_PCT of ink pixels}. See the
-    constant's comment for the measured sage-wall numbers."""
+    candidate set restricted to {garment} ∪ {palette colors DECLARED at
+    FULL resolution above ADJ_CANDIDATE_MIN_PCT of ink pixels}. Since
+    the 2026-08-28 phantom fix, DECLARED means near-exact pixels
+    (DECLARE_TOLERANCE) — anti-aliased edge blends can land in a third
+    color's tolerance-40 bucket but never in its strict bucket, so
+    blends are attributed to their neighboring declared colors and a
+    legal 2-color design cannot report a phantom third. See the
+    constants' comments for the sage-wall and phantom-plum numbers."""
     cands = [("garment", rgb_to_hex(garment_rgb), garment_rgb)]
     ink = max(1, full_stats["ink"])
     for name, chex, crgb in buckets:
-        if 100.0 * full_stats["counts"].get(name, 0) / ink >= ADJ_CANDIDATE_MIN_PCT:
+        if 100.0 * full_stats["strict_counts"].get(name, 0) / ink                 >= ADJ_CANDIDATE_MIN_PCT:
             cands.append((name, chex, crgb))
     return cands
 
@@ -351,7 +384,7 @@ def run_gate(path, garment_input):
         })
 
     outline_declared = (
-        100.0 * full["counts"].get("outline", 0) / max(1, full["ink"])
+        100.0 * full["strict_counts"].get("outline", 0) / max(1, full["ink"])
         >= ADJ_CANDIDATE_MIN_PCT)
     adj_cands = adjacency_candidates(full, garment_rgb, buckets)
 
@@ -436,9 +469,17 @@ def run_gate(path, garment_input):
         # the first casualty ("confident thick dark-chocolate outlines
         # of even weight").
         survival_rows = []
+        declared_names = {n for n, _h, _r in adj_cands}
         for name, chex, _rgb in buckets:
             full_count = full["counts"].get(name, 0)
             if full_count == 0 and name != "outline":
+                continue
+            if name not in declared_names and not (
+                    name == "outline" and outline_declared):
+                # An undeclared color's bucket is edge-blend pollution
+                # (caveated in the report) — judging its "survival"
+                # would be a phantom finding, same disease as the
+                # phantom pairs (2026-08-28 fix).
                 continue
             if name == "outline" and not outline_declared and full_count == 0:
                 continue
@@ -468,10 +509,13 @@ def run_gate(path, garment_input):
             if count == 0 and full["counts"].get(name, 0) == 0:
                 continue
             caveat = None
-            if name == "outline" and not outline_declared and count:
-                caveat = ("blend artifacts — no outline at full res; "
-                          "design-vs-garment edge blends pass near %s on "
-                          "dark garments" % OUTLINE["hex"])
+            declared_names = {n for n, _h, _r in adj_cands}
+            if count and name not in declared_names:
+                caveat = ("blend artifacts — %s has no near-exact pixels "
+                          "at full resolution; these are anti-aliased "
+                          "edge blends, attributed to declared colors in "
+                          "the touching test (2026-08-28 phantom fix)"
+                          % name)
             srow = next((s for s in survival_rows if s["name"] == name), None)
             bucket_rows.append({"name": name, "hex": chex, "px": count,
                                 "pct_tile": round(100.0 * count / total, 1),
@@ -716,16 +760,27 @@ def render_explain():
                % (FAIL_INTER, MIN_AREA_PCT, FAIL_INTER, WARN_INTER,
                   WARN_INTER, WARN_INTER))
     out.append("")
-    out.append("outline: exempt from blob verdicts — invisibility against "
-               "the garment is its job (D-311). Its BUCKET on dark garments "
-               "is polluted by design-vs-GARMENT edge blends passing near "
-               "%s (measured 0.7%% on an outline-free fixture on one "
-               "machine); with no outline at full res the bucket is "
-               "caveated, never reported as fact. Survival gets a named "
-               "outline line: it is the thinnest element in every KCT "
-               "design by construction and always the first casualty "
-               "(measured: 1px lines at full res -> 0.00%% survival at 140 "
-               "and 75)." % OUTLINE["hex"])
+    out.append("outline: PER-GARMENT since D-341/D-342/D-343 (black -> "
+               "gold #D9A441, aliasing the gold bucket; sport grey -> "
+               "#0C0C0C, its own bucket; dark heather unruled). Outline "
+               "pairs are exempt from blob verdicts where the bucket "
+               "exists. Survival keeps a named outline line: the outline "
+               "is the thinnest element in every KCT design and always "
+               "the first casualty (measured: 1px lines at full res -> "
+               "0.00%% survival at 140 and 75).")
+    out.append("")
+    out.append("declared colors (the 2026-08-28 phantom fix): a color "
+               "joins the adjacency candidate set only when it has "
+               "near-exact pixels (distance <= %.0f) at full resolution "
+               "above %.1f%% of ink. VERIFIED: flattened art with soft "
+               "edges put ink+garment blends inside plum's tolerance-40 "
+               "bucket — a legal ink+forest design reported a phantom "
+               "'chocolate ink / plum' WARN and ink+burgundy a phantom "
+               "'burgundy / plum' FAIL at 1.03. Strict declaration "
+               "attributes edge blends to their neighboring declared "
+               "colors; undeclared buckets are caveated in the report, "
+               "never turned into verdicts."
+               % (DECLARE_TOLERANCE, ADJ_CANDIDATE_MIN_PCT))
     out.append("")
     out.append("full-res quantize pass: catches gradients/blends "
                "(Style DNA: one flat shadow tone per color) that "

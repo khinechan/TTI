@@ -103,44 +103,59 @@ class TestOriginalSpec(BaseCase):
         self.assertIn("below the 3.0:1 floor", out)
 
     def test_07_outline_on_dark_passes_and_is_not_counted(self):
+        """RULING UPDATE D-341/D-342/D-343: black's ruled outline is
+        gold #D9A441 (was #0C0C0C), and it now clears 3.0:1 by design."""
         out, _ = self.assertVerdict(
-            ["black", "#D9A441", "--outline", "#0C0C0C"], PASS, "PASS")
+            ["black", "#7A9CB0", "--outline", "#D9A441"], PASS, "PASS")
         self.assertIn("DESIGN COLORS: 1 of max 2", out)
         self.assertIn("outline role, not counted", out)
-        self.assertIn("1.06:1", out)
+        self.assertIn("8.19:1", out)
 
 
 # ── 8-17: ways the gate could be wrong while looking right ─────────────
 
 class TestGateIntegrity(BaseCase):
 
-    def test_08_outline_on_light_garment_fails(self):
+    def test_08_wrong_outline_for_the_garment_fails(self):
+        """RULING UPDATE D-341/D-342/D-343: outlines are per-garment.
+        #0C0C0C on sport grey now PASSES (it is the ruled outline); the
+        FAIL case is using another garment's outline."""
         out, _ = self.assertVerdict(
-            ["sport grey", "#3E5C46", "--outline", "#0C0C0C"], FAIL, "FAIL")
-        self.assertIn("not permitted on sport grey", out)
-        self.assertIn("dark-only", out)
+            ["sport grey", "#3E5C46", "--outline", "#0C0C0C"], PASS, "PASS")
+        self.assertIn("outline role, not counted", out)
+        out, _ = self.assertVerdict(
+            ["sport grey", "#3E5C46", "--outline", "#D9A441"], FAIL, "FAIL")
+        self.assertIn("not sport grey's ruled outline", out)
+        out, _ = self.assertVerdict(
+            ["black", "#7A9CB0", "--outline", "#0C0C0C"], FAIL, "FAIL")
+        self.assertIn("not black's ruled outline", out)
 
     def test_08b_outline_ratio_always_reported(self):
-        """Even on the FAIL path, the outline's real ratio is in the report."""
-        for garment, expected in (("black", "1.06:1"),
-                                  ("dark heather", "1.78:1"),
-                                  ("sport grey", "8.02:1")):
-            _, out, _ = run([garment, "--outline", "#0C0C0C", "#D9A441"]
-                            if garment != "sport grey"
-                            else [garment, "#3E5C46", "--outline", "#0C0C0C"])
-            self.assertIn(expected, out, "outline ratio missing for %s" % garment)
+        """Even on the FAIL path, the outline's real ratio is in the
+        report. RULING UPDATE: per-garment outlines and their measured
+        ratios — black/gold 8.19, sport grey/black 8.02; dark heather
+        is unruled (refused) yet the measured 1.78 still prints."""
+        cases = ((["black", "#7A9CB0", "--outline", "#D9A441"], "8.19:1"),
+                 (["sport grey", "#3E5C46", "--outline", "#0C0C0C"], "8.02:1"),
+                 (["dark heather", "#D9A441", "--outline", "#0C0C0C"], "1.78:1"))
+        for argv, expected in cases:
+            _, out, _ = run(argv)
+            self.assertIn(expected, out, "outline ratio missing: %r" % argv)
 
-    def test_08c_outline_visibility_warning_on_dark_heather(self):
-        """1.78:1 exceeds OUTLINE_VISIBILITY_WARN -> visible-ring warning."""
-        _, out, _ = run(["dark heather", "#D9A441", "--outline", "#0C0C0C"])
-        self.assertIn("visible ring", out)
-        _, black_out, _ = run(["black", "#D9A441", "--outline", "#0C0C0C"])
-        self.assertNotIn("visible ring", black_out)
+    def test_08c_dark_heather_has_no_ruled_outline(self):
+        """RULING UPDATE D-341/D-342/D-343: the rulings name black and
+        sport grey only. Dark heather's outline path is refused, fail
+        closed — and the old visible-ring warning is gone with the old
+        invisibility semantics."""
+        out, _ = self.assertVerdict(
+            ["dark heather", "#D9A441", "--outline", "#0C0C0C"], FAIL, "FAIL")
+        self.assertIn("no outline is ruled for dark heather", out)
+        self.assertNotIn("visible ring", out)
 
     def test_09_two_colors_plus_outline_passes(self):
         """Three hexes on the command line, two counted."""
         out, _ = self.assertVerdict(
-            ["black", "#D9A441", "#7A9CB0", "--outline", "#0C0C0C"],
+            ["black", "#9CAF88", "#7A9CB0", "--outline", "#D9A441"],
             PASS, "PASS")
         self.assertIn("DESIGN COLORS: 2 of max 2", out)
 
@@ -227,9 +242,13 @@ class TestGateIntegrity(BaseCase):
         self.assertNotIn("did you mean", out)
 
     def test_16c_outline_hex_without_the_flag_fails_and_says_why(self):
-        """The role is never inferred from the hex."""
-        out, _ = self.assertVerdict(["black", "#0C0C0C"], FAIL, "FAIL")
+        """The role is never inferred from the hex. RULING UPDATE: the
+        hint is per-garment — #0C0C0C plain hints on sport grey (its
+        ruled outline); on black it is just a non-allowlisted hex."""
+        out, _ = self.assertVerdict(["sport grey", "#0C0C0C"], FAIL, "FAIL")
         self.assertIn("--outline", out)
+        out, _ = self.assertVerdict(["black", "#0C0C0C"], FAIL, "FAIL")
+        self.assertNotIn("--outline #0C0C0C", out)
 
     def test_17_exit_codes_are_distinct_per_class(self):
         cases = [
@@ -249,7 +268,9 @@ class TestGateIntegrity(BaseCase):
         """Every warning-producing input either PASSes cleanly or FAILs.
         A verdict is never softened into a pass by a warning."""
         argvs = [
-            ["dark heather", "#D9A441", "--outline", "#0C0C0C"],
+            ["dark heather", "#C67B5C"],       # MARGINAL 3.34 (ruling
+                                               # update: heather has no
+                                               # ruled outline any more)
             ["black", "#D9A441", "#9CAF88"],
             ["sport grey", "#3E5C46"],
         ]
@@ -259,7 +280,8 @@ class TestGateIntegrity(BaseCase):
             self.assertEqual(code, PASS, "argv=%r" % argv)
             self.assertIn("VERDICT: PASS", out)
         # And a warning never appears alongside a softened FAIL.
-        code, out, _ = run(["sport grey", "#3E5C46", "--outline", "#0C0C0C"])
+        # (RULING UPDATE: the FAIL case is now the WRONG outline.)
+        code, out, _ = run(["sport grey", "#3E5C46", "--outline", "#D9A441"])
         self.assertEqual(code, FAIL)
         self.assertIn("VERDICT: FAIL", out)
 
@@ -388,8 +410,9 @@ class TestOutputModes(BaseCase):
             ["sport grey", "#A34730"],
             ["black", "#D9A441", "#7A9CB0", "#9CAF88"],
             ["navy", "#D9A441"],
-            ["black", "#D9A441", "--outline", "#0C0C0C"],
+            ["black", "#7A9CB0", "--outline", "#D9A441"],
             ["sport grey", "#3E5C46", "--outline", "#0C0C0C"],
+            ["dark heather", "#D9A441", "--outline", "#0C0C0C"],
             ["dark heather", "#C67B5C"],
             ["black", "#D9A442"],
             ["black"],
@@ -411,11 +434,11 @@ class TestOutputModes(BaseCase):
         self.assertEqual(payload["exit_code"], ERROR)
 
     def test_22c_json_carries_per_color_ratios_and_rules(self):
-        _, out, _ = run(["black", "#D9A441", "--outline", "#0C0C0C", "--json"])
+        _, out, _ = run(["black", "#7A9CB0", "--outline", "#D9A441", "--json"])
         payload = json.loads(out)
         by_role = {e["role"]: e for e in payload["entries"]}
-        self.assertEqual(by_role["design"]["ratio"], 8.19)
-        self.assertEqual(by_role["outline"]["ratio"], 1.06)
+        self.assertEqual(by_role["design"]["ratio"], 6.32)
+        self.assertEqual(by_role["outline"]["ratio"], 8.19)
         self.assertFalse(by_role["outline"]["counted"])
         self.assertEqual(payload["design_color_count"], 1)
 
@@ -424,7 +447,7 @@ class TestOutputModes(BaseCase):
             ["sport grey", "#A34730"],
             ["black", "#D9A441", "#7A9CB0", "#9CAF88"],
             ["navy", "#D9A441"],
-            ["sport grey", "#3E5C46", "--outline", "#0C0C0C"],
+            ["dark heather", "#C67B5C", "--outline", "#0C0C0C"],
             ["black", "#D9A442"],
             ["black"],
         ]
@@ -455,6 +478,81 @@ class TestOutputModes(BaseCase):
         self.assertEqual(code, PASS)
         payload = json.loads(json_out)
         self.assertEqual(len(payload), len(cc.GARMENTS))
+
+
+# ── 24: per-garment outlines (D-341/D-342/D-343) ───────────────────────
+
+class TestPerGarmentOutlines(BaseCase):
+    """The rulings: outlines are PER-GARMENT (black -> gold #D9A441,
+    sport grey -> #0C0C0C), the outline must clear 3.0:1 against the
+    garment on the outline path, and the fill underneath is
+    unconstrained. Flat-pool checks unchanged."""
+
+    def test_24_each_ruled_outline_accepted_and_crosses_refused(self):
+        self.assertEqual(run(["black", "#7A9CB0", "--outline",
+                              "#D9A441"])[0], PASS)
+        self.assertEqual(run(["sport grey", "#3E5C46", "--outline",
+                              "#0C0C0C"])[0], PASS)
+        for argv in (["black", "#7A9CB0", "--outline", "#0C0C0C"],
+                     ["sport grey", "#3E5C46", "--outline", "#D9A441"]):
+            code, out, _ = run(argv)
+            self.assertEqual(code, FAIL, argv)
+            self.assertIn("ruled outline", out)
+
+    def test_24b_outline_below_floor_is_a_wired_fail(self):
+        """R8 is a mechanism, not prose: an outline that cannot clear
+        3.0:1 fails with the rule and the number, proven by temporarily
+        ruling a low-contrast outline."""
+        cc.OUTLINES["dark heather"] = {"hex": "#0C0C0C",
+                                       "name": "test outline"}
+        self.addCleanup(cc.OUTLINES.pop, "dark heather", None)
+        out, _ = self.assertVerdict(
+            ["dark heather", "#D9A441", "--outline", "#0C0C0C"],
+            FAIL, "FAIL")
+        self.assertIn("R8", out)
+        self.assertIn("1.78:1", out)
+        self.assertIn("below the 3.0:1 floor", out)
+
+    def test_24c_fill_is_unconstrained_on_the_outline_path(self):
+        """A fill that FAILS the flat-pool floor passes under an
+        outline — the outline carries the legibility. Proven with a
+        temporary low-contrast palette entry."""
+        cc.PALETTES["dark"]["#2A2A2A"] = "test shadow"
+        self.addCleanup(cc.PALETTES["dark"].pop, "#2A2A2A", None)
+        code, out, _ = run(["black", "#2A2A2A"])          # flat path
+        self.assertEqual(code, FAIL)
+        self.assertIn("below the 3.0:1 floor", out)
+        code, out, _ = run(["black", "#2A2A2A",           # outline path
+                            "--outline", "#D9A441"])
+        self.assertEqual(code, PASS, out)
+        self.assertIn("floor not applied", out)
+        self.assertIn("outline carries legibility", out)
+
+    def test_24d_flat_pool_checks_unchanged(self):
+        """No outline declared -> the old floor still bites."""
+        cc.PALETTES["dark"]["#2A2A2A"] = "test shadow"
+        self.addCleanup(cc.PALETTES["dark"].pop, "#2A2A2A", None)
+        self.assertEqual(run(["black", "#2A2A2A"])[0], FAIL)
+        self.assertEqual(run(["black", "#D9A441", "#7A9CB0"])[0], PASS)
+
+    def test_24e_rule_audit_covers_the_ruled_outlines(self):
+        """The audit now judges outline data like any colour: today
+        both ruled outlines clear the floor; a bad ruling would go red."""
+        code, out, _ = run(["--audit-rules"])
+        self.assertEqual(code, PASS)
+        self.assertIn("outline gold", out)
+        self.assertIn("outline black", out)
+        self.assertNotIn("EXEMPT", out)
+        cc.OUTLINES["black"] = {"hex": "#0C0C0C", "name": "bad ruling"}
+        self.addCleanup(cc.OUTLINES.__setitem__, "black",
+                        {"hex": "#D9A441", "name": "outline gold"})
+        self.assertEqual(run(["--audit-rules"])[0], FAIL)
+
+    def test_24f_list_garments_names_the_per_garment_outline(self):
+        _, out, _ = run(["--list-garments"])
+        self.assertIn("outline gold", out)
+        self.assertIn("outline black", out)
+        self.assertIn("no outline ruled", out)   # dark heather
 
 
 # ── 23: Windows console-encoding fix (STATE.md D-378) ──────────────────
