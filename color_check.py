@@ -10,6 +10,11 @@ Exit codes:
     1 = FAIL  (the design violated a rule, or the garment is unknown)
     2 = ERROR (malformed hex, or broken/missing rule config)
 
+Windows console encoding is handled: stdout/stderr are reconfigured to
+UTF-8 (errors="replace") at startup, so the banners below never raise
+UnicodeEncodeError on a cp1252 console (STATE.md D-378). Display only --
+never touches what gets written to STATE.md/RUNLOG/JSON.
+
 Standard library only.
 """
 
@@ -774,7 +779,29 @@ def build_parser():
     return parser
 
 
+def _ensure_utf8_console():
+    """Reconfigure stdout/stderr for UTF-8 display, substituting any
+    character the console codepage can't render instead of crashing.
+    Windows consoles default to the system codepage (cp1252 etc.), not
+    UTF-8 -- the RULE AUDIT / KNOWN GARMENTS banners below raised
+    UnicodeEncodeError there (STATE.md D-378). Display only -- this never
+    touches what gets written to STATE.md/RUNLOG/JSON, which stay real
+    UTF-8 bytes regardless (same display-vs-stored split as gate_run.py's
+    own W14 stdout_text/stderr_text decode). No-op if the stream doesn't
+    support .reconfigure (e.g. a test harness's captured StringIO) --
+    the fix itself must never become a new crash site.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv=None):
+    _ensure_utf8_console()
     parser = build_parser()
     if argv is None:
         argv = sys.argv[1:]

@@ -457,5 +457,53 @@ class TestOutputModes(BaseCase):
         self.assertEqual(len(payload), len(cc.GARMENTS))
 
 
+# ── 23: Windows console-encoding fix (STATE.md D-378) ──────────────────
+
+class TestConsoleEncoding(BaseCase):
+    """color_check.py crashed with UnicodeEncodeError on a real Windows
+    cp1252 console the first time --audit-rules ran natively (STATE.md
+    D-378) -- the ══ banner text isn't representable in that codepage.
+    Fixed by reconfiguring stdout/stderr to UTF-8 (errors="replace") at
+    the top of main(). These tests exist because the fix itself is a way
+    this suite could quietly stop testing anything: every test above
+    runs main() under redirect_stdout(io.StringIO()), and io.StringIO
+    has no .reconfigure -- a careless fix would have broken all 44 tests
+    the instant it landed, not just the Windows crash it was meant to
+    close.
+    """
+
+    def test_23_reconfigure_is_a_noop_on_a_plain_stringio(self):
+        """io.StringIO has no .reconfigure -- the same shape every test
+        above's own run() helper swaps in. If this raised, the whole
+        suite would already be red; this names the reason it isn't."""
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            cc._ensure_utf8_console()  # must not raise AttributeError
+
+    def test_23b_reconfigure_is_called_with_utf8_replace_when_supported(self):
+        """When the stream DOES support .reconfigure (the real case on
+        a live console), confirm the fix calls it with the right args --
+        not just that it's safe to call when it's absent."""
+        calls = []
+
+        class FakeStream:
+            def reconfigure(self, **kwargs):
+                calls.append(kwargs)
+
+        with redirect_stdout(FakeStream()), redirect_stderr(FakeStream()):
+            cc._ensure_utf8_console()
+        self.assertEqual(calls, [{"encoding": "utf-8", "errors": "replace"}] * 2)
+
+    def test_23c_audit_rules_banner_survives_the_fix(self):
+        """The exact crash site from D-378: --audit-rules prints the
+        ══ RULE AUDIT ══ banner. Confirms the banner text still comes
+        through whole post-fix, not just that the PASS/FAIL verdict
+        still resolves (test 18b already covers that half)."""
+        code, out, _ = run(["--audit-rules"])
+        self.assertEqual(code, PASS)
+        self.assertIn("RULE AUDIT", out)
+        self.assertIn("INTER-COLOUR AUDIT", out)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
