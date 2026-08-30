@@ -58,6 +58,22 @@ PALETTES = {
     },
 }
 
+# BASE FILLS — per-garment identity fills (Section A of the brandkit's
+# per-garment ink table), distinct from the class-shared FLUID pool
+# above (Section B). A garment with no entry here has no ruled base
+# fill beyond its class pool (dark heather: still unlocked, no hex,
+# per Section A item 2 -- fail closed, nothing inherited automatically).
+# Ruled 2026-08-29 (D-402): "Black -> cream/gold fills" was always
+# Section A doctrine; the allowlist only ever carried Section B's
+# secondary pool and never gained the base fill. Counts toward
+# MAX_DESIGN_COLORS like any other design colour -- not a free role
+# like outline. D-053 (2-colour max) and the pure-white ban are
+# unaffected: cream is one more legal option for the same 2-colour
+# budget, not an exemption from it.
+BASE_FILLS = {
+    "black": {"#F5F0E1": "cream"},
+}
+
 # The outline role. Never inferred from a hex — the caller declares it
 # with --outline, because the tool cannot see the art.
 # PER-GARMENT since D-341/D-342/D-343: each garment has exactly one
@@ -245,6 +261,20 @@ def validate_config():
                               % (gname, exc))
         if not ruled.get("name"):
             raise ConfigError("outline for '%s' has no name" % gname)
+    for gname, fills in BASE_FILLS.items():
+        if normalize_garment_name(gname) not in GARMENTS:
+            raise ConfigError("BASE_FILLS names unknown garment '%s'" % gname)
+        if not fills:
+            raise ConfigError("BASE_FILLS for '%s' is empty" % gname)
+        for hex_color, color_name in fills.items():
+            try:
+                normalize_hex(hex_color)
+            except InputError as exc:
+                raise ConfigError("BASE_FILLS '%s' has a bad hex: %s"
+                                  % (gname, exc))
+            if not color_name:
+                raise ConfigError("BASE_FILLS '%s' colour %s has no name"
+                                  % (gname, hex_color))
     for bar in EXPLICIT_BARS:
         for field in ("hex", "name", "garment", "reason"):
             if field not in bar:
@@ -341,6 +371,11 @@ def run_check(garment_input, color_inputs, outline_input=None):
     garment_hex = normalize_hex(garment["hex"])
     garment_class = garment["class"]
     palette = {normalize_hex(k): v for k, v in PALETTES[garment_class].items()}
+    # Layer in this garment's own base fills (Section A), on top of the
+    # class-shared fluid pool (Section B). Per-garment, so dark heather
+    # does not inherit black's cream (D-402).
+    palette.update({normalize_hex(k): v
+                    for k, v in BASE_FILLS.get(garment_name, {}).items()})
 
     report["garment"] = {
         "name": garment_name,
@@ -618,7 +653,8 @@ def list_garments(as_json):
             "provisional": bool(spec["provisional"]),
             "allowed_colors": [
                 {"hex": normalize_hex(h), "name": n}
-                for h, n in PALETTES[spec["class"]].items()
+                for h, n in {**PALETTES[spec["class"]],
+                             **BASE_FILLS.get(name, {})}.items()
             ],
             "outline": ({"hex": normalize_hex(OUTLINES[name]["hex"]),
                          "name": OUTLINES[name]["name"]}
@@ -674,6 +710,19 @@ def audit_rules(as_json):
             rows.append(row)
             if status == "FAIL":
                 failures.append(row)
+        for hex_color, color_name in BASE_FILLS.get(garment_name, {}).items():
+            hex_color = normalize_hex(hex_color)
+            ratio = contrast_ratio(hex_color, garment_hex)
+            status = ("FAIL" if ratio < min_contrast
+                      else "MARGINAL" if ratio < marginal_ceiling else "OK")
+            row = {
+                "garment": garment_name, "garment_hex": garment_hex,
+                "class": spec["class"], "color": color_name, "hex": hex_color,
+                "ratio": round(ratio, 2), "status": status,
+            }
+            rows.append(row)
+            if status == "FAIL":
+                failures.append(row)
         ruled = OUTLINES.get(garment_name)
         if ruled:
             outline_hex = normalize_hex(ruled["hex"])
@@ -698,6 +747,28 @@ def audit_rules(as_json):
             pairs.append({
                 "class": cls, "a": a, "a_name": palette[a],
                 "b": b, "b_name": palette[b], "ratio": round(ratio, 2),
+                "mud_pair": ratio < min_inter,
+            })
+    # Base fills (D-402) vs their own garment's full effective palette --
+    # a garment-scoped check, since base fills don't spread across a
+    # whole class the way the fluid pool does.
+    for gname, fills in sorted(BASE_FILLS.items()):
+        cls = GARMENTS[gname]["class"]
+        full = {normalize_hex(k): v for k, v in PALETTES[cls].items()}
+        full.update({normalize_hex(k): v for k, v in fills.items()})
+        fill_hexes = {normalize_hex(k) for k in fills}
+        seen = set()
+        for a, b in combinations(sorted(full), 2):
+            if not (a in fill_hexes or b in fill_hexes):
+                continue  # already covered by the class-level loop above
+            key = (gname, a, b)
+            if key in seen:
+                continue
+            seen.add(key)
+            ratio = contrast_ratio(a, b)
+            pairs.append({
+                "class": gname, "a": a, "a_name": full[a],
+                "b": b, "b_name": full[b], "ratio": round(ratio, 2),
                 "mud_pair": ratio < min_inter,
             })
 

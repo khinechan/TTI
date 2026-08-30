@@ -126,16 +126,12 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | .gitignore | Ignores Python bytecode, config/identity.json, and gate_run's write surfaces (gate_receipts.jsonl, reports/). Protects W2/W3 — treat as TIER 0. | 0 |
 | CLAUDE.md | This contract. | 2 |
 
-KNOWN VAULT DIVERGENCE (as of cert D-403, 2026-08-29): Sonnet's
-color_check.py is AHEAD of this branch by one change — cream #F5F0E1
-added as a per-garment BASE_FILLS entry on Black (D-402; Section A's
-"cream/gold fills" was always doctrine, the allowlist only knew the
-secondary pool). Next build touching color_check: the stop-gate WILL
-flag a hash mismatch — that is this known change, request his current
-files as usual. OPEN FLAG assigned to Miss Coder, no rush: JPEG
-input-format warning in color_check + thumb_check (lossy input shifts
-exact hexes; relevant to DECLARE_TOLERANCE). Build it only on top of
-his current copies, never on this branch's stale ones.
+VAULT DIVERGENCE: CLOSED (2026-08-30). Sonnet's certified D-402
+color_check (cream #F5F0E1 as Black BASE_FILLS) is synced to this
+branch; diff verified as that change only. The repo is LIVE on GitHub
+now — cert flow is clone-and-diff against the real branch; hand-carry
+and its stop-gates are retired for file exchange (the stop-gate habit
+stays for any future drift).
 
 Full suite baseline 2026-08-23: **229 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run`).
