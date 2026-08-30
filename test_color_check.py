@@ -555,6 +555,35 @@ class TestPerGarmentOutlines(BaseCase):
         self.assertIn("no outline ruled", out)   # dark heather
 
 
+# ── 25: D-401 input doctrine ───────────────────────────────────────────
+
+class TestInputDoctrine(BaseCase):
+    """D-401: gates are certified for lossless PNG only. This tool
+    receives hex values, not files, so there is nothing to detect here
+    — the doctrine is stamped on every report and in --help instead;
+    format DETECTION lives in thumb_check, which opens the image."""
+
+    def test_25_doctrine_in_every_report_both_modes(self):
+        _, out, _ = run(["black", "#D9A441"])
+        self.assertIn("D-401", out)
+        self.assertIn("lossless PNG only", out)
+        self.assertIn("never from a JPEG export", out)
+        _, json_out, _ = run(["black", "#D9A441", "--json"])
+        payload = json.loads(json_out)
+        self.assertIn("358,458", payload["input_doctrine"])
+
+    def test_25b_doctrine_in_help(self):
+        help_text = cc.build_parser().format_help()
+        self.assertIn("D-401", help_text)
+        self.assertIn("lossless PNG only", help_text)
+        self.assertIn("in thumb_check, which opens the image", help_text)
+
+    def test_25c_exit_codes_untouched_by_the_doctrine(self):
+        self.assertEqual(run(["black", "#D9A441"])[0], PASS)
+        self.assertEqual(run(["sport grey", "#A34730"])[0], FAIL)
+        self.assertEqual(run(["black", "#GGGGGG"])[0], ERROR)
+
+
 # ── 23: Windows console-encoding fix (STATE.md D-378) ──────────────────
 
 class TestConsoleEncoding(BaseCase):

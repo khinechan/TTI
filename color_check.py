@@ -129,6 +129,19 @@ FOOTER_NOTE = (
     "prints over a white underbase; ink on fabric is reflective, not emissive."
 )
 
+# D-401 input doctrine. This tool receives HEX VALUES, not files, so
+# there is no input format to detect here — detection lives in
+# thumb_check, which opens the image. The doctrine still belongs in
+# every report: hexes sampled from a lossy export are already shifted
+# before they reach this gate (the near-miss "did you mean" hint is
+# the tell).
+D401_INPUT_NOTE = (
+    "input doctrine (D-401): gates certified for lossless PNG only; "
+    "lossy input destroys declared-color detection (measured "
+    "358,458→32 gold pixels). Sample hexes from the lossless master, "
+    "never from a JPEG export."
+)
+
 # ═══════════════════════════════════════════════════════════════════════
 # END OF RULE DATA. Nothing below references a palette value literally.
 # ═══════════════════════════════════════════════════════════════════════
@@ -347,6 +360,7 @@ def run_check(garment_input, color_inputs, outline_input=None):
         "provisional_warning": None,
         "thresholds": dict(THRESHOLDS),
         "disclaimer": FOOTER_NOTE,
+        "input_doctrine": D401_INPUT_NOTE,
     }
 
     def fail(rule_id, message):
@@ -632,6 +646,7 @@ def render_human(report):
         lines.append("WARN: %s" % warning)
 
     lines.append("NOTE: %s" % report["disclaimer"])
+    lines.append("NOTE: %s" % report["input_doctrine"])
     return "\n".join(lines)
 
 
@@ -815,6 +830,12 @@ exit codes:
   0  PASS
   1  FAIL   the design violated a rule (or the garment is unknown)
   2  ERROR  malformed hex, or broken rule config
+
+INPUT DOCTRINE (D-401): gates certified for lossless PNG only; lossy
+input destroys declared-color detection (measured 358,458->32 gold
+pixels). This tool receives hex values, not files — sample them from
+the lossless master, never from a JPEG export; format detection lives
+in thumb_check, which opens the image.
 
 SCOPE: this validates the DESIGN FILE, not the printed shirt. DTG on dark
 garments prints over a white underbase, and reflective ink on fabric does not

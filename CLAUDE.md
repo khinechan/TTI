@@ -112,11 +112,11 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | file | what it does | tier |
 |---|---|---|
 | color_check.py | Design color validator: garment palettes, contrast floors, explicit bars, PER-GARMENT outlines (D-341/342/343: black→gold, sport grey→#0C0C0C; outline clears 3.0, fill unconstrained on the outline path). Fail-closed, exit 0/1/2. Source of truth for palettes — thumb_check imports from it. | 1 |
-| test_color_check.py | 53 tests: rule audit, regression-locked ratios, per-garment outline mechanisms (24x), console-encoding (D-378). | 1 |
+| test_color_check.py | 56 tests: rule audit, regression-locked ratios, per-garment outline mechanisms (24x), console-encoding (D-378), D-401 input doctrine. | 1 |
 | vault_lint.py | Read-only integrity linter for STATE.md decision logs. No --fix flag, ever. Pure detection API: scan_lines() / detect(). ROW_PATTERN knows the two addendum ID shapes (D-376); UTF-8 console reconfigure (D-380). | 1 |
 | test_vault_lint.py | 51 tests: 42 base + 6 addendum-convention (31-36) + 3 console-encoding. | 1 |
 | thumb_check.py | Thumbnail legibility gate: two-map adjacency over DECLARED colors (near-exact pixels only — the 2026-08-28 phantom-color fix), blob verdicts, survival, --audit-palette. Pillow is its single allowed dependency. | 1 |
-| test_thumb_check.py | 38 tests: 75px adjacency regression, phantom-color regressions (25-28, pre-fix outputs in docstrings), console-encoding. | 1 |
+| test_thumb_check.py | 42 tests: 75px adjacency regression, phantom-color regressions (25-28, pre-fix outputs in docstrings), console-encoding, D-401 lossy-input advisory. | 1 |
 | vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] plus the v1.1 --close-only batch mode (frozen class v1.1 per D-382, one confirmation, no bypass, never a gate stage). Strict decode; byte-faithful; descending apply; verified backup. | 1 |
 | test_vault_repair.py | 33 v1.0 tests incl. the war-game closures (U+2028, CRLF, BOM, identity-compare). UNEDITED since v1.0. | 1 |
 | test_vault_repair_close.py | 25 v1.1 tests: D-363 ground truth + D-382 backtick-decoy regression, (33-in/6-out exactly), frozen-class boundary, no-bypass source scan, gate exclusion, batch byte fidelity. | 1 |
@@ -133,7 +133,7 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-08-23: **229 tests, all green**
+Full suite baseline 2026-08-23: **236 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of

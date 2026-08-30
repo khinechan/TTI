@@ -108,6 +108,17 @@ DECLARE_TOLERANCE = 8.0
 # design can never report a third. The tolerance-40 bucket map is
 # unchanged (reporting only) — undeclared buckets carry a caveat.
 
+# D-401: the gates are certified for lossless input only. Lossy
+# formats (JPEG etc.) destroy declared-color detection — measured:
+# 358,458 gold pixels in the PNG master became 32 after one JPEG save.
+# Detection warns and stamps the report ADVISORY; exit-code semantics
+# are UNCHANGED (warn, don't refuse).
+CERTIFIED_INPUT_FORMATS = ("PNG",)
+LOSSY_ADVISORY = (
+    "gates certified for lossless PNG only; lossy input destroys "
+    "declared-color detection (D-401, measured 358,458→32 gold "
+    "pixels)")
+
 FULLRES_DISTINCT_CAP = 1 << 20  # getcolors cap before octree fallback
 
 FOOTER_NOTE = (
@@ -185,12 +196,15 @@ def palette_for(garment_name):
 # ───────────────────────── image pipeline stages ───────────────────────
 
 def load_design(path):
+    """Returns (rgba_image, source_format). The format is captured
+    before conversion — it is the D-401 advisory's only evidence."""
     if not os.path.isfile(path):
         raise ToolError("file not found: %s" % path)
     try:
         image = Image.open(path)
+        source_format = image.format
         image.load()
-        return image.convert("RGBA")
+        return image.convert("RGBA"), source_format
     except Exception as exc:
         raise ToolError("cannot read %s as an image: %s" % (path, exc))
 
@@ -363,7 +377,7 @@ def run_gate(path, garment_input):
     buckets = palette_for(garment_name)
     hex_by_name = {name: chex for name, chex, _ in buckets}
 
-    design = load_design(path)
+    design, source_format = load_design(path)
     comp = composite(design, garment_rgb)
     full = full_res_stats(comp, garment_rgb, buckets)
     if full["ink"] == 0:
@@ -372,6 +386,9 @@ def run_gate(path, garment_input):
                         "to certify")
 
     findings = []
+
+    # D-401 advisory — a stamp, never a verdict change.
+    advisory = source_format not in CERTIFIED_INPUT_FORMATS
 
     if full["off_pct_tile"] > FLAT_STYLE_WARN_PCT:
         findings.append({
@@ -542,6 +559,10 @@ def run_gate(path, garment_input):
 
     verdict = "FAIL" if any(f["severity"] == "FAIL" for f in findings) else "PASS"
     footer = [FOOTER_NOTE, DENOMINATOR_NOTE]
+    if advisory:
+        footer.append("ADVISORY (%s input): %s"
+                      % (source_format or "unrecognized-format",
+                         LOSSY_ADVISORY))
     provisional = bool(spec["provisional"])
     if provisional:
         footer.append(PROVISIONAL_WARNING.format(garment=garment_name))
@@ -553,6 +574,8 @@ def run_gate(path, garment_input):
         "garment": {"name": garment_name, "hex": garment_hex,
                     "class": spec["class"], "provisional": provisional},
         "pillow": PIL.__version__,
+        "input_format": source_format,
+        "advisory": advisory,
         "full_res": {"width": design.size[0], "height": design.size[1],
                      "off_pct_tile": round(full["off_pct_tile"], 1),
                      "approximate_histogram": full["approximate"],
@@ -575,7 +598,8 @@ def write_debug(report, path, garment_input, debug_dir):
     os.makedirs(debug_dir, exist_ok=True)
     garment_name, _ = resolve_garment(garment_input)
     garment_rgb = hex_to_rgb(GARMENTS[garment_name]["hex"])
-    comp = composite(load_design(path), garment_rgb)
+    design, _source_format = load_design(path)
+    comp = composite(design, garment_rgb)
     stem = os.path.splitext(os.path.basename(path))[0]
     written = []
     flagged = {(f["size"], f["name"]) for f in report["findings"]
@@ -618,9 +642,13 @@ def render_human(report):
     g = report["garment"]
     out.append("══ THUMB CHECK ══ %s -> %s (%s, %s)"
                % (report["file"], g["name"], g["hex"], g["class"]))
-    out.append("Pillow %s · full-res %dx%d"
+    out.append("Pillow %s · full-res %dx%d · input: %s"
                % (report["pillow"], report["full_res"]["width"],
-                  report["full_res"]["height"]))
+                  report["full_res"]["height"],
+                  report["input_format"] or "unrecognized"))
+    if report["advisory"]:
+        out.append("")
+        out.append("⚠⚠ ADVISORY — %s ⚠⚠" % LOSSY_ADVISORY)
     flat = ("gradient/blend WARN" if any(
         f["check"] == "flat-style" for f in report["findings"])
         else "flat-style OK")
@@ -654,14 +682,16 @@ def render_human(report):
         out.append("%s [%s]: %s" % (f["severity"], f["check"], f["message"]))
     warns = sum(1 for f in report["findings"] if f["severity"] == "WARN")
     fails = sum(1 for f in report["findings"] if f["severity"] == "FAIL")
+    stamp = "  [ADVISORY — lossy/non-PNG input, D-401]" \
+        if report["advisory"] else ""
     if report["verdict"] == "FAIL":
-        out.append("VERDICT: FAIL — %d blob failure%s, %d warning%s"
+        out.append("VERDICT: FAIL — %d blob failure%s, %d warning%s%s"
                    % (fails, "" if fails == 1 else "s",
-                      warns, "" if warns == 1 else "s"))
+                      warns, "" if warns == 1 else "s", stamp))
     else:
-        out.append("VERDICT: PASS%s"
+        out.append("VERDICT: PASS%s%s"
                    % (" with %d warning%s" % (warns, "" if warns == 1 else "s")
-                      if warns else ""))
+                      if warns else "", stamp))
     for note in report["footer"]:
         out.append("NOTE: %s" % note)
     return "\n".join(out)
@@ -804,6 +834,11 @@ def render_explain():
 
 
 EPILOG = """\
+INPUT DOCTRINE (D-401): gates certified for lossless PNG only; lossy
+input destroys declared-color detection (measured 358,458->32 gold
+pixels after one JPEG save). Non-PNG input WARNS and stamps the report
+ADVISORY — exit codes are unchanged.
+
 WHAT THIS IS NOT: a file-level simulation. It is not a promise about how
 any platform actually renders, resamples, or compresses a thumbnail, and
 it does not model DTG ink on fabric.

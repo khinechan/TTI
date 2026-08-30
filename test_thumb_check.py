@@ -591,6 +591,68 @@ class TestPhantomColorRegression(Fixture):
         self.assertEqual(pair["verdict"], "OK")
 
 
+# ── D-401: lossy-input advisory ────────────────────────────────────────
+
+class TestLossyInputAdvisory(Fixture):
+    """D-401: non-PNG input prints a prominent warning and stamps the
+    report ADVISORY. Exit-code semantics UNCHANGED — warn, don't
+    refuse. The measured incident: 358,458 gold pixels in the PNG
+    master became 32 after one JPEG save."""
+
+    def gold_design(self, ext, **save_kwargs):
+        img = Image.new("RGB", (900, 900), (0x14, 0x14, 0x14))
+        img.paste(GOLD, (250, 250, 650, 650))
+        path = os.path.join(self.dir, "design." + ext)
+        img.save(path, **save_kwargs)
+        return path
+
+    def test_png_is_clean_no_advisory(self):
+        path = self.gold_design("png")
+        code, out, _ = run([path, "black", "--json"])
+        self.assertEqual(code, PASS)
+        report = self.report_of(out)
+        self.assertEqual(report["input_format"], "PNG")
+        self.assertFalse(report["advisory"])
+        _, human, _ = run([path, "black"])
+        self.assertNotIn("ADVISORY", human)
+
+    def test_jpeg_warns_and_stamps_but_never_refuses(self):
+        path = self.gold_design("jpg", quality=95)
+        code, out, _ = run([path, "black", "--json"])
+        self.assertEqual(code, PASS)              # exit UNCHANGED by advisory
+        report = self.report_of(out)
+        self.assertEqual(report["input_format"], "JPEG")
+        self.assertTrue(report["advisory"])
+        self.assertTrue(any("D-401" in n for n in report["footer"]))
+        _, human, _ = run([path, "black"])
+        self.assertIn("ADVISORY", human)
+        self.assertIn("lossless PNG only", human)
+        self.assertIn("358,458", human)
+        self.assertIn("[ADVISORY — lossy/non-PNG input, D-401]", human)
+
+    def test_bmp_is_advisory_too_certified_means_png(self):
+        path = self.gold_design("bmp")
+        code, out, _ = run([path, "black", "--json"])
+        self.assertEqual(code, PASS)
+        report = self.report_of(out)
+        self.assertEqual(report["input_format"], "BMP")
+        self.assertTrue(report["advisory"])
+
+    def test_advisory_never_flips_a_verdict(self):
+        """A failing design stays FAIL with the stamp appended — the
+        advisory annotates, never adjudicates."""
+        img = Image.new("RGB", (1400, 1400), (0xA6, 0xA6, 0xA4))
+        img.paste(BURGUNDY, (200, 300, 700, 1100))
+        img.paste(PLUM, (700, 300, 1200, 1100))
+        path = os.path.join(self.dir, "bad.jpg")
+        img.save(path, quality=95)
+        code, out, _ = run([path, "sport grey", "--json"])
+        self.assertEqual(code, FAIL)              # content verdict holds
+        report = self.report_of(out)
+        self.assertTrue(report["advisory"])
+        self.assertEqual(report["verdict"], "FAIL")
+
+
 # ── Windows console-encoding fix (STATE.md D-378) ───────────────────────
 
 class TestConsoleEncoding(Fixture):
