@@ -118,3 +118,11 @@ ruling. Tests: +T17-T21, licensing fixtures moved to the subscription
 shape (rule changed by court, reported), T14's total-opens assertion
 loosened to fit the once-per-source confirm open (the wall — max ONE
 open — unchanged and still asserted).
+
+F7 (Sonnet's cert finding, same day): same-stem dedupe BEFORE
+conversion — the real bundle ships .ai/.eps/.pdf/.png of the same art
+and af9ed55 proposed the same 11 regions three times. One source per
+stem by court priority PNG>SVG>PDF>EPS>AI (jpg/jpeg appended last so
+a preview never outranks a master — flagged addition); losers are
+SKIPPED_DUPLICATE_STEM in report + receipt, never converted, never
+CANT_CONVERT. T22.

@@ -126,11 +126,11 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | test_vault_backup.py | 27 tests: T0-T15 walls + backup_age fleet registration + config fail-closed + --json parity. unittest-style (pytest specced but absent — flagged deviation). | 1 |
 | vault_backup.config.example.json | Committed template for the real (gitignored) config: vault_dir, destination_dir, excludes, max_age_days. | 2 |
 | PLAN_vault_backup.md | The pre-build plan for MC BUILD 1 (survives compaction). | 2 |
-| asset_ingest.py | CF asset intake (MC FLEET B3, riders 2026-09-01 + fix cycle F1-F6 2026-09-02, D-419): inventory → EPS/AI/PDF via gs, SVG via cairosvg-then-inkscape (F4, per-file converter reported) → lossless PNG ≥4000px → split PROPOSED on an opaque-checkerboard contact sheet with haloed numbered boxes (W1/F1), never auto-cataloged → --confirm MASK-crops each piece by its own component label, un-dilated mask for the cut (F2), thumbs, linted 7-column rows (W8/W9), sidecar. License = CF subscription in config (F3, D-082): verified + in-date ⇒ licensed; folder record is an optional override; expired ⇒ NEEDS_HUMAN; neither ⇒ NOT_LICENSED_ASSET. --min-side (px, longest bbox side; --min-size hidden alias, F5). Backfill records MISSING_FILE, never null (F6). One image in memory (W4, cap 90M px); NFC ids (W6); --reingest gate (W7). Pillow. | 1 |
+| asset_ingest.py | CF asset intake (MC FLEET B3, riders 2026-09-01 + fix cycle F1-F7 2026-09-02, D-419): inventory → same-stem dedupe (F7: one source per stem, PNG>SVG>PDF>EPS>AI, losers SKIPPED_DUPLICATE_STEM) → EPS/AI/PDF via gs, SVG via cairosvg-then-inkscape (F4, per-file converter reported) → lossless PNG ≥4000px → split PROPOSED on an opaque-checkerboard contact sheet with haloed numbered boxes (W1/F1), never auto-cataloged → --confirm MASK-crops each piece by its own component label, un-dilated mask for the cut (F2), thumbs, linted 7-column rows (W8/W9), sidecar. License = CF subscription in config (F3, D-082): verified + in-date ⇒ licensed; folder record is an optional override; expired ⇒ NEEDS_HUMAN; neither ⇒ NOT_LICENSED_ASSET. --min-side (px, longest bbox side; --min-size hidden alias, F5). Backfill records MISSING_FILE, never null (F6). One image in memory (W4, cap 90M px); NFC ids (W6); --reingest gate (W7). Pillow. | 1 |
 | asset_index_lint.py | W9: the ONE importable lint for a valid 7-column ASSET_INDEX row (D-419 shape). Backtick-span-aware cell splitting (D-382 discipline), pure, stdlib-only. asset_ingest proves every row against it BEFORE append; B2's provenance check imports it. | 1 |
 | recolor.py | W5 shared helper for B2's render-time recolouring: a>0 → new RGB, alpha byte-identical. NO pool variants pre-generated at ingest. Pillow. | 1 |
 | play_schema.py | W11 shared play.json loader (D-419 sample): closed layout registry, required fields validated, unknown fields (e.g. element "note") IGNORED never errors. Stdlib-only; B2 imports it. | 1 |
-| test_asset_ingest.py | 37 tests: T1-T21 walls (T17 opaque sheet, T18 mask-crop isolation, T19 subscription/expired/override, T20 cairosvg, T21 MISSING_FILE) + lint rules + zip input + config fail-closed. unittest-style (pytest specced but absent — flagged deviation). | 1 |
+| test_asset_ingest.py | 39 tests: T1-T22 walls (T17 opaque sheet, T18 mask-crop isolation, T19 subscription/expired/override, T20 cairosvg, T21 MISSING_FILE, T22 stem dedupe) + lint rules + zip input + config fail-closed. unittest-style (pytest specced but absent — flagged deviation). | 1 |
 | asset_ingest.config.example.json | Committed template for the real (gitignored) config: index_root, assets_dir, license_dir. | 2 |
 | PLAN_asset_ingest.md | The pre-build plan for MC FLEET B3 (survives compaction). | 2 |
 | gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. | 1 |
@@ -145,7 +145,7 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-02: **300 tests, all green**
+Full suite baseline 2026-09-02: **302 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of

@@ -698,6 +698,47 @@ class T21BackfillMissing(IngestCase):
         self.assertNotIn(None, stored.values())
 
 
+class T22StemDedupe(IngestCase):
+    def test_three_formats_one_proposal_set_two_skips(self):
+        """F7: art.png + art.eps + art.ai -> ONE proposal set from
+        the PNG, two SKIPPED_DUPLICATE_STEM records, and the losers
+        never even reach the converter."""
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 60, 60), (100, 10, 150, 60)])
+        for name in ("art.eps", "art.ai"):
+            with open(os.path.join(self.input_dir, name), "wb") as fh:
+                fh.write(b"%!PS-Adobe-3.0\n")
+        with mock.patch.object(
+                ai, "probe_converters",
+                lambda: {"gs": None, "inkscape": None,
+                         "cairosvg": None}):
+            report = self.ingest_report()
+        self.assertEqual(len(self.total_proposals(report)), 2)
+        self.assertEqual(report["counts"]["skipped_duplicate_stem"],
+                         2)
+        skipped = sorted(item["file"] for item
+                         in report["skipped_duplicate_stem"])
+        self.assertEqual(skipped, ["art.ai", "art.eps"])
+        self.assertTrue(all(item["kept"] == "art.png" for item
+                            in report["skipped_duplicate_stem"]))
+        # the losers were skipped, not failed: no CANT_CONVERT
+        self.assertEqual(report["cant_convert"], [])
+        self.assertEqual(report["counts"]["converted"], 0)
+        receipt = self.receipts()[-1]
+        self.assertEqual(len(receipt["skipped_duplicate_stem"]), 2)
+
+    def test_different_stems_untouched(self):
+        """Two different stems in mixed formats: no dedupe."""
+        make_sheet(os.path.join(self.input_dir, "one.png"),
+                   [(10, 10, 60, 60)])
+        make_sheet(os.path.join(self.input_dir, "two.png"),
+                   [(10, 10, 60, 60)])
+        report = self.ingest_report()
+        self.assertEqual(report["counts"]["skipped_duplicate_stem"],
+                         0)
+        self.assertEqual(len(report["sources"]), 2)
+
+
 class ZipInput(IngestCase):
     def test_zip_ingest_parses_stem_product_id(self):
         png = os.path.join(self.tmp, "art.png")

@@ -115,6 +115,15 @@ CONVERTIBLE_EXTS = {          # ext -> converters that can take it,
 RASTER_EXTS = (".png", ".jpg", ".jpeg")
 JPEG_EXTS = (".jpg", ".jpeg")
 
+# F7: CF bundles ship the same art as .ai/.eps/.pdf/.png side by side
+# — converting each proposed the SAME regions three times over. One
+# source per filename stem, picked in this order (court priority
+# PNG > SVG > PDF > EPS > AI; jpg/jpeg appended last so a preview
+# never outranks a master — addition flagged in the build report).
+# Losers are recorded SKIPPED_DUPLICATE_STEM, never silently dropped.
+STEM_PRIORITY = (".png", ".svg", ".pdf", ".eps", ".ai",
+                 ".jpg", ".jpeg")
+
 CONVERT_TARGET_PX = 4000      # longest side of a converted PNG
 CONVERT_PROBE_DPI = 72
 CONVERT_TIMEOUT_S = 300
@@ -817,6 +826,8 @@ def append_receipt(report):
         "exit_code": report.get("exit_code"),
         "counts": report.get("counts", {}),
         "cant_convert": report.get("cant_convert", []),
+        "skipped_duplicate_stem": report.get("skipped_duplicate_stem",
+                                             []),
         "needs_human": [item["file"] for item
                         in report.get("needs_human", [])],
         "refusals": report.get("refusals", []),
@@ -839,7 +850,7 @@ def _new_counts():
             "cant_open": 0, "needs_human": 0, "proposed": 0,
             "crumbs_dropped": 0, "confirmed": 0, "rows_appended": 0,
             "rows_rejected": 0, "sidecar_entries": 0, "symlinks": 0,
-            "missing_files": 0}
+            "missing_files": 0, "skipped_duplicate_stem": 0}
 
 
 def product_out_dir(config, product_id):
@@ -888,6 +899,23 @@ def run_ingest(config, input_path, opts):
                         kind="DUPLICATE_PRODUCT_ID")
     by_ext = inventory_folder(folder, counts)
     counts["inventoried"] = sum(len(v) for v in by_ext.values())
+    # F7: dedupe same-stem duplicates BEFORE conversion — one source
+    # per stem, by STEM_PRIORITY; the rest are receipts, not work
+    stem_winner = {}
+    skipped_duplicate_stem = []
+    for ext in STEM_PRIORITY:
+        for rel in by_ext.get(ext, []):
+            stem = os.path.splitext(rel)[0]
+            if stem in stem_winner:
+                skipped_duplicate_stem.append(
+                    {"file": rel, "kept": stem_winner[stem]})
+            else:
+                stem_winner[stem] = rel
+    counts["skipped_duplicate_stem"] = len(skipped_duplicate_stem)
+
+    def _is_winner(rel):
+        return stem_winner.get(os.path.splitext(rel)[0]) == rel
+
     out_dir = product_out_dir(config, product_id)
     os.makedirs(out_dir, exist_ok=True)
     cant_convert = []
@@ -895,6 +923,8 @@ def run_ingest(config, input_path, opts):
     converted_files = []
     for ext in sorted(CONVERTIBLE_EXTS):
         for rel in by_ext.get(ext, []):
+            if not _is_winner(rel):
+                continue
             src = os.path.join(folder, *rel.split("/"))
             out_sub = os.path.join(out_dir, CONVERTED_DIRNAME)
             os.makedirs(out_sub, exist_ok=True)
@@ -911,7 +941,7 @@ def run_ingest(config, input_path, opts):
                 counts["cant_convert"] += 1
                 cant_convert.append({"file": rel, "reason": reason})
     raster_rels = [rel for ext in RASTER_EXTS
-                   for rel in by_ext.get(ext, [])]
+                   for rel in by_ext.get(ext, []) if _is_winner(rel)]
     jpeg_only = bool(raster_rels) and not converted_paths and all(
         os.path.splitext(rel)[1].lower() in JPEG_EXTS
         for rel in raster_rels)
@@ -961,6 +991,7 @@ def run_ingest(config, input_path, opts):
         "license": license_ref, "license_state": license_state,
         "converters": converters_summary(converters),
         "converted_files": converted_files,
+        "skipped_duplicate_stem": skipped_duplicate_stem,
         "inventory": {ext: len(v) for ext, v in sorted(by_ext.items())},
         "counts": counts, "cant_convert": cant_convert,
         "needs_human": needs_human,
@@ -1208,6 +1239,9 @@ def format_report(report):
                      % (report["converters"]["gs"],
                         report["converters"]["inkscape"],
                         report["converters"]["cairosvg"]))
+    for item in report.get("skipped_duplicate_stem", []):
+        lines.append("  SKIPPED_DUPLICATE_STEM: %s (kept %s)"
+                     % (item["file"], item["kept"]))
     for item in report.get("converted_files", []):
         lines.append("  CONVERTED: %s via %s"
                      % (item["file"], item["converter"]))
