@@ -597,5 +597,53 @@ class TestSourceDiscipline(Fixture):
         self.assertEqual(code, ERROR)
 
 
+# ── Windows console-encoding fix (STATE.md D-378 class) ────────────────
+
+class TestConsoleEncoding(Fixture):
+    """vault_repair.py carries the identical UnicodeEncodeError risk
+    vault_lint.py hit on a real Windows cp1252 console (STATE.md D-378
+    class) -- same ══ VAULT REPAIR ══ banner shape, same crash waiting
+    to happen the first time this tool runs natively. Fixed pre-emptively
+    here, same session, so the two tools stay in agreement (the standing
+    rule that they must -- vault_lint and vault_repair share ROW_PATTERN
+    detection for the same reason). These tests exist because the fix
+    itself is a way this suite could quietly stop testing anything:
+    every test above runs main() under redirect_stdout(io.StringIO()),
+    and io.StringIO has no .reconfigure -- a careless fix would have
+    broken the whole suite the instant it landed.
+    """
+
+    def test_reconfigure_is_a_noop_on_a_plain_stringio(self):
+        """io.StringIO has no .reconfigure -- the same shape every test
+        above's own run() helper swaps in. If this raised, the whole
+        suite would already be red; this names the reason it isn't."""
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            vr._ensure_utf8_console()  # must not raise AttributeError
+
+    def test_reconfigure_is_called_with_utf8_replace_when_supported(self):
+        """When the stream DOES support .reconfigure (the real case on
+        a live console), confirm the fix calls it with the right args --
+        not just that it's safe to call when it's absent."""
+        calls = []
+
+        class FakeStream:
+            def reconfigure(self, **kwargs):
+                calls.append(kwargs)
+
+        with redirect_stdout(FakeStream()), redirect_stderr(FakeStream()):
+            vr._ensure_utf8_console()
+        self.assertEqual(calls, [{"encoding": "utf-8", "errors": "replace"}] * 2)
+
+    def test_report_banner_survives_the_fix(self):
+        """The exact crash-site shape: a dry-run report prints the
+        ══ VAULT REPAIR ══ banner through render_report(). Confirms it
+        still comes through whole post-fix."""
+        path = self.standard()
+        code, out, _ = run([path])
+        self.assertEqual(code, REPAIRS, out)
+        self.assertIn("VAULT REPAIR", out)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
