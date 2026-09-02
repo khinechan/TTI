@@ -63,7 +63,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 import asset_index_lint as ail
 
@@ -78,7 +78,15 @@ RECEIPTS_NAME = "asset_ingest_receipts.jsonl"   # beside the tool,
 
 DEFAULT_CONFIG_NAME = "asset_ingest.config.json"
 REQUIRED_CONFIG_KEYS = ("index_root", "assets_dir", "license_dir")
-KNOWN_CONFIG_KEYS = REQUIRED_CONFIG_KEYS
+KNOWN_CONFIG_KEYS = REQUIRED_CONFIG_KEYS + ("cf_subscription",)
+
+# F3 (court, real shape): CF folders carry NO per-folder record — the
+# license is the subscription itself (D-082). A per-folder
+# license-record.md stays as an optional OVERRIDE. NOT_LICENSED_ASSET
+# only when neither resolves; an EXPIRED subscription holds everything
+# NEEDS_HUMAN, never silently licensed.
+CF_SUBSCRIPTION_KEYS = ("status", "valid_through", "record_path")
+CF_STATUS_LICENSED = "verified"
 
 INDEX_NAME = "ASSET_INDEX.md"
 SIDECAR_NAME = "ASSET_INDEX.hashes.json"        # W8: schema lives
@@ -96,13 +104,13 @@ PRODUCT_ID_PATTERN = re.compile(r"(\d+)\s*$")
 # W3: probe both, report both. Order within a tuple = preference.
 GS_CANDIDATES = ("gs", "gswin64c", "gswin32c")
 INKSCAPE_CANDIDATES = ("inkscape",)
-CONVERTIBLE_EXTS = {          # ext -> converters that can take it
-    ".eps": ("gs", "inkscape"),
+CONVERTIBLE_EXTS = {          # ext -> converters that can take it,
+    ".eps": ("gs", "inkscape"),        # preference order (F4)
     ".ai": ("gs", "inkscape"),
     ".pdf": ("gs", "inkscape"),
-    ".svg": ("inkscape",),    # spec says EPS/AI/PDF; SVG added because
-                              # the real CF bundles ARE SVG and the spec
-                              # probes Inkscape — flagged deviation
+    ".svg": ("cairosvg", "inkscape"),  # F4: cairosvg preferred (fleet
+                                       # lineage: make_icons.py),
+                                       # inkscape is the fallback
 }
 RASTER_EXTS = (".png", ".jpg", ".jpeg")
 JPEG_EXTS = (".jpg", ".jpeg")
@@ -121,6 +129,27 @@ THUMB_PX = 512                # thumbnail box (longest side)
 CONTACT_SHEET_PX = 2000       # contact sheet longest side
 BOX_COLOR = (255, 0, 0, 255)
 BOX_MERGE_COLOR = (255, 140, 0, 255)   # likely-merge boxes draw orange
+
+# F1: black-on-alpha art is invisible on a transparent sheet — the
+# human confirm has to SEE. The sheet composites onto an opaque light
+# checkerboard, and boxes/numbers get a white halo so they read over
+# dark and light art alike.
+CHECKER_TILE_PX = 32
+CHECKER_LIGHT = (238, 238, 238)        # #EEE
+CHECKER_DARK = (204, 204, 204)         # #CCC
+HALO_COLOR = (255, 255, 255, 255)
+TEXT_HALO_OFFSETS = ((-2, -2), (-2, 0), (-2, 2), (0, -2), (0, 2),
+                     (2, -2), (2, 0), (2, 2), (-1, -1), (-1, 1),
+                     (1, -1), (1, 1))
+NUMBER_FONT_PX = 24           # the human reads these numbers to type
+                              # --confirm ids; tiny digits fail F1
+
+PROPOSAL_VERSION = 2          # v2: proposals carry a seed pixel so
+                              # confirm can mask-crop (F2); older
+                              # proposal files must be re-ingested
+
+MISSING_FILE_MARK = "MISSING_FILE"     # F6: backfill never records a
+                                       # null hash
 
 DEFAULT_ALPHA_THRESHOLD = 8   # a > threshold is "ink"; anti-aliased
                               # fringes below it never spawn crumbs
@@ -201,9 +230,10 @@ def _utc_now():
 # ── converters (W3) ────────────────────────────────────────────────────
 
 def probe_converters():
-    """Which of Ghostscript / Inkscape exist on this box. Reported in
-    every ingest run's output — a run that finds neither says so."""
-    found = {"gs": None, "inkscape": None}
+    """Which of Ghostscript / Inkscape / cairosvg exist on this box
+    (F4: cairosvg is an import, not a binary). Reported in every
+    ingest run's output — a run that finds none says so."""
+    found = {"gs": None, "inkscape": None, "cairosvg": None}
     for name in GS_CANDIDATES:
         path = shutil.which(name)
         if path:
@@ -214,7 +244,20 @@ def probe_converters():
         if path:
             found["inkscape"] = path
             break
+    try:
+        import cairosvg                     # noqa: fleet lineage
+        found["cairosvg"] = cairosvg
+    except ImportError:
+        pass
     return found
+
+
+def converters_summary(converters):
+    """JSON-safe view of the probe for reports and receipts."""
+    return {"gs": converters.get("gs"),
+            "inkscape": converters.get("inkscape"),
+            "cairosvg": ("present" if converters.get("cairosvg")
+                         else None)}
 
 
 def _run_subprocess(cmd):
@@ -263,33 +306,52 @@ def _convert_with_inkscape(inkscape, src, out_png):
     return None
 
 
+def _convert_with_cairosvg(module, src, out_png):
+    """F4: preferred SVG path — cairosvg renders in-process, width
+    scaled to the target (aspect preserved)."""
+    try:
+        module.svg2png(url=src, write_to=out_png,
+                       output_width=CONVERT_TARGET_PX)
+    except Exception as err:      # cairosvg raises library-specific
+        return "cairosvg raised %s: %s" % (type(err).__name__,
+                                           str(err)[:300])
+    if not os.path.exists(out_png):
+        return "cairosvg produced no output file"
+    return None
+
+
 def convert_file(src, out_png, converters):
-    """Convert one EPS/AI/PDF/SVG to lossless PNG. Returns None on
-    success or the CANT_CONVERT reason string (W3: loud, never a
-    skip)."""
+    """Convert one EPS/AI/PDF/SVG to lossless PNG. Returns
+    (engine, None) on success or (None, reason) — the CANT_CONVERT
+    reason string (W3: loud, never a skip). F4: the engine that
+    handled the file is reported."""
     ext = os.path.splitext(src)[1].lower()
     for engine in CONVERTIBLE_EXTS[ext]:
-        binary = converters.get(engine)
-        if not binary:
+        handler = converters.get(engine)
+        if not handler:
             continue
         try:
             if engine == "gs":
-                reason = _convert_with_gs(binary, src, out_png)
+                reason = _convert_with_gs(handler, src, out_png)
+            elif engine == "cairosvg":
+                reason = _convert_with_cairosvg(handler, src, out_png)
             else:
-                reason = _convert_with_inkscape(binary, src, out_png)
+                reason = _convert_with_inkscape(handler, src, out_png)
         except (subprocess.TimeoutExpired, OSError, ImageTooBig) as err:
             reason = "%s raised %s: %s" % (engine,
                                            type(err).__name__, err)
         if reason is None:
-            return None
+            return engine, None
         last_reason = reason
     available = [e for e in CONVERTIBLE_EXTS[ext] if converters.get(e)]
     if not available:
-        return ("no converter available for %s (needs %s; probe found "
-                "gs=%s inkscape=%s)"
-                % (ext, "/".join(CONVERTIBLE_EXTS[ext]),
-                   converters.get("gs"), converters.get("inkscape")))
-    return last_reason
+        summary = converters_summary(converters)
+        return None, ("no converter available for %s (needs %s; probe "
+                      "found gs=%s inkscape=%s cairosvg=%s)"
+                      % (ext, "/".join(CONVERTIBLE_EXTS[ext]),
+                         summary["gs"], summary["inkscape"],
+                         summary["cairosvg"]))
+    return None, last_reason
 
 
 # ── config / identity ──────────────────────────────────────────────────
@@ -335,6 +397,34 @@ def load_config(path):
                         "Asset cells can be relative paths "
                         "(assets_dir=%s, index_root=%s)"
                         % (config["assets_dir"], config["index_root"]))
+    config["cf_subscription"] = None
+    if "cf_subscription" in raw:
+        sub = raw["cf_subscription"]
+        if not isinstance(sub, dict):
+            raise ToolError("cf_subscription must be an object")
+        for key in sorted(sub):
+            if key not in CF_SUBSCRIPTION_KEYS:
+                raise ToolError("unknown cf_subscription key %r "
+                                "(known: %s)"
+                                % (key,
+                                   ", ".join(CF_SUBSCRIPTION_KEYS)))
+        for key in CF_SUBSCRIPTION_KEYS:
+            if (key not in sub or not isinstance(sub[key], str)
+                    or not sub[key]):
+                raise ToolError("cf_subscription key %r missing or "
+                                "not a non-empty string" % key)
+        try:
+            valid_through = datetime.strptime(
+                sub["valid_through"], "%Y-%m-%d").date()
+        except ValueError:
+            raise ToolError("cf_subscription.valid_through must be "
+                            "YYYY-MM-DD (got %r)"
+                            % sub["valid_through"])
+        config["cf_subscription"] = {
+            "status": sub["status"],
+            "valid_through": valid_through,
+            "record_path": sub["record_path"],
+        }
     return config
 
 
@@ -347,19 +437,34 @@ def parse_product_id(name):
     return match.group(1) if match else None
 
 
-def resolve_license(input_dir, license_dir, product_id):
-    """W2: the ONLY hard refusal is an unresolvable license record.
-    Resolution order: (1) license-record.md inside the input folder;
-    (2) any *.md in license_dir whose name contains the product id.
-    Returns a description string or None. (Interpretation flagged in
-    the build report — Sonnet confirms the vault-side shape.)"""
+def resolve_license(input_dir, config, product_id):
+    """W2 + F3 (the court's real shape): the license IS the CF
+    subscription (D-082). Licensed when the numeric product id parsed
+    AND cf_subscription.status is 'verified' AND today is on or
+    before valid_through. A per-folder license-record.md is an
+    optional OVERRIDE, not a requirement. Returns (state, desc):
+    ('LICENSED', ...) | ('EXPIRED', ...) | (None, None). Expired is
+    never silently licensed — the caller holds everything NEEDS_HUMAN.
+    license_dir is retained in the config contract but no longer
+    consulted for resolution."""
     local = os.path.join(input_dir, LICENSE_RECORD_NAME)
     if os.path.isfile(local):
-        return "folder %s" % LICENSE_RECORD_NAME
-    for name in sorted(os.listdir(license_dir)):
-        if name.lower().endswith(".md") and product_id in name:
-            return "license_dir/%s" % name
-    return None
+        return "LICENSED", "folder %s (override)" % LICENSE_RECORD_NAME
+    sub = config.get("cf_subscription")
+    if sub and product_id.isdigit() \
+            and sub["status"] == CF_STATUS_LICENSED:
+        today = _utc_now().date()
+        if today <= sub["valid_through"]:
+            return "LICENSED", ("%s (subscription valid through %s, "
+                                "record: %s)"
+                                % (CF_LICENSE_LITERAL,
+                                   sub["valid_through"].isoformat(),
+                                   sub["record_path"]))
+        return "EXPIRED", ("CF subscription EXPIRED %s (today %s) — "
+                           "held NEEDS_HUMAN, never silently licensed"
+                           % (sub["valid_through"].isoformat(),
+                              today.isoformat()))
+    return None, None
 
 
 # ── sidecar (W8) ───────────────────────────────────────────────────────
@@ -555,9 +660,60 @@ def label_components(mask):
                         visited[neighbor] = 1
                         stack.append(neighbor)
         components.append({"bbox": [min_x, min_y, max_x, max_y],
-                           "pixels": pixels})
+                           "pixels": pixels,
+                           "seed": [start % width, start // width]})
     components.sort(key=lambda c: (c["bbox"][1], c["bbox"][0]))
     return components
+
+
+def flood_membership(mask, seed_xy):
+    """F2: the membership map of ONE component — flood the mask from
+    its recorded seed pixel. Returns an L image (255 inside the
+    component, 0 outside) so confirm can cut by label, not by bbox."""
+    width, height = mask.size
+    data = mask.tobytes()
+    start = seed_xy[1] * width + seed_xy[0]
+    if not (0 <= start < width * height) or not data[start]:
+        raise ToolError("proposal seed %s does not sit on ink — the "
+                        "mask no longer matches the proposal; re-run "
+                        "ingest" % (seed_xy,))
+    member = bytearray(width * height)
+    member[start] = 255
+    stack = [start]
+    while stack:
+        index = stack.pop()
+        x = index % width
+        y = index // width
+        for dy in (-1, 0, 1):
+            ny = y + dy
+            if not 0 <= ny < height:
+                continue
+            row = ny * width
+            for dx in (-1, 0, 1):
+                nx = x + dx
+                if not 0 <= nx < width:
+                    continue
+                neighbor = row + nx
+                if data[neighbor] and not member[neighbor]:
+                    member[neighbor] = 255
+                    stack.append(neighbor)
+    return Image.frombytes("L", (width, height), bytes(member))
+
+
+def checkerboard(size):
+    """F1: opaque light checkerboard so black-on-alpha art is visible
+    on the contact sheet."""
+    board = Image.new("RGB", size, CHECKER_LIGHT)
+    draw = ImageDraw.Draw(board)
+    for top in range(0, size[1], CHECKER_TILE_PX):
+        for left in range(0, size[0], CHECKER_TILE_PX):
+            if ((left // CHECKER_TILE_PX)
+                    + (top // CHECKER_TILE_PX)) % 2:
+                draw.rectangle((left, top,
+                                left + CHECKER_TILE_PX - 1,
+                                top + CHECKER_TILE_PX - 1),
+                               fill=CHECKER_DARK)
+    return board.convert("RGBA")
 
 
 def likely_merge(mask, component):
@@ -604,28 +760,43 @@ def propose_for_png(abs_png, out_dir, params, counts, next_id):
             "id": next_id,
             "bbox": component["bbox"],
             "pixels": component["pixels"],
-            "likely_merge": likely_merge(mask, component),
+            "seed": component["seed"],       # F2: confirm floods from
+            "likely_merge": likely_merge(mask, component),  # here
         })
         next_id += 1
     mask.close()
-    # contact sheet: every proposed box drawn and numbered (W1)
+    # contact sheet (W1, F1): art composited onto an OPAQUE light
+    # checkerboard — black-on-alpha art must be VISIBLE — with every
+    # box and number drawn over a white halo
     original_w = sheet_base.width
     sheet_base.thumbnail((CONTACT_SHEET_PX, CONTACT_SHEET_PX))
     scale = sheet_base.width / original_w if original_w else 1.0
-    draw = ImageDraw.Draw(sheet_base)
+    sheet = Image.alpha_composite(checkerboard(sheet_base.size),
+                                  sheet_base)
+    sheet_base.close()
+    draw = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.load_default(NUMBER_FONT_PX)
+    except TypeError:          # older Pillow: unsized bitmap font
+        font = ImageFont.load_default()
     for proposal in proposals:
         left, top, right, bottom = [v * scale
                                     for v in proposal["bbox"]]
         color = (BOX_MERGE_COLOR if proposal["likely_merge"]
                  else BOX_COLOR)
+        draw.rectangle([left - 1, top - 1, right + 1, bottom + 1],
+                       outline=HALO_COLOR, width=4)
         draw.rectangle([left, top, right, bottom], outline=color,
                        width=2)
-        draw.text((left + 3, top + 3), str(proposal["id"]),
-                  fill=color)
+        label = str(proposal["id"])
+        for dx, dy in TEXT_HALO_OFFSETS:
+            draw.text((left + 5 + dx, top + 5 + dy), label,
+                      fill=HALO_COLOR, font=font)
+        draw.text((left + 5, top + 5), label, fill=color, font=font)
     stem = os.path.splitext(os.path.basename(abs_png))[0]
     sheet_name = CONTACT_SHEET_FMT % stem
-    sheet_base.save(os.path.join(out_dir, sheet_name))
-    sheet_base.close()
+    sheet.convert("RGB").save(os.path.join(out_dir, sheet_name))
+    sheet.close()
     counts["proposed"] += len(proposals)
     return {"path": os.path.abspath(abs_png),
             "sha256": hash_file(abs_png),
@@ -667,7 +838,8 @@ def _new_counts():
     return {"inventoried": 0, "converted": 0, "cant_convert": 0,
             "cant_open": 0, "needs_human": 0, "proposed": 0,
             "crumbs_dropped": 0, "confirmed": 0, "rows_appended": 0,
-            "rows_rejected": 0, "sidecar_entries": 0, "symlinks": 0}
+            "rows_rejected": 0, "sidecar_entries": 0, "symlinks": 0,
+            "missing_files": 0}
 
 
 def product_out_dir(config, product_id):
@@ -697,13 +869,13 @@ def run_ingest(config, input_path, opts):
                         "NFC-normalized name %r — CF folder names "
                         "carry the id" % os.path.basename(id_source),
                         kind="PRODUCT_ID_UNRESOLVED")
-    license_ref = resolve_license(folder, config["license_dir"],
-                                  product_id)
-    if license_ref is None:
-        raise ToolError("no license record resolvable for product %s "
-                        "(no %s in the folder, nothing matching in "
-                        "%s)" % (product_id, LICENSE_RECORD_NAME,
-                                 config["license_dir"]),
+    license_state, license_ref = resolve_license(folder, config,
+                                                 product_id)
+    if license_state is None:
+        raise ToolError("no license resolvable for product %s: no %s "
+                        "override in the folder and no valid "
+                        "cf_subscription in the config (F3)"
+                        % (product_id, LICENSE_RECORD_NAME),
                         kind="NOT_LICENSED_ASSET")
     sidecar = load_sidecar(sidecar_path(config))
     already = sorted(path for path, entry in sidecar["entries"].items()
@@ -720,6 +892,7 @@ def run_ingest(config, input_path, opts):
     os.makedirs(out_dir, exist_ok=True)
     cant_convert = []
     converted_paths = []
+    converted_files = []
     for ext in sorted(CONVERTIBLE_EXTS):
         for rel in by_ext.get(ext, []):
             src = os.path.join(folder, *rel.split("/"))
@@ -728,10 +901,12 @@ def run_ingest(config, input_path, opts):
             out_png = os.path.join(
                 out_sub,
                 os.path.splitext(os.path.basename(rel))[0] + ".png")
-            reason = convert_file(src, out_png, converters)
+            engine, reason = convert_file(src, out_png, converters)
             if reason is None:
                 counts["converted"] += 1
                 converted_paths.append(out_png)
+                converted_files.append({"file": rel,
+                                        "converter": engine})
             else:
                 counts["cant_convert"] += 1
                 cant_convert.append({"file": rel, "reason": reason})
@@ -753,6 +928,8 @@ def run_ingest(config, input_path, opts):
             cant_convert.append({"file": os.path.basename(candidate),
                                  "reason": "CANT_OPEN: %s" % err})
             continue
+        if license_state == "EXPIRED":       # F3: hold everything
+            reasons = [license_ref] + reasons
         if reasons:
             counts["needs_human"] += 1
             needs_human.append({"file": os.path.basename(candidate),
@@ -768,7 +945,7 @@ def run_ingest(config, input_path, opts):
         record, next_id = propose_for_png(candidate, out_dir, params,
                                           counts, next_id)
         sources.append(record)
-    proposal = {"tool": TOOL_NAME, "version": 1,
+    proposal = {"tool": TOOL_NAME, "version": PROPOSAL_VERSION,
                 "product_id": product_id, "params": params,
                 "license": license_ref,
                 "created_utc": _utc_now().isoformat(timespec="seconds"),
@@ -781,7 +958,9 @@ def run_ingest(config, input_path, opts):
             or counts["cant_convert"] or counts["cant_open"])
     return {
         "tool": TOOL_NAME, "run": "INGEST", "product_id": product_id,
-        "license": license_ref, "converters": converters,
+        "license": license_ref, "license_state": license_state,
+        "converters": converters_summary(converters),
+        "converted_files": converted_files,
         "inventory": {ext: len(v) for ext, v in sorted(by_ext.items())},
         "counts": counts, "cant_convert": cant_convert,
         "needs_human": needs_human,
@@ -848,6 +1027,12 @@ def run_confirm(config, input_path, opts):
     if proposal.get("tool") != TOOL_NAME:
         raise ToolError("proposal at %s was not written by this tool"
                         % proposal_file)
+    if proposal.get("version") != PROPOSAL_VERSION:
+        raise ToolError("proposal at %s is version %r; this build "
+                        "writes v%d proposals (seed-based mask-crop, "
+                        "F2) — re-run the ingest pass"
+                        % (proposal_file, proposal.get("version"),
+                           PROPOSAL_VERSION))
     if not os.path.isfile(index_path(config)):
         raise ToolError("%s missing at %s — this tool never invents "
                         "the human table" % (INDEX_NAME,
@@ -869,47 +1054,77 @@ def run_confirm(config, input_path, opts):
     os.makedirs(pieces_dir, exist_ok=True)
     os.makedirs(thumbs_dir, exist_ok=True)
     today = _utc_now().strftime("%Y-%m-%d")
+    params = proposal["params"]
+    chosen = set(ids)
     rejected = []
     confirmed = []
-    for piece_id in ids:
-        source, piece = id_map[piece_id]
-        left, top, right, bottom = piece["bbox"]
+    for source in proposal["sources"]:
+        wanted = [p for p in source["proposals"]
+                  if p["id"] in chosen]
+        if not wanted:
+            continue
         img = _open_image(source["path"])
         try:
             rgba = img.convert("RGBA")
         finally:
             img.close()
-        crop = rgba.crop((left, top, right + 1, bottom + 1))
-        crop.load()
+        alpha = rgba.getchannel("A")
+        # F2: rebuild the masks the proposal was made from; the cut
+        # uses the UN-dilated mask so gap-close never fattens a halo
+        dilated = build_mask(alpha, params["alpha_threshold"],
+                             params["gap_close"])
+        undilated = (dilated if params["gap_close"] == 0
+                     else build_mask(alpha,
+                                     params["alpha_threshold"], 0))
+        alpha.close()
+        for piece in wanted:
+            piece_id = piece["id"]
+            left, top, right, bottom = piece["bbox"]
+            box = (left, top, right + 1, bottom + 1)
+            membership = flood_membership(dilated, piece["seed"])
+            cut_mask = (membership if undilated is dilated
+                        else ImageChops.darker(membership, undilated))
+            crop = rgba.crop(box)
+            crop.load()
+            piece_alpha = ImageChops.multiply(
+                crop.getchannel("A"), cut_mask.crop(box))
+            crop.putalpha(piece_alpha)
+            if cut_mask is not membership:
+                cut_mask.close()
+            membership.close()
+            piece_path = os.path.join(pieces_dir,
+                                      PIECE_NAME_FMT % piece_id)
+            crop.save(piece_path)
+            thumb = crop.copy()
+            crop.close()
+            thumb.thumbnail((THUMB_PX, THUMB_PX))
+            thumb.save(os.path.join(thumbs_dir,
+                                    THUMB_NAME_FMT % piece_id))
+            thumb.close()
+            counts["confirmed"] += 1
+            rel = os.path.relpath(
+                piece_path, config["index_root"]).replace(os.sep, "/")
+            cells = ("`%s`" % rel, CF_LICENSE_LITERAL, opts["style"],
+                     opts["tags"], opts["colors"],
+                     opts["recolor_mode"], USED_IN_FMT % today)
+            try:
+                row = ail.format_row(cells)
+            except ValueError as err:
+                counts["rows_rejected"] += 1
+                rejected.append({"piece": piece_id,
+                                 "reason": str(err)})
+                continue
+            append_index_line(index_path(config), row)
+            counts["rows_appended"] += 1
+            sidecar["entries"][rel] = {"sha256": hash_file(piece_path),
+                                       "product_id": product_id,
+                                       "ingested_utc": today}
+            counts["sidecar_entries"] += 1
+            confirmed.append({"id": piece_id, "path": rel})
+        if undilated is not dilated:
+            undilated.close()
+        dilated.close()
         rgba.close()
-        piece_path = os.path.join(pieces_dir,
-                                  PIECE_NAME_FMT % piece_id)
-        crop.save(piece_path)
-        thumb = crop.copy()
-        crop.close()
-        thumb.thumbnail((THUMB_PX, THUMB_PX))
-        thumb.save(os.path.join(thumbs_dir, THUMB_NAME_FMT % piece_id))
-        thumb.close()
-        counts["confirmed"] += 1
-        rel = os.path.relpath(piece_path,
-                              config["index_root"]).replace(os.sep,
-                                                            "/")
-        cells = ("`%s`" % rel, CF_LICENSE_LITERAL, opts["style"],
-                 opts["tags"], opts["colors"], opts["recolor_mode"],
-                 USED_IN_FMT % today)
-        try:
-            row = ail.format_row(cells)
-        except ValueError as err:
-            counts["rows_rejected"] += 1
-            rejected.append({"piece": piece_id, "reason": str(err)})
-            continue
-        append_index_line(index_path(config), row)
-        counts["rows_appended"] += 1
-        sidecar["entries"][rel] = {"sha256": hash_file(piece_path),
-                                   "product_id": product_id,
-                                   "ingested_utc": today}
-        counts["sidecar_entries"] += 1
-        confirmed.append({"id": piece_id, "path": rel})
     write_sidecar(sidecar_path(config), sidecar)
     return {
         "tool": TOOL_NAME, "run": "CONFIRM", "product_id": product_id,
@@ -949,14 +1164,17 @@ def run_backfill(config, opts):
             continue
         abs_path = os.path.join(config["index_root"],
                                 *rel.split("/"))
-        entry = {"product_id": parse_product_id(
-                     os.path.dirname(rel) or rel),
+        entry = {"product_id": (parse_product_id(
+                     os.path.dirname(rel) or rel) or "UNKNOWN"),
                  "ingested_utc": _utc_now().strftime("%Y-%m-%d")}
         if os.path.isfile(abs_path):
             entry["sha256"] = hash_file(abs_path)
         else:
-            entry["sha256"] = None
+            # F6: never a null hash — the missing file is recorded
+            # loudly and counted
+            entry["sha256"] = MISSING_FILE_MARK
             entry["note"] = "backfill: file not found under index_root"
+            counts["missing_files"] += 1
         proposals[rel] = entry
     applied = False
     if proposals and opts["apply"]:
@@ -985,9 +1203,16 @@ def format_report(report):
              % (report["run"], report.get("product_id"),
                 report["exit_code"])]
     if "converters" in report:
-        lines.append("  converters: gs=%s inkscape=%s (W3 probe)"
+        lines.append("  converters: gs=%s inkscape=%s cairosvg=%s "
+                     "(W3 probe)"
                      % (report["converters"]["gs"],
-                        report["converters"]["inkscape"]))
+                        report["converters"]["inkscape"],
+                        report["converters"]["cairosvg"]))
+    for item in report.get("converted_files", []):
+        lines.append("  CONVERTED: %s via %s"
+                     % (item["file"], item["converter"]))
+    if report.get("license"):
+        lines.append("  license: %s" % report["license"])
     if report.get("inventory"):
         lines.append("  inventory: " + " ".join(
             "%s=%d" % (ext or "(none)", n)
@@ -1056,8 +1281,14 @@ def main(argv=None):
     parser.add_argument("--apply", action="store_true",
                         help="with --backfill: write the proposed "
                              "entries")
-    parser.add_argument("--min-size", type=int,
-                        default=DEFAULT_MIN_SIZE)
+    parser.add_argument("--min-side", type=int, dest="min_side",
+                        default=DEFAULT_MIN_SIZE,
+                        help="smallest proposal kept: the LONGEST "
+                             "SIDE of its bounding box, in px "
+                             "(default %(default)s)")
+    parser.add_argument("--min-size", type=int, dest="min_side",
+                        default=argparse.SUPPRESS,
+                        help=argparse.SUPPRESS)   # F5: hidden alias
     parser.add_argument("--gap-close", type=int,
                         default=DEFAULT_GAP_CLOSE)
     parser.add_argument("--alpha-threshold", type=int,
@@ -1088,13 +1319,13 @@ def main(argv=None):
                             "--backfill)")
         if not (0 <= args.alpha_threshold <= 255):
             raise ToolError("--alpha-threshold must be 0..255")
-        if args.min_size < 1 or args.gap_close < 0:
-            raise ToolError("--min-size must be >=1, --gap-close >=0")
+        if args.min_side < 1 or args.gap_close < 0:
+            raise ToolError("--min-side must be >=1, --gap-close >=0")
         config = load_config(args.config)
         opts = {"confirm": args.confirm,
                 "confirm_file": args.confirm_file,
                 "reingest": args.reingest, "apply": args.apply,
-                "min_size": args.min_size,
+                "min_size": args.min_side,
                 "gap_close": args.gap_close,
                 "alpha_threshold": args.alpha_threshold,
                 "style": args.style, "tags": args.tags,

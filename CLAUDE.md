@@ -75,9 +75,10 @@ is indistinguishable from a thing that was lost. Same applies to code.
 Dead code is removed deliberately, in its own commit, with Khai's
 say-so.
 
-**W7. NO NEW DEPENDENCIES WITHOUT ASKING.** House standard is
-stdlib-only, with Pillow as the single exception in one tool
-(thumb_check.py). `pip install` is a decision, not a step.
+**W7. NO NEW DEPENDENCIES WITHOUT ASKING.** Pillow is
+permitted for the image-family tools: thumb_check, asset_ingest,
+recolor, and play_forge. All other fleet tools stay stdlib.
+(Court wording, 2026-09-02.) `pip install` is a decision, not a step.
 
 **W8. IRREVERSIBILITY TEST — run it before every action:** Could this
 cost money? Could this change a live listing? Could this delete or
@@ -115,7 +116,7 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | test_color_check.py | 56 tests: rule audit, regression-locked ratios, per-garment outline mechanisms (24x), console-encoding (D-378), D-401 input doctrine. | 1 |
 | vault_lint.py | Read-only integrity linter for STATE.md decision logs. No --fix flag, ever. Pure detection API: scan_lines() / detect(). ROW_PATTERN knows the two addendum ID shapes (D-376); UTF-8 console reconfigure (D-380). | 1 |
 | test_vault_lint.py | 51 tests: 42 base + 6 addendum-convention (31-36) + 3 console-encoding. | 1 |
-| thumb_check.py | Thumbnail legibility gate: two-map adjacency over DECLARED colors (near-exact pixels only — the 2026-08-28 phantom-color fix), blob verdicts, survival, --audit-palette. Pillow is its single allowed dependency. | 1 |
+| thumb_check.py | Thumbnail legibility gate: two-map adjacency over DECLARED colors (near-exact pixels only — the 2026-08-28 phantom-color fix), blob verdicts, survival, --audit-palette. Pillow (image-family tool, W7 court wording 2026-09-02). | 1 |
 | test_thumb_check.py | 42 tests: 75px adjacency regression, phantom-color regressions (25-28, pre-fix outputs in docstrings), console-encoding, D-401 lossy-input advisory. | 1 |
 | vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] plus the v1.1 --close-only batch mode (frozen class v1.1 per D-382, one confirmation, no bypass, never a gate stage). Strict decode; byte-faithful; descending apply; verified backup. | 1 |
 | test_vault_repair.py | 33 v1.0 tests incl. the war-game closures (U+2028, CRLF, BOM, identity-compare). UNEDITED since v1.0. | 1 |
@@ -125,11 +126,11 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | test_vault_backup.py | 27 tests: T0-T15 walls + backup_age fleet registration + config fail-closed + --json parity. unittest-style (pytest specced but absent — flagged deviation). | 1 |
 | vault_backup.config.example.json | Committed template for the real (gitignored) config: vault_dir, destination_dir, excludes, max_age_days. | 2 |
 | PLAN_vault_backup.md | The pre-build plan for MC BUILD 1 (survives compaction). | 2 |
-| asset_ingest.py | CF asset intake (MC FLEET B3, riders 2026-09-01, D-419): inventory → EPS/AI/PDF(+SVG via Inkscape) → lossless PNG ≥4000px → split PROPOSED with numbered contact sheet, never auto-cataloged (W1) → --confirm saves pieces+thumbs, appends linted 7-column ASSET_INDEX rows (W8/W9), sidecar sha256+product-id+date. Preview hints → NEEDS_HUMAN; only unresolvable license is a hard refusal (W2). CANT_CONVERT loud (W3); one image in memory (W4, cap 90M px); NFC ids (W6); --reingest gate (W7); --backfill dry-run (W8). Pillow. | 1 |
+| asset_ingest.py | CF asset intake (MC FLEET B3, riders 2026-09-01 + fix cycle F1-F6 2026-09-02, D-419): inventory → EPS/AI/PDF via gs, SVG via cairosvg-then-inkscape (F4, per-file converter reported) → lossless PNG ≥4000px → split PROPOSED on an opaque-checkerboard contact sheet with haloed numbered boxes (W1/F1), never auto-cataloged → --confirm MASK-crops each piece by its own component label, un-dilated mask for the cut (F2), thumbs, linted 7-column rows (W8/W9), sidecar. License = CF subscription in config (F3, D-082): verified + in-date ⇒ licensed; folder record is an optional override; expired ⇒ NEEDS_HUMAN; neither ⇒ NOT_LICENSED_ASSET. --min-side (px, longest bbox side; --min-size hidden alias, F5). Backfill records MISSING_FILE, never null (F6). One image in memory (W4, cap 90M px); NFC ids (W6); --reingest gate (W7). Pillow. | 1 |
 | asset_index_lint.py | W9: the ONE importable lint for a valid 7-column ASSET_INDEX row (D-419 shape). Backtick-span-aware cell splitting (D-382 discipline), pure, stdlib-only. asset_ingest proves every row against it BEFORE append; B2's provenance check imports it. | 1 |
 | recolor.py | W5 shared helper for B2's render-time recolouring: a>0 → new RGB, alpha byte-identical. NO pool variants pre-generated at ingest. Pillow. | 1 |
 | play_schema.py | W11 shared play.json loader (D-419 sample): closed layout registry, required fields validated, unknown fields (e.g. element "note") IGNORED never errors. Stdlib-only; B2 imports it. | 1 |
-| test_asset_ingest.py | 30 tests: T1-T16 walls + lint rules + zip input + config fail-closed. unittest-style (pytest specced but absent — flagged deviation). | 1 |
+| test_asset_ingest.py | 37 tests: T1-T21 walls (T17 opaque sheet, T18 mask-crop isolation, T19 subscription/expired/override, T20 cairosvg, T21 MISSING_FILE) + lint rules + zip input + config fail-closed. unittest-style (pytest specced but absent — flagged deviation). | 1 |
 | asset_ingest.config.example.json | Committed template for the real (gitignored) config: index_root, assets_dir, license_dir. | 2 |
 | PLAN_asset_ingest.md | The pre-build plan for MC FLEET B3 (survives compaction). | 2 |
 | gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. | 1 |
@@ -144,7 +145,7 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-02: **293 tests, all green**
+Full suite baseline 2026-09-02: **300 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of

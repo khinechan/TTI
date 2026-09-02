@@ -97,3 +97,24 @@ gate_run.py NOT touched — the spec registers no gate stage for B3.
    know style/niche/colors).
 6. Exit-code mapping for refusals (=2) chosen per house 0/1/2; the
    spec named no codes.
+
+## FIX CYCLE (court bench on real CF data, 2026-09-02)
+
+Applied on top of 11edb16: F1 opaque checkerboard contact sheet with
+haloed, 24px numbered boxes (verified by eye on dark/light/mid art);
+F2 mask-crop by component label (proposals v2 carry a seed pixel;
+confirm floods the dilated mask from the seed, cuts with the
+UN-dilated mask; old proposal files are refused — re-run ingest);
+F3 license = cf_subscription config block (verified + in-date ⇒
+licensed, folder record = optional override, expired ⇒ NEEDS_HUMAN
+hold, neither ⇒ NOT_LICENSED_ASSET; license_dir kept in the config
+contract but no longer consulted — flagged); F4 cairosvg preferred
+for SVG (import probe), inkscape fallback, per-file converter
+reported; F5 --min-side (unit in help), --min-size hidden alias;
+F6 backfill MISSING_FILE + missing_files count (and product_id
+"UNKNOWN", never null — caught by T21's no-null sweep).
+Deviations 3 (SVG) and 4 (license shape) above: resolved by this
+ruling. Tests: +T17-T21, licensing fixtures moved to the subscription
+shape (rule changed by court, reported), T14's total-opens assertion
+loosened to fit the once-per-source confirm open (the wall — max ONE
+open — unchanged and still asserted).

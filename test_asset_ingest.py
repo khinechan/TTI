@@ -59,22 +59,33 @@ class IngestCase(unittest.TestCase):
         with open(self.index_file, "w", encoding="utf-8") as fh:
             fh.write(HEADER + "\n" + SEPARATOR + "\n")
         self.config_path = os.path.join(self.tmp, "config.json")
-        with open(self.config_path, "w", encoding="utf-8") as fh:
-            json.dump({"index_root": self.index_root,
-                       "assets_dir": self.assets_dir,
-                       "license_dir": self.license_dir}, fh)
+        self.write_config()
         self.input_dir = os.path.join(self.tmp,
                                       "Test-Bundle-%s" % PRODUCT)
         os.makedirs(self.input_dir)
-        self.grant_license()
         # receipts land in the temp dir, never in the repo
         patcher = mock.patch.object(ai, "BASE_DIR", self.tmp)
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def grant_license(self, product=PRODUCT):
-        with open(os.path.join(self.license_dir,
-                               "CF-record-%s.md" % product), "w",
+    def write_config(self, cf_subscription="valid"):
+        """F3: licensing default is a valid CF subscription in the
+        config (D-082) — no per-folder record file anywhere."""
+        cfg = {"index_root": self.index_root,
+               "assets_dir": self.assets_dir,
+               "license_dir": self.license_dir}
+        if cf_subscription == "valid":
+            cf_subscription = {"status": "verified",
+                               "valid_through": "2030-01-01",
+                               "record_path": "vault/cf-record.md"}
+        if cf_subscription is not None:
+            cfg["cf_subscription"] = cf_subscription
+        with open(self.config_path, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
+
+    def grant_folder_override(self):
+        with open(os.path.join(self.input_dir,
+                               ai.LICENSE_RECORD_NAME), "w",
                   encoding="utf-8") as fh:
             fh.write("CF Subscription, verified\n")
 
@@ -218,10 +229,10 @@ class T04T05T06License(IngestCase):
         self.assertEqual(report["refusals"], [])
 
     def test_no_license_record_is_hard_refusal(self):
-        """T5 (+T15): no resolvable license -> NOT_LICENSED_ASSET,
-        exit 2, receipt still written."""
-        os.remove(os.path.join(self.license_dir,
-                               "CF-record-%s.md" % PRODUCT))
+        """T5 (+T15): no subscription in config AND no folder
+        override -> NOT_LICENSED_ASSET, exit 2, receipt still
+        written."""
+        self.write_config(cf_subscription=None)
         make_sheet(os.path.join(self.input_dir, "art.png"),
                    [(10, 10, 60, 60)])
         before = len(self.receipts())
@@ -442,7 +453,7 @@ class T14Memory(IngestCase):
             self.assertEqual(self.run_tool(self.input_dir), 1)
             self.assertEqual(
                 self.run_tool(self.input_dir, "--confirm", "all"), 1)
-        self.assertGreaterEqual(state["total"], 10)
+        self.assertGreaterEqual(state["total"], 3)
         self.assertEqual(state["max"], 1)
         self.assertEqual(state["open"], 0)   # nothing left open
         pieces = os.listdir(os.path.join(self.out_dir(),
@@ -541,6 +552,152 @@ class T16PlaySchema(unittest.TestCase):
             play_schema.load_play(path)
 
 
+class T17ContactSheetOpaque(IngestCase):
+    def test_sheet_has_zero_transparent_pixels(self):
+        """T17 (F1): the contact sheet composites onto an opaque
+        checkerboard — black-on-alpha art must be visible."""
+        make_sheet(os.path.join(self.input_dir, "dark.png"),
+                   [(10, 10, 80, 80)])   # dark art on transparency
+        report = self.ingest_report()
+        sheet_path = os.path.join(
+            self.out_dir(), report["sources"][0]["contact_sheet"])
+        with Image.open(sheet_path) as sheet:
+            self.assertNotIn("A", sheet.getbands())
+            colors = {sheet.getpixel((0, 0)),
+                      sheet.getpixel((ai.CHECKER_TILE_PX,
+                                      0))}
+        # both checker shades present in the top row of tiles
+        self.assertEqual(colors,
+                         {ai.CHECKER_LIGHT, ai.CHECKER_DARK})
+
+
+class T18MaskCrop(IngestCase):
+    def test_piece_contains_only_its_own_pixels(self):
+        """T18 (F2): overlapping BBOXES, separate components — each
+        piece carries exactly its own component's pixels, nothing of
+        the neighbour."""
+        img = Image.new("RGBA", (140, 140), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        # staircase shape: bbox (10,10)-(80,80)
+        draw.rectangle((10, 10, 45, 45), fill=(30, 30, 30, 255))
+        draw.rectangle((35, 35, 80, 80), fill=(30, 30, 30, 255))
+        # separate square INSIDE the staircase's bbox
+        draw.rectangle((55, 8, 78, 28), fill=(200, 40, 40, 255))
+        img.save(os.path.join(self.input_dir, "pair.png"))
+        img.close()
+        report = self.ingest_report()
+        proposals = self.total_proposals(report)
+        self.assertEqual(len(proposals), 2)
+        boxes = {p["id"]: p["bbox"] for p in proposals}
+        overlap = (max(boxes[1][0], boxes[2][0])
+                   <= min(boxes[1][2], boxes[2][2])
+                   and max(boxes[1][1], boxes[2][1])
+                   <= min(boxes[1][3], boxes[2][3]))
+        self.assertTrue(overlap)          # the fixture really is evil
+        self.assertEqual(
+            self.run_tool(self.input_dir, "--confirm", "all"), 1)
+        pixels = {p["id"]: p["pixels"] for p in proposals}
+        for piece_id in (1, 2):
+            path = os.path.join(self.out_dir(), ai.PIECES_DIRNAME,
+                                ai.PIECE_NAME_FMT % piece_id)
+            with Image.open(path) as piece:
+                opaque = sum(1 for a in
+                             piece.getchannel("A").tobytes() if a)
+            self.assertEqual(opaque, pixels[piece_id],
+                             "piece %d carries foreign pixels"
+                             % piece_id)
+
+
+class T19SubscriptionLicense(IngestCase):
+    def test_subscription_licenses_without_record_file(self):
+        """T19 (F3): valid subscription, no record file anywhere ->
+        accepted and proposed."""
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 80, 80)])
+        report = self.ingest_report()
+        self.assertEqual(report["license_state"], "LICENSED")
+        self.assertIn("CF Subscription, verified", report["license"])
+        self.assertEqual(len(self.total_proposals(report)), 1)
+
+    def test_expired_subscription_holds_needs_human(self):
+        """T19 (F3): expired -> NEEDS_HUMAN, never silently licensed,
+        never a hard refusal."""
+        self.write_config(cf_subscription={
+            "status": "verified", "valid_through": "2020-01-01",
+            "record_path": "vault/cf-record.md"})
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 80, 80)])
+        report = self.ingest_report()
+        self.assertEqual(report["exit_code"], 1)
+        self.assertEqual(report["refusals"], [])
+        self.assertEqual(report["sources"], [])   # nothing proposed
+        self.assertEqual(len(report["needs_human"]), 1)
+        self.assertTrue(any("EXPIRED" in r for r in
+                            report["needs_human"][0]["reasons"]))
+
+    def test_folder_record_is_an_override(self):
+        """No subscription in config, but a per-folder record ->
+        licensed via the override."""
+        self.write_config(cf_subscription=None)
+        self.grant_folder_override()
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 80, 80)])
+        report = self.ingest_report()
+        self.assertEqual(report["license_state"], "LICENSED")
+        self.assertIn("override", report["license"])
+
+
+class T20Cairosvg(IngestCase):
+    def test_cairosvg_preferred_when_present(self):
+        """T20 (F4): with cairosvg importable, .svg converts through
+        it and the converter is reported per file."""
+        import sys
+        import types
+        with open(os.path.join(self.input_dir, "art.svg"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("<svg xmlns='http://www.w3.org/2000/svg'/>")
+        fake = types.ModuleType("cairosvg")
+
+        def svg2png(url=None, write_to=None, output_width=None):
+            img = Image.new("RGBA", (output_width, 80), (0, 0, 0, 0))
+            ImageDraw.Draw(img).rectangle((10, 10, 70, 70),
+                                          fill=(0, 0, 0, 255))
+            img.save(write_to)
+            img.close()
+
+        fake.svg2png = svg2png
+        with mock.patch.dict(sys.modules, {"cairosvg": fake}):
+            report = self.ingest_report()
+        self.assertEqual(report["counts"]["converted"], 1)
+        self.assertEqual(report["converted_files"],
+                         [{"file": "art.svg",
+                           "converter": "cairosvg"}])
+        self.assertEqual(report["converters"]["cairosvg"], "present")
+        self.assertEqual(len(self.total_proposals(report)), 1)
+
+
+class T21BackfillMissing(IngestCase):
+    def test_missing_file_recorded_never_null(self):
+        """T21 (F6): a row whose file is gone records MISSING_FILE
+        and is counted — never a null hash."""
+        import asset_index_lint as lint
+        ai.append_index_line(
+            self.index_file,
+            lint.format_row(("`ghost.png`", "CF Subscription, "
+                             "verified", "cartoon", "dog", "tonal",
+                             "flat", "Product 1")))
+        config = ai.load_config(self.config_path)
+        report = ai.run_backfill(config, {"apply": False})
+        self.assertEqual(report["counts"]["missing_files"], 1)
+        entry = report["proposed_entries"]["ghost.png"]
+        self.assertEqual(entry["sha256"], ai.MISSING_FILE_MARK)
+        report = ai.run_backfill(config, {"apply": True})
+        with open(ai.sidecar_path(config), encoding="utf-8") as fh:
+            stored = json.load(fh)["entries"]["ghost.png"]
+        self.assertEqual(stored["sha256"], ai.MISSING_FILE_MARK)
+        self.assertNotIn(None, stored.values())
+
+
 class ZipInput(IngestCase):
     def test_zip_ingest_parses_stem_product_id(self):
         png = os.path.join(self.tmp, "art.png")
@@ -548,7 +705,6 @@ class ZipInput(IngestCase):
         zip_path = os.path.join(self.tmp, "Zip-Bundle-777.zip")
         with zipfile.ZipFile(zip_path, "w") as archive:
             archive.write(png, "art.png")
-        self.grant_license("777")
         code = self.run_tool(zip_path)
         self.assertEqual(code, 1)
         receipt = self.receipts()[-1]

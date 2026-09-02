@@ -1,5 +1,10 @@
 {
  "index_root": "C:\\Users\\Khai\\Vault\\Merch\\Design Assets",
  "assets_dir": "C:\\Users\\Khai\\Vault\\Merch\\Design Assets\\CF Ingested",
- "license_dir": "C:\\Users\\Khai\\Vault\\Merch\\Licenses"
+ "license_dir": "C:\\Users\\Khai\\Vault\\Merch\\Licenses",
+ "cf_subscription": {
+  "status": "verified",
+  "valid_through": "2028-07-15",
+  "record_path": "REPLACE-ME (Sonnet supplies the vault-side record path)"
+ }
 }
