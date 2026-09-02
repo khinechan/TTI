@@ -22,3 +22,9 @@ vault_backup.config.json
 # the configured assets_dir and are NEVER committed (W10).
 asset_ingest.config.json
 asset_ingest_receipts.jsonl
+
+# play_forge: real config is local paths; receipts are a write
+# surface. Renders/fonts/assets live under configured vault-side
+# dirs and are NEVER committed (B2 W11).
+play_forge.config.json
+play_forge_receipts.jsonl

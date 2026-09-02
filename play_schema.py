@@ -23,6 +23,16 @@ import re
 LAYOUTS = ("text_hero", "art_top", "art_hero", "frame",
            "text_dominant")
 
+# Closed registries added for B2 (W12): text-treatment families —
+# "straight" is the classic lockup, "arc" is family C, "badge" is
+# family D. Optional per-variant field, defaulting to "straight";
+# a value outside the registry is a typo, never an extension.
+FAMILIES = ("straight", "arc", "badge")
+
+# Optional per-element tag (B2 W9 court rider): the eyes gate runs
+# ONLY on "character" elements. Absent = not a character.
+ELEMENT_KINDS = ("character", "ornament", "subject")
+
 HEX_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 # Required shapes, straight from the sample. Field lists here are the
@@ -77,7 +87,12 @@ def validate_element(data, where):
             or not 0 < fraction <= 1):
         raise PlayError("%s.size_fraction must be a number in (0, 1] "
                         "(got %r)" % (where, fraction))
+    kind = data.get("kind")
+    if kind is not None and kind not in ELEMENT_KINDS:
+        raise PlayError("%s.kind %r is not in the closed registry %s"
+                        % (where, kind, list(ELEMENT_KINDS)))
     return {
+        "kind": kind,
         "asset_id": _require_str(data["asset_id"],
                                  where + ".asset_id"),
         "recolor_hex": _require_hex(data["recolor_hex"],
@@ -98,10 +113,15 @@ def validate_variant(data, where):
     if layout not in LAYOUTS:
         raise PlayError("%s.layout %r is not in the closed registry "
                         "%s" % (where, layout, list(LAYOUTS)))
+    family = data.get("family", "straight")
+    if family not in FAMILIES:
+        raise PlayError("%s.family %r is not in the closed registry "
+                        "%s" % (where, family, list(FAMILIES)))
     if not isinstance(data["elements"], list):
         raise PlayError("%s.elements must be a list" % where)
     return {
         "id": data["id"],
+        "family": family,
         "garment": _require_str(data["garment"], where + ".garment"),
         "font_pair": {
             "hero": _require_str(data["font_pair"]["hero"],

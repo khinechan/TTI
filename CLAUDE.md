@@ -129,7 +129,11 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | asset_ingest.py | CF asset intake (MC FLEET B3, riders 2026-09-01 + fix cycle F1-F9 2026-09-02, D-419/D-421): inventory → same-stem dedupe (F7/F8: one source per stem, candidates filtered to formats a PROBED converter can handle, then PNG>SVG>PDF>EPS>AI; losers SKIPPED_DUPLICATE_STEM with the reason; skips count toward exit 1 (F9a); a sub-4000px raster that beat a vector sibling is HELD with dims in the receipt, --prefer-vector flips the pick (F9b)) → EPS/AI/PDF via gs, SVG via cairosvg-then-inkscape (F4, per-file converter reported) → lossless PNG ≥4000px → split PROPOSED on an opaque-checkerboard contact sheet with haloed numbered boxes (W1/F1), never auto-cataloged → --confirm MASK-crops each piece by its own component label, un-dilated mask for the cut (F2), thumbs, linted 7-column rows (W8/W9), sidecar. License = CF subscription in config (F3, D-082): verified + in-date ⇒ licensed; folder record is an optional override; expired ⇒ NEEDS_HUMAN; neither ⇒ NOT_LICENSED_ASSET. --min-side (px, longest bbox side; --min-size hidden alias, F5). Backfill records MISSING_FILE, never null (F6). One image in memory (W4, cap 90M px); NFC ids (W6); --reingest gate (W7). Pillow. | 1 |
 | asset_index_lint.py | W9: the ONE importable lint for a valid 7-column ASSET_INDEX row (D-419 shape). Backtick-span-aware cell splitting (D-382 discipline), pure, stdlib-only. asset_ingest proves every row against it BEFORE append; B2's provenance check imports it. | 1 |
 | recolor.py | W5 shared helper for B2's render-time recolouring: a>0 → new RGB, alpha byte-identical. NO pool variants pre-generated at ingest. Pillow. | 1 |
-| play_schema.py | W11 shared play.json loader (D-419 sample): closed layout registry, required fields validated, unknown fields (e.g. element "note") IGNORED never errors. Stdlib-only; B2 imports it. | 1 |
+| play_schema.py | W11 shared play.json loader (D-419 sample): closed layout registry + B2's closed FAMILIES (straight/arc/badge) and ELEMENT_KINDS (character/ornament/subject) registries — optional fields, validated when present; unknown fields (e.g. element "note") IGNORED never errors. Stdlib-only; play_forge imports it. | 1 |
+| play_forge.py | THE MACHINE (MC FLEET B2, riders 2026-09-02): one play.json in, N gated variants out — 4500×5400 lossless PNG authored natively (W5), 220px squint = downsample of the full (T5), spec sheets, numbered contact sheets. Structure only, never taste: W2 hex clustering to the 2-color law, W3 font pre-flight (no load_default, ever), W4 fit-then-erosion-measure min stroke (PROVISIONAL constant), W6 near-clone rejection (≥2 axes + element/cluster identity), W7 sidecar-verified provenance, W8 allowlists from color_check DATA, W9 gates attached + FAIL badged never hidden (eyes only on kind:character; render_qc absent ⇒ EYES_UNAVAILABLE), W10 NO RANKING (tested by grep), W12 families straight/arc/badge with outline path in all + layout registry with per-layout hierarchy doc lines (--explain). Receipt every run incl. rejections. Pillow. | 1 |
+| test_play_forge.py | 21 tests: T1-T17 walls + schema family/kind extension + config fail-closed + --explain. Renders at the real 4500×5400. unittest-style (pytest specced but absent — flagged deviation). | 1 |
+| play_forge.config.example.json | Committed template for the real (gitignored) config: index_root, fonts_dir, out_dir, cluster_distance, min_stroke_px. | 2 |
+| PLAN_play_forge.md | The pre-build plan for MC FLEET B2 (survives compaction). | 2 |
 | test_asset_ingest.py | 45 tests: T1-T26 walls (T17 opaque sheet, T18 mask-crop isolation, T19 subscription/expired/override, T20 cairosvg, T21 MISSING_FILE, T22 stem dedupe, T23 availability-aware stem pick, T24 skips-are-busy exit (verified red on the reverted line, F10b), T25 raster floor + --prefer-vector, T26 product-id refusal receipt) + lint rules + zip input + config fail-closed. unittest-style (pytest specced but absent — flagged deviation). | 1 |
 | asset_ingest.config.example.json | Committed template for the real (gitignored) config: index_root, assets_dir, license_dir. | 2 |
 | PLAN_asset_ingest.md | The pre-build plan for MC FLEET B3 (survives compaction). | 2 |
@@ -145,8 +149,10 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-02: **311 tests, all green**
-(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest`).
+Full suite baseline 2026-09-02: **332 tests, all green**
+(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest test_play_forge`).
+(test_play_forge renders at the real 4500×5400 — the full suite takes
+a few minutes now; that is the cost of W5, not a bug.)
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of
 2026-08-23): publisher.py, config/pricing.json, config/identity.json,
