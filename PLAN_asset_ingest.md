@@ -126,3 +126,11 @@ stem by court priority PNG>SVG>PDF>EPS>AI (jpg/jpeg appended last so
 a preview never outranks a master — flagged addition); losers are
 SKIPPED_DUPLICATE_STEM in report + receipt, never converted, never
 CANT_CONVERT. T22.
+
+F8 (D-421): the stem pick is availability-aware — candidates filter
+to formats a PROBED converter on THIS box can handle (raster needs
+none; engines per CONVERTIBLE_EXTS: svg = cairosvg|inkscape,
+pdf/eps/ai = gs|inkscape), THEN priority applies. Nothing usable ⇒
+raw-priority pick proceeds and fails CANT_CONVERT as before. Every
+skip record carries the reason ("svg needs cairosvg|inkscape
+(absent)" vs "lower stem priority than …"). T23.

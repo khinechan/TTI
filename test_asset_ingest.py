@@ -739,6 +739,53 @@ class T22StemDedupe(IngestCase):
         self.assertEqual(len(report["sources"]), 2)
 
 
+class T23AvailabilityAwareStem(IngestCase):
+    def _vector_stem(self):
+        for name in ("art.svg", "art.pdf", "art.eps"):
+            with open(os.path.join(self.input_dir, name), "wb") as fh:
+                fh.write(b"placeholder vector bytes\n")
+
+    def test_gs_only_probe_pdf_wins(self):
+        """T23 (F8): {svg,pdf,eps} stem on a gs-only box -> pdf wins;
+        the svg's skip record says WHY it lost despite outranking."""
+        self._vector_stem()
+        with mock.patch.object(
+                ai, "probe_converters",
+                lambda: {"gs": "/fake/gs", "inkscape": None,
+                         "cairosvg": None}):
+            report = self.ingest_report()
+        skips = {item["file"]: item for item
+                 in report["skipped_duplicate_stem"]}
+        self.assertEqual(sorted(skips), ["art.eps", "art.svg"])
+        self.assertEqual(skips["art.svg"]["kept"], "art.pdf")
+        self.assertIn("needs cairosvg|inkscape (absent)",
+                      skips["art.svg"]["reason"])
+        self.assertIn("lower stem priority",
+                      skips["art.eps"]["reason"])
+        # the pdf was the one actually sent to the converter (the
+        # fake gs then fails loudly, W3 — but never the svg)
+        self.assertEqual(len(report["cant_convert"]), 1)
+        self.assertEqual(report["cant_convert"][0]["file"],
+                         "art.pdf")
+
+    def test_no_probe_cant_convert_as_before(self):
+        """T23 (F8): nothing convertible -> raw priority proceeds and
+        fails as CANT_CONVERT, never a silent zero."""
+        self._vector_stem()
+        with mock.patch.object(
+                ai, "probe_converters",
+                lambda: {"gs": None, "inkscape": None,
+                         "cairosvg": None}):
+            report = self.ingest_report()
+        self.assertEqual(len(report["cant_convert"]), 1)
+        self.assertEqual(report["cant_convert"][0]["file"],
+                         "art.svg")
+        self.assertIn("no converter available",
+                      report["cant_convert"][0]["reason"])
+        self.assertEqual(report["counts"]["skipped_duplicate_stem"],
+                         2)
+
+
 class ZipInput(IngestCase):
     def test_zip_ingest_parses_stem_product_id(self):
         png = os.path.join(self.tmp, "art.png")

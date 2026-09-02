@@ -121,6 +121,12 @@ JPEG_EXTS = (".jpg", ".jpeg")
 # PNG > SVG > PDF > EPS > AI; jpg/jpeg appended last so a preview
 # never outranks a master — addition flagged in the build report).
 # Losers are recorded SKIPPED_DUPLICATE_STEM, never silently dropped.
+# F8 (D-421): the priority is applied AFTER filtering each stem's
+# candidates to formats a PROBED converter can handle on this box —
+# picking an .svg on a gs-only box turned the whole stem into
+# CANT_CONVERT while its .pdf sibling would have converted fine. If
+# nothing is convertible, the raw-priority pick proceeds and fails
+# loudly as before.
 STEM_PRIORITY = (".png", ".svg", ".pdf", ".eps", ".ai",
                  ".jpg", ".jpeg")
 
@@ -259,6 +265,16 @@ def probe_converters():
     except ImportError:
         pass
     return found
+
+
+def stem_ext_usable(ext, converters):
+    """F8: can THIS box do anything with a file of this format? A
+    raster needs no converter; a vector format needs one of its
+    probed engines present."""
+    engines = CONVERTIBLE_EXTS.get(ext)
+    if engines is None:
+        return True
+    return any(converters.get(engine) for engine in engines)
 
 
 def converters_summary(converters):
@@ -900,17 +916,34 @@ def run_ingest(config, input_path, opts):
     by_ext = inventory_folder(folder, counts)
     counts["inventoried"] = sum(len(v) for v in by_ext.values())
     # F7: dedupe same-stem duplicates BEFORE conversion — one source
-    # per stem, by STEM_PRIORITY; the rest are receipts, not work
-    stem_winner = {}
-    skipped_duplicate_stem = []
+    # per stem, by STEM_PRIORITY; the rest are receipts, not work.
+    # F8: only formats a probed converter can handle compete; the
+    # receipt names the winner and why each sibling lost.
+    stem_candidates = {}
     for ext in STEM_PRIORITY:
         for rel in by_ext.get(ext, []):
-            stem = os.path.splitext(rel)[0]
-            if stem in stem_winner:
-                skipped_duplicate_stem.append(
-                    {"file": rel, "kept": stem_winner[stem]})
+            stem_candidates.setdefault(
+                os.path.splitext(rel)[0], []).append((ext, rel))
+    stem_winner = {}
+    skipped_duplicate_stem = []
+    for stem in sorted(stem_candidates):
+        candidates = stem_candidates[stem]   # in priority order
+        usable = [pair for pair in candidates
+                  if stem_ext_usable(pair[0], converters)]
+        winner_ext, winner_rel = usable[0] if usable else candidates[0]
+        stem_winner[stem] = winner_rel
+        winner_index = candidates.index((winner_ext, winner_rel))
+        for index, (ext, rel) in enumerate(candidates):
+            if rel == winner_rel:
+                continue
+            if index < winner_index:
+                reason = ("%s needs %s (absent)"
+                          % (ext.lstrip("."),
+                             "|".join(CONVERTIBLE_EXTS[ext])))
             else:
-                stem_winner[stem] = rel
+                reason = "lower stem priority than %s" % winner_rel
+            skipped_duplicate_stem.append(
+                {"file": rel, "kept": winner_rel, "reason": reason})
     counts["skipped_duplicate_stem"] = len(skipped_duplicate_stem)
 
     def _is_winner(rel):
@@ -1240,8 +1273,8 @@ def format_report(report):
                         report["converters"]["inkscape"],
                         report["converters"]["cairosvg"]))
     for item in report.get("skipped_duplicate_stem", []):
-        lines.append("  SKIPPED_DUPLICATE_STEM: %s (kept %s)"
-                     % (item["file"], item["kept"]))
+        lines.append("  SKIPPED_DUPLICATE_STEM: %s (kept %s — %s)"
+                     % (item["file"], item["kept"], item["reason"]))
     for item in report.get("converted_files", []):
         lines.append("  CONVERTED: %s via %s"
                      % (item["file"], item["converter"]))
