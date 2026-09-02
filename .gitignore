@@ -16,3 +16,9 @@ vault_repair_receipts.jsonl
 # committed .example file travels. (Its write surfaces — manifest,
 # receipts, staging, trash — live in the destination dir, never here.)
 vault_backup.config.json
+
+# asset_ingest: real config is local paths; receipts are a
+# machine-generated write surface. CF assets themselves land under
+# the configured assets_dir and are NEVER committed (W10).
+asset_ingest.config.json
+asset_ingest_receipts.jsonl

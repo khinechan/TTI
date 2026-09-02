@@ -1,0 +1,588 @@
+#!/usr/bin/env python3
+"""Tests for asset_ingest.py + its shared modules (MC FLEET B3,
+T1-T16 plus lint/config/zip cases).
+
+pytest is specced but not installed in this environment (flagged
+deviation, D-394) — unittest-style, which pytest collects unchanged.
+
+Every fixture is synthetic and lives in a temp dir; no CF asset, no
+vault path, no network. Receipts are redirected into the temp dir so
+the repo never grows a receipts file from a test run.
+"""
+
+import io
+import json
+import os
+import shutil
+import tempfile
+import unittest
+import unicodedata
+import zipfile
+from unittest import mock
+
+from PIL import Image, ImageDraw
+
+import asset_index_lint as ail
+import asset_ingest as ai
+import play_schema
+import recolor
+
+
+PRODUCT = "4242"
+HEADER = ("| Asset (path under `Merch/Design Assets/`) | License | "
+          "Style | Niche tags | Colors | Recolor | Used in |")
+SEPARATOR = "|---|---|---|---|---|---|---|"
+
+
+def make_sheet(path, boxes, size=(800, 200), alpha=255):
+    """Transparent RGBA sheet with opaque rectangles at the given
+    (left, top, right, bottom) boxes."""
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    for box in boxes:
+        draw.rectangle(box, fill=(120, 40, 40, alpha))
+    img.save(path)
+    img.close()
+
+
+class IngestCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="ai_test_")
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.index_root = os.path.join(self.tmp, "design-assets")
+        self.assets_dir = os.path.join(self.index_root, "ingested")
+        self.license_dir = os.path.join(self.tmp, "licenses")
+        os.makedirs(self.assets_dir)
+        os.makedirs(self.license_dir)
+        self.index_file = os.path.join(self.index_root,
+                                       ai.INDEX_NAME)
+        with open(self.index_file, "w", encoding="utf-8") as fh:
+            fh.write(HEADER + "\n" + SEPARATOR + "\n")
+        self.config_path = os.path.join(self.tmp, "config.json")
+        with open(self.config_path, "w", encoding="utf-8") as fh:
+            json.dump({"index_root": self.index_root,
+                       "assets_dir": self.assets_dir,
+                       "license_dir": self.license_dir}, fh)
+        self.input_dir = os.path.join(self.tmp,
+                                      "Test-Bundle-%s" % PRODUCT)
+        os.makedirs(self.input_dir)
+        self.grant_license()
+        # receipts land in the temp dir, never in the repo
+        patcher = mock.patch.object(ai, "BASE_DIR", self.tmp)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def grant_license(self, product=PRODUCT):
+        with open(os.path.join(self.license_dir,
+                               "CF-record-%s.md" % product), "w",
+                  encoding="utf-8") as fh:
+            fh.write("CF Subscription, verified\n")
+
+    def run_tool(self, *flags):
+        with mock.patch("sys.stdout", io.StringIO()), \
+                mock.patch("sys.stderr", io.StringIO()):
+            return ai.main(["--config", self.config_path, *flags])
+
+    def ingest_report(self, *flags):
+        config = ai.load_config(self.config_path)
+        opts = {"confirm": None, "confirm_file": None,
+                "reingest": "--reingest" in flags, "apply": False,
+                "min_size": ai.DEFAULT_MIN_SIZE,
+                "gap_close": 0,
+                "alpha_threshold": ai.DEFAULT_ALPHA_THRESHOLD,
+                "style": "pending", "tags": "pending",
+                "colors": "pending", "recolor_mode": "pending"}
+        for flag in flags:
+            if flag.startswith("gap_close="):
+                opts["gap_close"] = int(flag.split("=")[1])
+            if flag.startswith("alpha_threshold="):
+                opts["alpha_threshold"] = int(flag.split("=")[1])
+        report = ai.run_ingest(config, self.input_dir, opts)
+        ai.append_receipt(report)
+        return report
+
+    def out_dir(self):
+        return ai.product_out_dir(ai.load_config(self.config_path),
+                                  PRODUCT)
+
+    def receipts(self):
+        path = os.path.join(self.tmp, ai.RECEIPTS_NAME)
+        if not os.path.exists(path):
+            return []
+        with open(path, encoding="utf-8") as fh:
+            return [json.loads(line) for line in fh if line.strip()]
+
+    def index_rows(self):
+        with open(self.index_file, encoding="utf-8") as fh:
+            return [line for line in fh.read().split("\n")
+                    if line.strip()]
+
+    def total_proposals(self, report):
+        return [p for s in report["sources"] for p in s["proposals"]]
+
+
+class T01Proposals(IngestCase):
+    def test_separated_14_touching_1_no_autocatalog(self):
+        """T1: 14 separated -> 14 proposals; touching -> 1; refuses
+        to auto-catalog in BOTH cases (W1)."""
+        make_sheet(os.path.join(self.input_dir, "sheet.png"),
+                   [(10 + i * 55, 10, 10 + i * 55 + 29, 39)
+                    for i in range(14)])
+        report = self.ingest_report()
+        self.assertEqual(report["exit_code"], 1)
+        self.assertEqual(len(self.total_proposals(report)), 14)
+        # contact sheet with every box exists
+        self.assertTrue(os.path.exists(os.path.join(
+            self.out_dir(), report["sources"][0]["contact_sheet"])))
+        # NOTHING cataloged: no rows, no pieces, no sidecar
+        self.assertEqual(len(self.index_rows()), 2)  # header + sep
+        self.assertFalse(os.path.exists(
+            os.path.join(self.out_dir(), ai.PIECES_DIRNAME)))
+        self.assertFalse(os.path.exists(
+            ai.sidecar_path(ai.load_config(self.config_path))))
+        # touching squares -> ONE proposal, still nothing cataloged
+        make_sheet(os.path.join(self.input_dir, "sheet.png"),
+                   [(10 + i * 30, 10, 10 + i * 30 + 30, 40)
+                    for i in range(14)])
+        report = self.ingest_report()
+        self.assertEqual(len(self.total_proposals(report)), 1)
+        self.assertEqual(len(self.index_rows()), 2)
+
+
+class T02LikelyMerge(IngestCase):
+    def test_two_pieces_overlapping_flagged(self):
+        """T2: two diamonds overlapping ~2px -> ONE proposal, flagged
+        likely-merge."""
+        img = Image.new("RGBA", (220, 120), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        for cx in (60, 138):
+            draw.polygon([(cx, 20), (cx + 40, 60), (cx, 100),
+                          (cx - 40, 60)], fill=(20, 20, 20, 255))
+        img.save(os.path.join(self.input_dir, "pair.png"))
+        img.close()
+        report = self.ingest_report()
+        proposals = self.total_proposals(report)
+        self.assertEqual(len(proposals), 1)
+        self.assertTrue(proposals[0]["likely_merge"])
+
+    def test_separated_pieces_not_flagged(self):
+        make_sheet(os.path.join(self.input_dir, "two.png"),
+                   [(10, 10, 40, 40), (100, 10, 130, 40)])
+        report = self.ingest_report()
+        proposals = self.total_proposals(report)
+        self.assertEqual(len(proposals), 2)
+        self.assertFalse(any(p["likely_merge"] for p in proposals))
+
+
+class T03GapAndThreshold(IngestCase):
+    def test_gap_close_reruns_as_one_piece(self):
+        """T3: 3px gap -> 2 pieces by default, 1 with --gap-close 2."""
+        make_sheet(os.path.join(self.input_dir, "gappy.png"),
+                   [(10, 10, 39, 39), (43, 10, 72, 39)])
+        report = self.ingest_report()
+        self.assertEqual(len(self.total_proposals(report)), 2)
+        report = self.ingest_report("gap_close=2")
+        self.assertEqual(len(self.total_proposals(report)), 1)
+
+    def test_alpha_threshold_changes_count(self):
+        """T3b: an alpha-60 bridge joins at threshold 0, splits at
+        128; both runs report their counts."""
+        img = Image.new("RGBA", (160, 60), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((10, 10, 49, 49), fill=(0, 0, 0, 255))
+        draw.rectangle((80, 10, 119, 49), fill=(0, 0, 0, 255))
+        draw.rectangle((50, 25, 79, 34), fill=(0, 0, 0, 60))
+        img.save(os.path.join(self.input_dir, "bridge.png"))
+        img.close()
+        at_zero = self.ingest_report("alpha_threshold=0")
+        at_128 = self.ingest_report("alpha_threshold=128")
+        self.assertEqual(len(self.total_proposals(at_zero)), 1)
+        self.assertEqual(len(self.total_proposals(at_128)), 2)
+        self.assertEqual(at_zero["counts"]["proposed"], 1)
+        self.assertEqual(at_128["counts"]["proposed"], 2)
+
+
+class T04T05T06License(IngestCase):
+    def test_jpeg_only_with_license_is_held_not_refused(self):
+        """T4: JPEG-only folder WITH a license record -> NEEDS_HUMAN,
+        held, exit 1, never NOT_LICENSED."""
+        img = Image.new("RGB", (200, 100), (250, 250, 250))
+        img.save(os.path.join(self.input_dir, "preview.jpg"))
+        img.close()
+        report = self.ingest_report()
+        self.assertEqual(report["exit_code"], 1)
+        self.assertEqual(len(report["needs_human"]), 1)
+        reasons = report["needs_human"][0]["reasons"]
+        self.assertTrue(any("JPEG-only" in r for r in reasons))
+        self.assertEqual(report["sources"], [])   # held, no proposals
+        self.assertEqual(report["refusals"], [])
+
+    def test_no_license_record_is_hard_refusal(self):
+        """T5 (+T15): no resolvable license -> NOT_LICENSED_ASSET,
+        exit 2, receipt still written."""
+        os.remove(os.path.join(self.license_dir,
+                               "CF-record-%s.md" % PRODUCT))
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 60, 60)])
+        before = len(self.receipts())
+        code = self.run_tool(self.input_dir)
+        self.assertEqual(code, 2)
+        receipts = self.receipts()
+        self.assertEqual(len(receipts), before + 1)
+        self.assertEqual(receipts[-1]["refusals"][0]["kind"],
+                         "NOT_LICENSED_ASSET")
+
+    def test_transparent_cutout_with_license_accepted(self):
+        """T6: transparent PNG cut-out + license -> accepted (its
+        identical transparent corners are NOT a preview hint)."""
+        make_sheet(os.path.join(self.input_dir, "cutout.png"),
+                   [(20, 20, 90, 90)])
+        report = self.ingest_report()
+        self.assertEqual(report["needs_human"], [])
+        self.assertEqual(len(self.total_proposals(report)), 1)
+
+
+class T07CantConvert(IngestCase):
+    def test_no_converter_is_loud_never_a_skip(self):
+        """T7: EPS with no converter -> CANT_CONVERT recorded with the
+        reason; counts NOT inflated."""
+        with open(os.path.join(self.input_dir, "vector.eps"),
+                  "wb") as fh:
+            fh.write(b"%!PS-Adobe-3.0 EPSF-3.0\n")
+        with mock.patch.object(
+                ai, "probe_converters",
+                lambda: {"gs": None, "inkscape": None}):
+            report = self.ingest_report()
+        self.assertEqual(report["counts"]["converted"], 0)
+        self.assertEqual(report["counts"]["cant_convert"], 1)
+        self.assertEqual(len(report["cant_convert"]), 1)
+        self.assertIn("no converter available",
+                      report["cant_convert"][0]["reason"])
+        self.assertEqual(report["counts"]["inventoried"], 1)
+
+
+class T08Duplicate(IngestCase):
+    def _catalog_one(self):
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 80, 80)])
+        self.assertEqual(self.run_tool(self.input_dir), 1)
+        self.assertEqual(
+            self.run_tool(self.input_dir, "--confirm", "all"), 1)
+
+    def test_duplicate_refused_without_reingest(self):
+        """T8: same product id again -> refused; --reingest allows."""
+        self._catalog_one()
+        code = self.run_tool(self.input_dir)
+        self.assertEqual(code, 2)
+        self.assertEqual(self.receipts()[-1]["refusals"][0]["kind"],
+                         "DUPLICATE_PRODUCT_ID")
+        code = self.run_tool(self.input_dir, "--reingest")
+        self.assertEqual(code, 1)
+
+
+class T09Nfc(unittest.TestCase):
+    def test_nfd_and_nfc_names_same_product_id(self):
+        """T9: NFD folder name -> same product id as its NFC twin."""
+        nfd = unicodedata.normalize("NFD", "Café-Bundle-777")
+        nfc = unicodedata.normalize("NFC", "Café-Bundle-777")
+        self.assertNotEqual(nfd, nfc)
+        self.assertEqual(ai.parse_product_id(nfd), "777")
+        self.assertEqual(ai.parse_product_id(nfc), "777")
+        self.assertEqual(ai.parse_product_id("/x/" + nfd),
+                         ai.parse_product_id("/y/" + nfc))
+
+    def test_no_trailing_digits_is_none(self):
+        self.assertIsNone(ai.parse_product_id("no-id-here"))
+
+
+class T10LintAndRows(IngestCase):
+    def test_lint_rules(self):
+        good = ("| `a/b.png` | CF Subscription, verified | cartoon | "
+                "dog | tonal | flat | Product 28 |")
+        self.assertEqual(ail.lint_row(good), [])
+        self.assertTrue(any("L2" in f for f in ail.lint_row(
+            "| `a.png` | x | y | z | c | r |")))
+        self.assertTrue(any("L4" in f for f in ail.lint_row(
+            "| `a.png` | x |  | z | c | r | u |")))
+        self.assertTrue(any("L3" in f for f in ail.lint_row(
+            "| a.png | x | y | z | c | r | u |")))
+        self.assertEqual(ail.asset_path(good), "a/b.png")
+
+    def test_backticked_pipes_do_not_split_cells(self):
+        row = ("| `a.png` | lives in `Sessions/x.md` Parts `5|7` | y "
+               "| z | c | r | u |")
+        self.assertEqual(ail.lint_row(row), [])
+        cells = ail.split_cells(row)
+        self.assertEqual(len(cells), 7)
+        self.assertIn("`5|7`", cells[1])
+
+    def test_header_and_separator_recognized(self):
+        self.assertTrue(ail.is_header_row(HEADER))
+        self.assertTrue(ail.is_separator_row(SEPARATOR))
+        self.assertFalse(ail.is_separator_row(HEADER))
+
+    def test_failing_row_never_appended_table_stays_7(self):
+        """T10: an empty cell (forced via --style '') is rejected
+        BEFORE append; the index file does not change."""
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 80, 80)])
+        self.run_tool(self.input_dir)
+        code = self.run_tool(self.input_dir, "--confirm", "all",
+                             "--style", "")
+        self.assertEqual(code, 1)          # piece saved, row rejected
+        self.assertEqual(len(self.index_rows()), 2)
+        # valid confirm appends a row that passes the lint
+        self.run_tool(self.input_dir, "--confirm", "all")
+        rows = self.index_rows()
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(ail.lint_row(rows[-1]), [])
+        self.assertEqual(len(ail.split_cells(rows[-1])), 7)
+
+
+class T11T12Sidecar(IngestCase):
+    def test_sidecar_entry_written_keyed_by_path(self):
+        """T11: sha256 + product id + date, keyed by the row's path
+        cell."""
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 80, 80)])
+        self.run_tool(self.input_dir)
+        self.run_tool(self.input_dir, "--confirm", "all")
+        rows = self.index_rows()
+        key = ail.asset_path(rows[-1])
+        with open(ai.sidecar_path(
+                ai.load_config(self.config_path)),
+                encoding="utf-8") as fh:
+            sidecar = json.load(fh)
+        entry = sidecar["entries"][key]
+        piece_abs = os.path.join(self.index_root, *key.split("/"))
+        self.assertEqual(entry["sha256"], ai.hash_file(piece_abs))
+        self.assertEqual(entry["product_id"], PRODUCT)
+        self.assertTrue(entry["ingested_utc"].startswith("20"))
+
+    def test_backfill_proposes_writes_only_with_apply(self):
+        """T12: --backfill proposes N entries, writes nothing without
+        --apply."""
+        for name in ("old1.png", "old2.png"):
+            make_sheet(os.path.join(self.index_root, name),
+                       [(0, 0, 30, 30)], size=(40, 40))
+            ai.append_index_line(
+                self.index_file,
+                ail.format_row(("`%s`" % name, "CF Subscription, "
+                                "verified", "cartoon", "dog", "tonal",
+                                "flat", "Product 1")))
+        sidecar_file = ai.sidecar_path(
+            ai.load_config(self.config_path))
+        code = self.run_tool("--backfill")
+        self.assertEqual(code, 1)
+        self.assertFalse(os.path.exists(sidecar_file))
+        code = self.run_tool("--backfill", "--apply")
+        self.assertEqual(code, 1)
+        with open(sidecar_file, encoding="utf-8") as fh:
+            entries = json.load(fh)["entries"]
+        self.assertEqual(sorted(entries), ["old1.png", "old2.png"])
+        self.assertEqual(entries["old1.png"]["sha256"],
+                         ai.hash_file(os.path.join(self.index_root,
+                                                   "old1.png")))
+
+
+class T13Recolor(unittest.TestCase):
+    def test_recolor_preserves_antialiasing_kills_old_hue(self):
+        """T13: alpha byte-identical; zero old-hue pixels remain."""
+        big = Image.new("RGBA", (200, 200), (0, 0, 0, 0))
+        ImageDraw.Draw(big).ellipse((20, 20, 180, 180),
+                                    fill=(200, 30, 30, 255))
+        img = big.resize((50, 50))       # resampling makes the fringe
+        big.close()
+        alpha_before = img.getchannel("A").tobytes()
+        fringe = sum(1 for a in alpha_before if 0 < a < 255)
+        self.assertGreater(fringe, 0)    # the fixture really is soft
+        out = recolor.recolor(img, "#D9A441")
+        self.assertEqual(out.getchannel("A").tobytes(), alpha_before)
+        for band, value in zip("RGB", (0xD9, 0xA4, 0x41)):
+            self.assertEqual(out.getchannel(band).getextrema(),
+                             (value, value))
+        img.close()
+        out.close()
+
+    def test_parse_hex_fails_closed(self):
+        self.assertEqual(recolor.parse_hex("#D9A441"),
+                         (0xD9, 0xA4, 0x41))
+        for bad in ("D9A441", "#D9A44", "#GGGGGG", None, 7):
+            with self.assertRaises(ValueError):
+                recolor.parse_hex(bad)
+
+
+class T14Memory(IngestCase):
+    def test_never_more_than_one_open_image(self):
+        """T14: a 10-piece bundle ingested AND confirmed with at most
+        ONE file-backed image open at any moment (W4)."""
+        make_sheet(os.path.join(self.input_dir, "sheet.png"),
+                   [(10 + i * 55, 10, 10 + i * 55 + 29, 39)
+                    for i in range(10)])
+        state = {"open": 0, "max": 0, "total": 0}
+        real_open = ai._open_image
+
+        def tracking(path):
+            img = real_open(path)
+            state["open"] += 1
+            state["total"] += 1
+            state["max"] = max(state["max"], state["open"])
+            original_close = img.close
+            done = []
+
+            def close():
+                if not done:
+                    done.append(True)
+                    state["open"] -= 1
+                original_close()
+            img.close = close
+            return img
+
+        with mock.patch.object(ai, "_open_image", tracking):
+            self.assertEqual(self.run_tool(self.input_dir), 1)
+            self.assertEqual(
+                self.run_tool(self.input_dir, "--confirm", "all"), 1)
+        self.assertGreaterEqual(state["total"], 10)
+        self.assertEqual(state["max"], 1)
+        self.assertEqual(state["open"], 0)   # nothing left open
+        pieces = os.listdir(os.path.join(self.out_dir(),
+                                         ai.PIECES_DIRNAME))
+        self.assertEqual(len(pieces), 10)
+
+
+class T15Receipts(IngestCase):
+    def test_receipt_on_every_run(self):
+        """T15: ingest, confirm, and refused runs each append one
+        receipt line."""
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(10, 10, 80, 80)])
+        self.run_tool(self.input_dir)
+        self.run_tool(self.input_dir, "--confirm", "all")
+        self.run_tool(self.input_dir)          # duplicate -> refused
+        receipts = self.receipts()
+        self.assertEqual([r["run"] for r in receipts],
+                         ["INGEST", "CONFIRM", "INGEST"])
+        self.assertEqual([r["exit_code"] for r in receipts],
+                         [1, 1, 2])
+
+
+class T16PlaySchema(unittest.TestCase):
+    def sample(self):
+        return {
+            "play_id": "2026-09-01-mail-not-my-call",
+            "line": {"setup": "CAN'T LEAVE IT NEXT DOOR.",
+                     "punch": "NOT MY CALL."},
+            "named_feeling": "deadpan judgment",
+            "unknown_top_level": "ignored",
+            "variants": [{
+                "id": 1, "garment": "Black",
+                "font_pair": {"hero": "Baseball Athlete Jersey",
+                              "support": "Vorn"},
+                "color_path": "outline_path", "layout": "text_hero",
+                "fill_hex": "#7A9CB0", "outline_hex": "#D9A441",
+                "elements": [{
+                    "asset_id": "CF Sourced 2026-08-30/"
+                                "Mailbox-SVG-835842/",
+                    "note": "post-mailbox piece — bundle path only",
+                    "recolor_hex": "#D9A441",
+                    "size_fraction": 0.20,
+                    "position": "between"}],
+            }],
+        }
+
+    def test_unknown_fields_ignored(self):
+        """T16: 'note' and other unknown fields ignored, never
+        errors; normalized output carries known fields only."""
+        play = play_schema.validate_play(self.sample())
+        self.assertNotIn("unknown_top_level", play)
+        self.assertNotIn("note", play["variants"][0]["elements"][0])
+        self.assertEqual(play["variants"][0]["layout"], "text_hero")
+
+    def test_missing_required_rejected(self):
+        for path in (("play_id",), ("line", "punch"),
+                     ("variants", 0, "layout"),
+                     ("variants", 0, "font_pair", "support"),
+                     ("variants", 0, "elements", 0, "recolor_hex")):
+            data = self.sample()
+            target = data
+            for step in path[:-1]:
+                target = target[step]
+            del target[path[-1]]
+            with self.assertRaises(play_schema.PlayError):
+                play_schema.validate_play(data)
+
+    def test_closed_layout_registry_and_hexes(self):
+        data = self.sample()
+        data["variants"][0]["layout"] = "banner"
+        with self.assertRaises(play_schema.PlayError):
+            play_schema.validate_play(data)
+        data = self.sample()
+        data["variants"][0]["fill_hex"] = "7A9CB0"
+        with self.assertRaises(play_schema.PlayError):
+            play_schema.validate_play(data)
+        data = self.sample()
+        data["variants"][0]["outline_hex"] = None   # nullable — ok
+        play_schema.validate_play(data)
+        data["variants"][0]["elements"][0]["size_fraction"] = 0
+        with self.assertRaises(play_schema.PlayError):
+            play_schema.validate_play(data)
+
+    def test_load_play_file(self):
+        tmp = tempfile.mkdtemp(prefix="play_")
+        self.addCleanup(shutil.rmtree, tmp)
+        path = os.path.join(tmp, "play.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(self.sample(), fh)
+        self.assertEqual(play_schema.load_play(path)["play_id"],
+                         "2026-09-01-mail-not-my-call")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("{broken")
+        with self.assertRaises(play_schema.PlayError):
+            play_schema.load_play(path)
+
+
+class ZipInput(IngestCase):
+    def test_zip_ingest_parses_stem_product_id(self):
+        png = os.path.join(self.tmp, "art.png")
+        make_sheet(png, [(10, 10, 80, 80)])
+        zip_path = os.path.join(self.tmp, "Zip-Bundle-777.zip")
+        with zipfile.ZipFile(zip_path, "w") as archive:
+            archive.write(png, "art.png")
+        self.grant_license("777")
+        code = self.run_tool(zip_path)
+        self.assertEqual(code, 1)
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["product_id"], "777")
+        self.assertTrue(os.path.isdir(os.path.join(
+            self.assets_dir, ai.STAGING_DIRNAME, "Zip-Bundle-777")))
+
+
+class ConfigFailClosed(IngestCase):
+    def test_unknown_key_missing_file_bad_layout(self):
+        with open(self.config_path, "w", encoding="utf-8") as fh:
+            json.dump({"index_root": self.index_root,
+                       "assets_dir": self.assets_dir,
+                       "license_dir": self.license_dir,
+                       "surprise": 1}, fh)
+        self.assertEqual(self.run_tool(self.input_dir), 2)
+        # assets_dir outside index_root refused
+        with open(self.config_path, "w", encoding="utf-8") as fh:
+            json.dump({"index_root": self.index_root,
+                       "assets_dir": self.tmp,
+                       "license_dir": self.license_dir}, fh)
+        self.assertEqual(self.run_tool(self.input_dir), 2)
+        os.remove(self.config_path)
+        self.assertEqual(self.run_tool(self.input_dir), 2)
+
+    def test_unknown_flag_exits_2(self):
+        with mock.patch("sys.stderr", io.StringIO()):
+            with self.assertRaises(SystemExit) as caught:
+                ai.main(["--config", self.config_path, "--bogus"])
+        self.assertEqual(caught.exception.code, 2)
+
+    def test_apply_without_backfill_refused(self):
+        self.assertEqual(self.run_tool(self.input_dir, "--apply"), 2)
+
+
+if __name__ == "__main__":
+    unittest.main()
