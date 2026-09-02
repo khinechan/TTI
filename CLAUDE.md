@@ -118,8 +118,8 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | test_vault_lint.py | 51 tests: 42 base + 6 addendum-convention (31-36) + 3 console-encoding. | 1 |
 | thumb_check.py | Thumbnail legibility gate: two-map adjacency over DECLARED colors (near-exact pixels only — the 2026-08-28 phantom-color fix), blob verdicts, survival, --audit-palette. Pillow (image-family tool, W7 court wording 2026-09-02). | 1 |
 | test_thumb_check.py | 42 tests: 75px adjacency regression, phantom-color regressions (25-28, pre-fix outputs in docstrings), console-encoding, D-401 lossy-input advisory. | 1 |
-| vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] plus the v1.1 --close-only batch mode (frozen class v1.1 per D-382, one confirmation, no bypass, never a gate stage). Strict decode; byte-faithful; descending apply; verified backup. | 1 |
-| test_vault_repair.py | 33 v1.0 tests incl. the war-game closures (U+2028, CRLF, BOM, identity-compare). UNEDITED since v1.0. | 1 |
+| vault_repair.py | Split-row repair for STATE.md. A different program from vault_lint. Interactive [y/n/a/q] plus the v1.1 --close-only batch mode (frozen class v1.1 per D-382, one confirmation, no bypass, never a gate stage). Strict decode; byte-faithful; descending apply; verified backup; _ensure_utf8_console (D-378 class, vault sync b4a154d). | 1 |
+| test_vault_repair.py | 36 tests: 33 v1.0 incl. the war-game closures (U+2028, CRLF, BOM, identity-compare) + 3 console-encoding (vault sync b4a154d, D-378 class). v1.0 body unedited; additions are vault-side, hash-verified. | 1 |
 | test_vault_repair_close.py | 25 v1.1 tests: D-363 ground truth + D-382 backtick-decoy regression, (33-in/6-out exactly), frozen-class boundary, no-bypass source scan, gate exclusion, batch byte fidelity. | 1 |
 | PLAN_vault_repair_v1.1.md | The TIER-0 plan for the --close-only build (survives compaction). | 2 |
 | vault_backup.py | Vault→Drive-folder mirror (MC BUILD 1, riders 2026-09-01): sha256 manifest, NFC keys/raw ops (W1), tmp→fsync→replace→entry-last (W2), strict manifest (W3), symlinks skipped pre-stat (W4), hash-copy-rehash (W5), \\?\ + 240-char pre-flight (W6), LOCKED_SKIPPED ×3-retry + _staging (W7), vault read-only (W8), no network (W9), W0 destination-safety refusal, dated _trash/ never hard-delete, dry-run default, --check-age gate stage, receipts in destination. Paths from vault_backup.config.json (gitignored; .example committed). | 1 |
@@ -145,7 +145,7 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-02: **308 tests, all green**
+Full suite baseline 2026-09-02: **311 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of
