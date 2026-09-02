@@ -35,8 +35,9 @@ Runs (dry by default where a choice exists):
 
 Exit codes:
     0 = clean / nothing to do
-    1 = proposals emitted, files held NEEDS_HUMAN, pieces cataloged,
-        or backfill entries proposed/applied
+    1 = proposals emitted, files held NEEDS_HUMAN, duplicate-stem
+        siblings skipped (F9a), pieces cataloged, or backfill entries
+        proposed/applied
     2 = tool or input error, and every refusal: NOT_LICENSED_ASSET,
         duplicate product id without --reingest, bad config/flags,
         unreadable sidecar or proposal
@@ -844,6 +845,7 @@ def append_receipt(report):
         "cant_convert": report.get("cant_convert", []),
         "skipped_duplicate_stem": report.get("skipped_duplicate_stem",
                                              []),
+        "raster_over_vector": report.get("raster_over_vector", []),
         "needs_human": [item["file"] for item
                         in report.get("needs_human", [])],
         "refusals": report.get("refusals", []),
@@ -924,22 +926,40 @@ def run_ingest(config, input_path, opts):
         for rel in by_ext.get(ext, []):
             stem_candidates.setdefault(
                 os.path.splitext(rel)[0], []).append((ext, rel))
+    prefer_vector = opts.get("prefer_vector", False)
     stem_winner = {}
+    vector_sibling = {}
     skipped_duplicate_stem = []
     for stem in sorted(stem_candidates):
         candidates = stem_candidates[stem]   # in priority order
-        usable = [pair for pair in candidates
+        order = candidates
+        if prefer_vector:                    # F9b: per-run override —
+            order = ([p for p in candidates  # vectors outrank rasters
+                      if p[0] in CONVERTIBLE_EXTS]
+                     + [p for p in candidates
+                        if p[0] not in CONVERTIBLE_EXTS])
+        usable = [pair for pair in order
                   if stem_ext_usable(pair[0], converters)]
-        winner_ext, winner_rel = usable[0] if usable else candidates[0]
+        winner_ext, winner_rel = usable[0] if usable else order[0]
         stem_winner[stem] = winner_rel
-        winner_index = candidates.index((winner_ext, winner_rel))
-        for index, (ext, rel) in enumerate(candidates):
+        if winner_ext not in CONVERTIBLE_EXTS:
+            vectors = [rel for ext, rel in candidates
+                       if ext in CONVERTIBLE_EXTS]
+            if vectors:                      # F9b: floor check later
+                vector_sibling[winner_rel] = vectors[0]
+        winner_index = order.index((winner_ext, winner_rel))
+        for index, (ext, rel) in enumerate(order):
             if rel == winner_rel:
                 continue
-            if index < winner_index:
+            if index < winner_index \
+                    and not stem_ext_usable(ext, converters):
                 reason = ("%s needs %s (absent)"
                           % (ext.lstrip("."),
                              "|".join(CONVERTIBLE_EXTS[ext])))
+            elif (prefer_vector and ext not in CONVERTIBLE_EXTS
+                    and winner_ext in CONVERTIBLE_EXTS):
+                reason = ("--prefer-vector: vector outranks raster "
+                          "this run")
             else:
                 reason = "lower stem priority than %s" % winner_rel
             skipped_duplicate_stem.append(
@@ -978,6 +998,27 @@ def run_ingest(config, input_path, opts):
     jpeg_only = bool(raster_rels) and not converted_paths and all(
         os.path.splitext(rel)[1].lower() in JPEG_EXTS
         for rel in raster_rels)
+    # F9b: a raster that beat a vector sibling gets its dimensions in
+    # the receipt; below the tool's own conversion floor it is HELD —
+    # the vector would have delivered 4000px, the png cannot
+    raster_over_vector = []
+    below_floor = {}
+    for rel in sorted(vector_sibling):
+        abs_path = os.path.join(folder, *rel.split("/"))
+        try:
+            with _open_image(abs_path) as dims_img:
+                width, height = dims_img.size
+        except (ImageTooBig, OSError, Image.DecompressionBombError):
+            continue              # the preview loop records CANT_OPEN
+        raster_over_vector.append(
+            {"file": rel, "width": width, "height": height,
+             "vector_sibling": vector_sibling[rel]})
+        longest = max(width, height)
+        if longest < CONVERT_TARGET_PX:
+            below_floor[abs_path] = (
+                "RASTER_BELOW_FLOOR: %s %dpx; vector sibling %s "
+                "skipped — consider --prefer-vector"
+                % (rel, longest, vector_sibling[rel]))
     needs_human = []
     accepted = []
     for candidate in sorted(
@@ -993,6 +1034,8 @@ def run_ingest(config, input_path, opts):
             continue
         if license_state == "EXPIRED":       # F3: hold everything
             reasons = [license_ref] + reasons
+        if candidate in below_floor:         # F9b: hold, with the hint
+            reasons = [below_floor[candidate]] + reasons
         if reasons:
             counts["needs_human"] += 1
             needs_human.append({"file": os.path.basename(candidate),
@@ -1017,14 +1060,19 @@ def run_ingest(config, input_path, opts):
               encoding="utf-8") as handle:
         json.dump(proposal, handle, sort_keys=True, ensure_ascii=False,
                   indent=1)
+    # F9a: a skipped duplicate is work the gate must see — gate_run
+    # reads only the exit code, and a blank raster winning a stem
+    # whose siblings were skipped looked like a clean PASS
     busy = (counts["proposed"] or counts["needs_human"]
-            or counts["cant_convert"] or counts["cant_open"])
+            or counts["cant_convert"] or counts["cant_open"]
+            or counts["skipped_duplicate_stem"])
     return {
         "tool": TOOL_NAME, "run": "INGEST", "product_id": product_id,
         "license": license_ref, "license_state": license_state,
         "converters": converters_summary(converters),
         "converted_files": converted_files,
         "skipped_duplicate_stem": skipped_duplicate_stem,
+        "raster_over_vector": raster_over_vector,
         "inventory": {ext: len(v) for ext, v in sorted(by_ext.items())},
         "counts": counts, "cant_convert": cant_convert,
         "needs_human": needs_human,
@@ -1275,6 +1323,11 @@ def format_report(report):
     for item in report.get("skipped_duplicate_stem", []):
         lines.append("  SKIPPED_DUPLICATE_STEM: %s (kept %s — %s)"
                      % (item["file"], item["kept"], item["reason"]))
+    for item in report.get("raster_over_vector", []):
+        lines.append("  RASTER_OVER_VECTOR: %s %dx%d (vector sibling "
+                     "%s skipped)"
+                     % (item["file"], item["width"], item["height"],
+                        item["vector_sibling"]))
     for item in report.get("converted_files", []):
         lines.append("  CONVERTED: %s via %s"
                      % (item["file"], item["converter"]))
@@ -1342,6 +1395,10 @@ def main(argv=None):
     parser.add_argument("--reingest", action="store_true",
                         help="allow a product id already in the "
                              "sidecar (W7)")
+    parser.add_argument("--prefer-vector", action="store_true",
+                        help="F9b: vectors outrank rasters in the "
+                             "same-stem pick this run (when a probed "
+                             "converter can handle them)")
     parser.add_argument("--backfill", action="store_true",
                         help="propose sidecar entries for existing "
                              "index rows (W8)")
@@ -1392,6 +1449,7 @@ def main(argv=None):
         opts = {"confirm": args.confirm,
                 "confirm_file": args.confirm_file,
                 "reingest": args.reingest, "apply": args.apply,
+                "prefer_vector": args.prefer_vector,
                 "min_size": args.min_side,
                 "gap_close": args.gap_close,
                 "alpha_threshold": args.alpha_threshold,

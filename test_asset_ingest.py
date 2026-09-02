@@ -108,6 +108,8 @@ class IngestCase(unittest.TestCase):
                 opts["gap_close"] = int(flag.split("=")[1])
             if flag.startswith("alpha_threshold="):
                 opts["alpha_threshold"] = int(flag.split("=")[1])
+            if flag == "prefer_vector":
+                opts["prefer_vector"] = True
         report = ai.run_ingest(config, self.input_dir, opts)
         ai.append_receipt(report)
         return report
@@ -702,9 +704,11 @@ class T22StemDedupe(IngestCase):
     def test_three_formats_one_proposal_set_two_skips(self):
         """F7: art.png + art.eps + art.ai -> ONE proposal set from
         the PNG, two SKIPPED_DUPLICATE_STEM records, and the losers
-        never even reach the converter."""
+        never even reach the converter. (The png clears the F9b
+        4000px floor so this stays a pure dedupe test.)"""
         make_sheet(os.path.join(self.input_dir, "art.png"),
-                   [(10, 10, 60, 60), (100, 10, 150, 60)])
+                   [(10, 10, 60, 60), (100, 10, 150, 60)],
+                   size=(4000, 120))
         for name in ("art.eps", "art.ai"):
             with open(os.path.join(self.input_dir, name), "wb") as fh:
                 fh.write(b"%!PS-Adobe-3.0\n")
@@ -784,6 +788,77 @@ class T23AvailabilityAwareStem(IngestCase):
                       report["cant_convert"][0]["reason"])
         self.assertEqual(report["counts"]["skipped_duplicate_stem"],
                          2)
+
+
+class T24SkipsAreBusy(IngestCase):
+    def test_blank_winner_with_skips_is_never_a_clean_pass(self):
+        """T24 (F9a): Sonnet's repro — blank art.png wins the stem,
+        siblings skipped, zero proposals. gate_run reads only the
+        exit code, so this must be exit 1, never 0."""
+        make_sheet(os.path.join(self.input_dir, "art.png"), [])
+        for name in ("art.eps", "art.ai"):
+            with open(os.path.join(self.input_dir, name), "wb") as fh:
+                fh.write(b"%!PS-Adobe-3.0\n")
+        with mock.patch.object(
+                ai, "probe_converters",
+                lambda: {"gs": None, "inkscape": None,
+                         "cairosvg": None}):
+            report = self.ingest_report()
+        self.assertEqual(len(self.total_proposals(report)), 0)
+        self.assertEqual(report["counts"]["skipped_duplicate_stem"],
+                         2)
+        self.assertEqual(report["exit_code"], 1)
+
+
+class T25RasterFloor(IngestCase):
+    def _fixture(self):
+        make_sheet(os.path.join(self.input_dir, "art.png"),
+                   [(100, 50, 900, 250)], size=(1800, 300))
+        with open(os.path.join(self.input_dir, "art.eps"),
+                  "wb") as fh:
+            fh.write(b"%!PS-Adobe-3.0 EPSF-3.0\n")
+
+    def _gs_probe(self):
+        return mock.patch.object(
+            ai, "probe_converters",
+            lambda: {"gs": "/fake/gs", "inkscape": None,
+                     "cairosvg": None})
+
+    def test_small_raster_over_vector_held_with_hint(self):
+        """T25 (F9b): 1800px png beats an eps -> dimensions in the
+        receipt, held NEEDS_HUMAN with the --prefer-vector hint."""
+        self._fixture()
+        with self._gs_probe():
+            report = self.ingest_report()
+        self.assertEqual(report["raster_over_vector"],
+                         [{"file": "art.png", "width": 1800,
+                           "height": 300,
+                           "vector_sibling": "art.eps"}])
+        self.assertEqual(len(report["needs_human"]), 1)
+        reason = report["needs_human"][0]["reasons"][0]
+        self.assertIn("RASTER_BELOW_FLOOR: art.png 1800px", reason)
+        self.assertIn("--prefer-vector", reason)
+        self.assertEqual(report["sources"], [])   # held, not proposed
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["raster_over_vector"][0]["width"],
+                         1800)
+
+    def test_prefer_vector_makes_the_eps_win(self):
+        """T25 (F9b): --prefer-vector -> the eps wins the stem and is
+        the file sent to the converter."""
+        self._fixture()
+        with self._gs_probe():
+            report = self.ingest_report("prefer_vector")
+        skips = {item["file"]: item for item
+                 in report["skipped_duplicate_stem"]}
+        self.assertEqual(list(skips), ["art.png"])
+        self.assertEqual(skips["art.png"]["kept"], "art.eps")
+        self.assertIn("--prefer-vector", skips["art.png"]["reason"])
+        # the eps reached the converter (the fake gs then fails, W3)
+        self.assertEqual(len(report["cant_convert"]), 1)
+        self.assertEqual(report["cant_convert"][0]["file"],
+                         "art.eps")
+        self.assertEqual(report["raster_over_vector"], [])
 
 
 class ZipInput(IngestCase):

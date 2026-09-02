@@ -134,3 +134,15 @@ pdf/eps/ai = gs|inkscape), THEN priority applies. Nothing usable ⇒
 raw-priority pick proceeds and fails CANT_CONVERT as before. Every
 skip record carries the reason ("svg needs cairosvg|inkscape
 (absent)" vs "lower stem priority than …"). T23.
+
+F9 (Sonnet's B3 review): F9a skipped_duplicate_stem counts toward
+"busy" — a blank raster winning a stem whose siblings were skipped
+exited 0 and gate_run (exit-code-only) read it as PASS; now exit 1
+(T24, Sonnet's exact repro). F9b PNG-over-vector floor (court rule):
+a raster that beat a vector sibling gets its dimensions in the
+receipt; longest side under the 4000px conversion floor ⇒ held
+NEEDS_HUMAN with "RASTER_BELOW_FLOOR … consider --prefer-vector";
+new per-run --prefer-vector flag reorders the stem pick so usable
+vectors outrank rasters (T25 both halves). T22's fixture png resized
+to clear the floor so it stays a pure dedupe test (rule change, not
+evidence-tampering — reported).
