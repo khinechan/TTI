@@ -104,6 +104,8 @@ FLEET = [
      "args": [STATE_MD_PLACEHOLDER, "--baseline",
               "vault_lint_baseline.json"],
      "timeout_s": None, "depends_on": []},
+    {"name": "backup_age", "path": "vault_backup.py",
+     "args": ["--check-age"], "timeout_s": None, "depends_on": []},
 ]
 # ─────────────────────────── END OF FLEET ──────────────────────────────
 

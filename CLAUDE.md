@@ -121,6 +121,10 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | test_vault_repair.py | 33 v1.0 tests incl. the war-game closures (U+2028, CRLF, BOM, identity-compare). UNEDITED since v1.0. | 1 |
 | test_vault_repair_close.py | 25 v1.1 tests: D-363 ground truth + D-382 backtick-decoy regression, (33-in/6-out exactly), frozen-class boundary, no-bypass source scan, gate exclusion, batch byte fidelity. | 1 |
 | PLAN_vault_repair_v1.1.md | The TIER-0 plan for the --close-only build (survives compaction). | 2 |
+| vault_backup.py | Vault→Drive-folder mirror (MC BUILD 1, riders 2026-09-01): sha256 manifest, NFC keys/raw ops (W1), tmp→fsync→replace→entry-last (W2), strict manifest (W3), symlinks skipped pre-stat (W4), hash-copy-rehash (W5), \\?\ + 240-char pre-flight (W6), LOCKED_SKIPPED ×3-retry + _staging (W7), vault read-only (W8), no network (W9), W0 destination-safety refusal, dated _trash/ never hard-delete, dry-run default, --check-age gate stage, receipts in destination. Paths from vault_backup.config.json (gitignored; .example committed). | 1 |
+| test_vault_backup.py | 27 tests: T0-T15 walls + backup_age fleet registration + config fail-closed + --json parity. unittest-style (pytest specced but absent — flagged deviation). | 1 |
+| vault_backup.config.example.json | Committed template for the real (gitignored) config: vault_dir, destination_dir, excludes, max_age_days. | 2 |
+| PLAN_vault_backup.md | The pre-build plan for MC BUILD 1 (survives compaction). | 2 |
 | gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. | 1 |
 | test_gate_run.py | 29 tests (T1-T28 + env-requirement case): pipe-bug lock, HUNG/grandchild, write-surface snapshot diff, partial-never-pass. | 1 |
 | .gitignore | Ignores Python bytecode, config/identity.json, and gate_run's write surfaces (gate_receipts.jsonl, reports/). Protects W2/W3 — treat as TIER 0. | 0 |
@@ -133,8 +137,8 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-08-23: **236 tests, all green**
-(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run`).
+Full suite baseline 2026-09-02: **263 tests, all green**
+(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of
 2026-08-23): publisher.py, config/pricing.json, config/identity.json,

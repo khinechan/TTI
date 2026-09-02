@@ -11,3 +11,8 @@ gate_receipts.jsonl
 reports/
 vault_lint_baseline.json
 vault_repair_receipts.jsonl
+
+# vault_backup's REAL config carries Khai's local paths — only the
+# committed .example file travels. (Its write surfaces — manifest,
+# receipts, staging, trash — live in the destination dir, never here.)
+vault_backup.config.json

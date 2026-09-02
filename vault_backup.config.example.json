@@ -1,0 +1,6 @@
+{
+ "vault_dir": "C:\\Users\\Khai\\Vault",
+ "destination_dir": "C:\\Users\\Khai\\GoogleDrive\\VaultMirror",
+ "excludes": [],
+ "max_age_days": 3
+}
