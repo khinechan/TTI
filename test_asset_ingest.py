@@ -794,8 +794,11 @@ class T24SkipsAreBusy(IngestCase):
     def test_blank_winner_with_skips_is_never_a_clean_pass(self):
         """T24 (F9a): Sonnet's repro — blank art.png wins the stem,
         siblings skipped, zero proposals. gate_run reads only the
-        exit code, so this must be exit 1, never 0."""
-        make_sheet(os.path.join(self.input_dir, "art.png"), [])
+        exit code, so this must be exit 1, never 0. (F10b: the png
+        clears the F9b floor so ONLY the busy fix produces the 1 —
+        verified red on the reverted line.)"""
+        make_sheet(os.path.join(self.input_dir, "art.png"), [],
+                   size=(4000, 200))
         for name in ("art.eps", "art.ai"):
             with open(os.path.join(self.input_dir, name), "wb") as fh:
                 fh.write(b"%!PS-Adobe-3.0\n")
@@ -808,6 +811,26 @@ class T24SkipsAreBusy(IngestCase):
         self.assertEqual(report["counts"]["skipped_duplicate_stem"],
                          2)
         self.assertEqual(report["exit_code"], 1)
+
+
+class T26ProductIdRefusal(IngestCase):
+    def test_no_digits_refused_with_receipt(self):
+        """T26 (F10a): a folder with no trailing digits ->
+        PRODUCT_ID_UNRESOLVED refusal, receipt written, exit 2 —
+        never an uncaught NameError with no receipt."""
+        bad_dir = os.path.join(self.tmp, "no-digits-here")
+        os.makedirs(bad_dir)
+        make_sheet(os.path.join(bad_dir, "art.png"),
+                   [(10, 10, 60, 60)])
+        before = len(self.receipts())
+        with mock.patch("sys.stdout", io.StringIO()), \
+                mock.patch("sys.stderr", io.StringIO()):
+            code = ai.main(["--config", self.config_path, bad_dir])
+        self.assertEqual(code, 2)
+        receipts = self.receipts()
+        self.assertEqual(len(receipts), before + 1)
+        self.assertEqual(receipts[-1]["refusals"][0]["kind"],
+                         "PRODUCT_ID_UNRESOLVED")
 
 
 class T25RasterFloor(IngestCase):

@@ -130,7 +130,7 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | asset_index_lint.py | W9: the ONE importable lint for a valid 7-column ASSET_INDEX row (D-419 shape). Backtick-span-aware cell splitting (D-382 discipline), pure, stdlib-only. asset_ingest proves every row against it BEFORE append; B2's provenance check imports it. | 1 |
 | recolor.py | W5 shared helper for B2's render-time recolouring: a>0 → new RGB, alpha byte-identical. NO pool variants pre-generated at ingest. Pillow. | 1 |
 | play_schema.py | W11 shared play.json loader (D-419 sample): closed layout registry, required fields validated, unknown fields (e.g. element "note") IGNORED never errors. Stdlib-only; B2 imports it. | 1 |
-| test_asset_ingest.py | 44 tests: T1-T25 walls (T17 opaque sheet, T18 mask-crop isolation, T19 subscription/expired/override, T20 cairosvg, T21 MISSING_FILE, T22 stem dedupe, T23 availability-aware stem pick, T24 skips-are-busy exit, T25 raster floor + --prefer-vector) + lint rules + zip input + config fail-closed. unittest-style (pytest specced but absent — flagged deviation). | 1 |
+| test_asset_ingest.py | 45 tests: T1-T26 walls (T17 opaque sheet, T18 mask-crop isolation, T19 subscription/expired/override, T20 cairosvg, T21 MISSING_FILE, T22 stem dedupe, T23 availability-aware stem pick, T24 skips-are-busy exit (verified red on the reverted line, F10b), T25 raster floor + --prefer-vector, T26 product-id refusal receipt) + lint rules + zip input + config fail-closed. unittest-style (pytest specced but absent — flagged deviation). | 1 |
 | asset_ingest.config.example.json | Committed template for the real (gitignored) config: index_root, assets_dir, license_dir. | 2 |
 | PLAN_asset_ingest.md | The pre-build plan for MC FLEET B3 (survives compaction). | 2 |
 | gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. | 1 |
@@ -145,7 +145,7 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-02: **307 tests, all green**
+Full suite baseline 2026-09-02: **308 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest`).
 
 **FILES NAMED BY DOCTRINE BUT ABSENT FROM THIS REPO** (as of

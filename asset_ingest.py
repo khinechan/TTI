@@ -896,7 +896,7 @@ def run_ingest(config, input_path, opts):
     if product_id is None:
         raise ToolError("no product id (trailing digits) in the "
                         "NFC-normalized name %r — CF folder names "
-                        "carry the id" % os.path.basename(id_source),
+                        "carry the id" % os.path.basename(folder),
                         kind="PRODUCT_ID_UNRESOLVED")
     license_state, license_ref = resolve_license(folder, config,
                                                  product_id)

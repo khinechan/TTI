@@ -146,3 +146,11 @@ new per-run --prefer-vector flag reorders the stem pick so usable
 vectors outrank rasters (T25 both halves). T22's fixture png resized
 to clear the floor so it stays a pure dedupe test (rule change, not
 evidence-tampering — reported).
+
+F10 (Sonnet's review of a410a2f): F10a — stale `id_source` NameError
+in the product-id refusal message (left behind by the zip/dir rework;
+a digitless folder crashed uncaught, no receipt, exit 1) → `folder`;
+T26 locks refusal + receipt + exit 2. F10b — T24's 800px fixture also
+tripped the F9b floor, so it passed with or without the busy fix;
+widened to 4000px and VERIFIED red on the F9a-reverted line before
+restoring.
