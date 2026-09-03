@@ -35,7 +35,7 @@ Walls (each has a test behind it):
   W5 hash -> copy -> re-hash the staged bytes; mismatch retries once,
      then the file is recorded UNSTABLE and NO manifest entry is
      written for bytes that were not written.
-  W6 destination paths get the \\?\ prefix on Windows, and every
+  W6 destination paths get the \\\\?\\ prefix on Windows, and every
      planned destination path is length-checked up front; >240 chars
      is warned before a byte is copied.
   W7 PermissionError (Drive syncing the file) retries x3 with backoff
@@ -144,7 +144,7 @@ def _ensure_utf8_console():
 
 
 def _winpath(path):
-    """W6: absolute path with the \\?\ long-path prefix on Windows.
+    """W6: absolute path with the \\\\?\\ long-path prefix on Windows.
     On POSIX, returns the path unchanged. Every open/stat/replace on a
     DESTINATION path goes through this."""
     if os.name != "nt":
