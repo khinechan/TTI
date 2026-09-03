@@ -960,20 +960,33 @@ class MigrateLegacyRows(IngestCase):
         with open(self.index_file, encoding="utf-8") as fh:
             self.assertEqual(fh.read(), before)
 
-    def test_held_shape_is_refused_naming_the_open_question(self):
-        """Sonnet cert of 00fd755: a legacy 5-column row ends in
-        NOTES, which the 7-column shape has no home for. HELD — the
-        row is reported, never padded into Colors."""
-        before = self.write_index([self.GOOD, self.LEGACY5])
+    def test_legacy_notes_land_in_used_in_per_D429(self):
+        """D-429 (Khai's ruling, via Sonnet cert D-430): a legacy
+        5-column row's NOTES text goes to "Used in"; Colors and
+        Recolor are pending. Nothing dropped."""
+        self.write_index([self.GOOD, self.LEGACY5])
+        report = self.migrate(apply=True)
+        self.assertEqual(report["counts"]["rows_migrated"], 1)
+        self.assertEqual(report["counts"]["unmigratable"], 0)
+        row = [r for r in self.index_rows() if "legacy.png" in r][0]
+        cells = ail.split_cells(row)
+        self.assertEqual(cells, [
+            "`b/legacy.png`", "CF Subscription, verified",
+            "flat badge", "raccoon",
+            ai.PENDING_CELL, ai.PENDING_CELL,
+            "Sourced for Family N per D-046"])
+        self.assertEqual(ail.lint_row(row), [])
+
+    def test_six_column_shape_is_still_held(self):
+        """Only the 5-column hold was lifted — the 6-column map was
+        inferred and has never been read from the live file."""
+        six = ("| `e/six.png` | CF Subscription, verified | cartoon "
+               "| cat | grey | flat |")
+        self.write_index([self.GOOD, six])
         report = self.migrate(apply=True)
         self.assertEqual(report["counts"]["rows_migrated"], 0)
-        self.assertEqual(report["counts"]["unmigratable"], 1)
-        detail = report["unmigratable"][0]["detail"]
-        self.assertIn("NOTES", detail)
-        self.assertIn("HELD", detail)
+        self.assertIn("HELD", report["unmigratable"][0]["detail"])
         self.assertFalse(report["applied"])
-        with open(self.index_file, encoding="utf-8") as fh:
-            self.assertEqual(fh.read(), before)   # untouched
 
     def test_legacy_header_is_never_padded_as_data(self):
         """Sonnet cert of 00fd755: a 5-column SECTION HEADER is not a
@@ -1034,6 +1047,104 @@ class MigrateLegacyRows(IngestCase):
             self.assertEqual(
                 self.run_tool("--migrate", self.input_dir), 2)
         self.assertEqual(self.run_tool("--migrate"), 1)   # dry-run
+
+
+class CompoundAssetPaths(IngestCase):
+    """Sonnet cert D-430: 14 live rows use the established
+    primary-plus-derivatives convention. Every distinct shape in that
+    block is here VERBATIM — the fix is built against the real
+    variety, not one example."""
+
+    REAL_CELLS = [
+        # (+ `path` prose) — Product 39 bells
+        "`product39-dispatcher-hohohold/character-art/bells_source"
+        ".png` (+ `bells_navybrick.png` recolor)",
+        # (+ prose only, no paths) — Product 41 electrician
+        "`product41-electrician-halloween/character-art/electrician_"
+        "source_native.png` (+ light/dark variants)",
+        # (+ `path`) — Product 43 boxes
+        "`product43-mailcarrier-holidaycardio/character-art/boxes_"
+        "dark_variant.png` (+ `boxes_light_variant_halo.png`)",
+        # multi-path annotation with parens INSIDE a backticked path
+        "`product49-trucker-fourwheelers/character-art/truck_source"
+        ".png` (+ `truck_cream.png`, `truck_navy.png`; two untouched "
+        "extra derivatives at `Ten Minutes Late - The Whole Block "
+        "Knows (5-variant play)/character-art/truck_ink_mono.png` + "
+        "`truck_burgundy.png`, built for that exercise's V3/V5 but "
+        "not currently used)",
+        # top-level "+"-joined paths + annotation — the 5-item pack
+        "`Merry Christmas - Now Whats Your Emergency (pending gate)/"
+        "character-art/item-holly-berries.png` + `item-berry-sprig"
+        ".png` + `item-snowflake.png` + `item-candy-cane.png` + "
+        "`item-tree-star.png` (5 items, extracted from one source "
+        "file `christmas-items-5pack_source.png`)",
+        # FOLDER path + "(N frames)" — Bootleg Parts
+        "`Bootleg Parts/vintage-photo-frames/` (10 frames)",
+        # two "+"-joined FOLDER paths, no annotation — Semi-Truck
+        "`CF Sourced 2026-08-30/Semi-Truck-Trucker-18-Wheeler-"
+        "13786326/` + `CF Sourced 2026-08-30/Silhouette-of-a-"
+        "semitruck-46652476/`",
+        # annotation opening with "+3" — Police-Siren
+        "`CF Sourced 2026-08-31/Police-Siren-Svg-Light-Bulb-31841802/"
+        "PNG/svg-police-siren.png` (+3 style variants, +AI/EPS/SVG/"
+        "JPG formats, full bundle kept)",
+    ]
+
+    def test_every_real_shape_passes_L3(self):
+        for cell in self.REAL_CELLS:
+            self.assertEqual(ail.asset_cell_findings(cell), [], cell)
+            row = ail.format_row([cell, "CF Subscription, verified",
+                                  "flat", "tag", "tonal", "flat",
+                                  "Product X"])
+            self.assertEqual(ail.lint_row(row), [], cell)
+
+    def test_primary_path_is_the_sidecar_key(self):
+        """asset_path() still returns ONE path — the primary — so the
+        sidecar key is unchanged for every row that already had one."""
+        row = ail.format_row([self.REAL_CELLS[0], "L", "S", "N", "C",
+                              "R", "U"])
+        self.assertEqual(
+            ail.asset_path(row),
+            "product39-dispatcher-hohohold/character-art/"
+            "bells_source.png")
+
+    def test_declared_paths_exclude_annotation_prose(self):
+        """The 5-item pack declares 5 paths; the source file named
+        inside the annotation is prose, not a declared asset."""
+        row = ail.format_row([self.REAL_CELLS[4], "L", "S", "N", "C",
+                              "R", "U"])
+        paths = ail.asset_paths(row)
+        self.assertEqual(len(paths), 5)
+        self.assertTrue(paths[0].endswith("item-holly-berries.png"))
+        self.assertFalse(any("5pack_source" in p for p in paths))
+        # the path containing parentheses stayed ONE path
+        row = ail.format_row([self.REAL_CELLS[3], "L", "S", "N", "C",
+                              "R", "U"])
+        self.assertEqual(ail.asset_paths(row),
+                         ["product49-trucker-fourwheelers/"
+                          "character-art/truck_source.png"])
+
+    def test_malformed_cells_still_fail(self):
+        for bad in ("not-backticked.png",
+                    "`a.png` trailing prose without parens",
+                    "`a.png` + not-backticked.png",
+                    "`/absolute/a.png`",
+                    "`a\\b.png`",
+                    "`unclosed.png"):
+            self.assertNotEqual(ail.asset_cell_findings(bad), [], bad)
+
+    def test_compound_row_migrates_untouched_when_already_7_col(self):
+        """A 7-column row whose only problem WAS the compound cell is
+        now simply valid — nothing to migrate."""
+        row = ail.format_row([self.REAL_CELLS[5], "CF Subscription, "
+                              "verified", "vintage", "bootleg",
+                              "tonal", "flat", "Queued"])
+        with open(self.index_file, "w", encoding="utf-8") as fh:
+            fh.write(HEADER + "\n" + SEPARATOR + "\n" + row + "\n")
+        config = ai.load_config(self.config_path)
+        report = ai.run_migrate(config, {"apply": True})
+        self.assertEqual(report["exit_code"], 0)
+        self.assertFalse(report["applied"])
 
 
 class ConfirmGroups(IngestCase):

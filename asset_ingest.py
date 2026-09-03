@@ -206,8 +206,13 @@ STAGING_DIRNAME = "_ingest_staging"   # zip extraction target
 # run --migrate WITHOUT --apply and check the proposed rows against
 # the real ones before anything is written.
 LEGACY_COLUMN_MAPS = {
-    5: (0, 1, 2, 3, 4),      # Asset|License|Style|Niche tags|Colors
-    6: (0, 1, 2, 3, 4, 5),   # ...plus Recolor
+    # D-429 (Khai's ruling, relayed in Sonnet's cert D-430): a legacy
+    # 5-column row is Asset|License|Style|Niche tags|NOTES, and the
+    # old Notes text goes to "Used in" — slot 6, NOT slot 4. Colors
+    # and Recolor (slots 4 and 5) fall through to PENDING_CELL like
+    # any unfilled slot. Nothing is dropped.
+    5: (0, 1, 2, 3, 6),
+    6: (0, 1, 2, 3, 4, 5),   # inferred, never seen live — still HELD
 }
 
 # Sonnet's cert of 00fd755 read the live file and disproved the guess
@@ -218,11 +223,10 @@ LEGACY_COLUMN_MAPS = {
 # tool's guess, so those shapes are HELD: they report UNMIGRATABLE
 # naming the open question instead of writing a wrong cell. Lifting a
 # hold is deleting one line here, once the ruling lands.
+# The 5-column hold is LIFTED by D-429 (the map above now sends Notes
+# to "Used in"). The 6-column hold stands: that map was inferred and
+# no 6-column row has ever been read from the live file.
 LEGACY_COLUMN_MAPS_HELD = {
-    5: ("legacy 5-column rows end in a NOTES cell the 7-column shape "
-        "has no home for — migrating would file Notes prose under "
-        "Colors (Sonnet cert of 00fd755). HELD pending Khai/Fable's "
-        "ruling on where Notes goes"),
     6: ("the 6-column map was inferred, never seen in the live file, "
         "and the same Notes conflation may apply — HELD until a real "
         "6-column row is read"),
@@ -1373,6 +1377,11 @@ def normalize_asset_cell(cell):
     SPELLING changes — never which file the row points at."""
     notes = []
     text = cell.strip()
+    if not ail.asset_cell_findings(text):
+        # already a valid cell — single OR compound (D-430). Never
+        # re-wrap it: doing that turned `a.png` (+ `b.png`) into
+        # ``a.png` (+ `b.png`)` and failed its own lint.
+        return text, []
     if text.startswith("`") and text.endswith("`") and len(text) > 1:
         inner = text[1:-1]
     else:

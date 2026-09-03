@@ -36,9 +36,25 @@ HEADER_CELLS = (
     "Used in",
 )
 
-# Column 1: a backtick-quoted path, relative (no leading slash), no
-# backslashes, non-empty between the backticks.
+# Column 1: one or more backtick-quoted paths, relative (no leading
+# slash), no backslashes, non-empty between the backticks. A path may
+# name a FOLDER (trailing "/") — the Bootleg Parts sections do.
 ASSET_CELL_PATTERN = re.compile(r"^`([^`\\]+)`$")
+
+# COMPOUND ASSET CELLS (Sonnet cert D-430, built from the real
+# 14-row block, not one example). The live convention is a primary
+# file plus related derivatives:
+#     `path`
+#     `path` + `path2` + `path3`
+#     `path` (+ `recolor.png` recolor)
+#     `path` (+ light/dark variants)
+#     `Bootleg Parts/frames/` (10 frames)
+#     `path` (+3 style variants, +AI/EPS/SVG/JPG formats)
+# Grammar: PATH ("+" PATH)* [ "(" annotation ")" ]. The annotation is
+# PROSE — it may mention paths (a source file, an unused derivative)
+# and may itself contain parentheses inside a backticked path, which
+# is why the cell is parsed structurally instead of by one regex.
+ASSET_PATH_JOIN = "+"
 
 # Backtick-paired spans are prose quoting, not cell structure (same
 # rule vault_repair v1.1 ratified in D-382): pipes inside them do not
@@ -132,6 +148,76 @@ def find_header_lines(lines):
     return headers
 
 
+def parse_asset_cell(cell):
+    """Split an Asset cell into (paths, annotation, error).
+
+    paths     the row's DECLARED assets: the primary plus any
+              "+"-joined siblings. Paths named inside the annotation
+              are prose references (a source file, an unused
+              derivative) and are deliberately NOT included.
+    annotation the trailing "(...)" note, or None.
+    error     None when the cell is well-formed; otherwise why it is
+              not, for L3 to report.
+
+    Pure. Backtick spans are read literally, so a path containing
+    parentheses — `Ten Minutes Late (5-variant play)/art/x.png` — is
+    one path, not a path plus an annotation.
+    """
+    text = cell.strip()
+    paths = []
+    index = 0
+    length = len(text)
+    while True:
+        while index < length and text[index].isspace():
+            index += 1
+        if index >= length or text[index] != "`":
+            return (paths, None,
+                    "expected a backtick-quoted path%s"
+                    % (" after a '%s'" % ASSET_PATH_JOIN
+                       if paths else ""))
+        close = text.find("`", index + 1)
+        if close == -1:
+            return paths, None, "unclosed backtick around a path"
+        paths.append(text[index + 1:close])
+        index = close + 1
+        while index < length and text[index].isspace():
+            index += 1
+        if index < length and text[index] == ASSET_PATH_JOIN:
+            index += 1
+            continue
+        break
+    annotation = text[index:].strip()
+    if annotation and not (annotation.startswith("(")
+                           and annotation.endswith(")")):
+        return (paths, None,
+                "trailing text is not a parenthesised annotation: %r"
+                % annotation[:60])
+    return paths, annotation or None, None
+
+
+def asset_cell_findings(cell):
+    """L3 for one Asset cell. Empty list means valid."""
+    paths, _annotation, error = parse_asset_cell(cell)
+    if error:
+        return ["L3: Asset cell must be a backtick-quoted relative "
+                "path, optionally '%s'-joined with more and followed "
+                "by a (...) note — %s (got %r)"
+                % (ASSET_PATH_JOIN, error, cell[:80])]
+    findings = []
+    for path in paths:
+        if not path.strip():
+            findings.append("L3: empty path in the Asset cell")
+        elif not ASSET_CELL_PATTERN.match("`%s`" % path):
+            findings.append("L3: %r is not a usable path (no "
+                            "backslashes, no nested backticks)"
+                            % path[:60])
+        elif path.startswith("/"):
+            findings.append("L3: Asset path must be relative to "
+                            "'Merch/Design Assets/', not absolute "
+                            "(%r)" % path[:60])
+    return findings
+
+
 def lint_row(line):
     """Lint ONE content row. Returns a list of findings, each naming
     the rule; an empty list means the row is valid. Separator and
@@ -146,13 +232,7 @@ def lint_row(line):
                         "(W8 — no schema change to the human table)"
                         % (len(cells), COLUMN_COUNT))
         return findings
-    match = ASSET_CELL_PATTERN.match(cells[0])
-    if not match or not match.group(1).strip():
-        findings.append("L3: Asset cell must be a backtick-quoted "
-                        "relative path (got %r)" % cells[0][:80])
-    elif match.group(1).startswith("/"):
-        findings.append("L3: Asset path must be relative to "
-                        "'Merch/Design Assets/', not absolute")
+    findings.extend(asset_cell_findings(cells[0]))
     for number, cell in enumerate(cells, start=1):
         if not cell:
             findings.append("L4: column %d is empty — every cell "
@@ -161,13 +241,24 @@ def lint_row(line):
 
 
 def asset_path(line):
-    """The path inside the Asset cell's backticks, or None. This is
-    the sidecar key (W8)."""
+    """The row's PRIMARY asset path — the sidecar key (W8) — or None.
+    On a compound cell this is the first path, the file the row is
+    about; use asset_paths() for every declared path."""
+    paths = asset_paths(line)
+    return paths[0] if paths else None
+
+
+def asset_paths(line):
+    """Every path the row DECLARES: the primary plus its "+"-joined
+    siblings. Paths mentioned inside the annotation are prose and are
+    not returned. Empty list when the cell does not parse."""
     cells = split_cells(line)
     if not cells:
-        return None
-    match = ASSET_CELL_PATTERN.match(cells[0])
-    return match.group(1) if match else None
+        return []
+    paths, _annotation, error = parse_asset_cell(cells[0])
+    if error:
+        return []
+    return [p for p in paths if p.strip()]
 
 
 def format_row(cells):
