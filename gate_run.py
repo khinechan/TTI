@@ -297,6 +297,17 @@ def run_gate(only=None, skip=None, fleet=None, base_dir=None,
                 preflight_errors.append(
                     (entry["name"],
                      "required environment variable %s is not set" % var))
+        if STATE_MD_PLACEHOLDER in entry.get("args", []):
+            state_md = _resolve_state_md(environ)
+            if not state_md.is_file():
+                if environ.get(STATE_MD_ENV):
+                    reason = ("%s points to a missing file: %s"
+                              % (STATE_MD_ENV, state_md))
+                else:
+                    reason = ("%s is not set and the default %s is "
+                              "absent — the stage cannot start"
+                              % (STATE_MD_ENV, state_md))
+                preflight_errors.append((entry["name"], reason))
     cant_start = {}
     for name, reason in preflight_errors:
         cant_start.setdefault(name, []).append(reason)

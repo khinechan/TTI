@@ -138,7 +138,7 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | asset_ingest.config.example.json | Committed template for the real (gitignored) config: index_root, assets_dir, license_dir. | 2 |
 | PLAN_asset_ingest.md | The pre-build plan for MC FLEET B3 (survives compaction). | 2 |
 | gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. | 1 |
-| test_gate_run.py | 29 tests (T1-T28 + env-requirement case): pipe-bug lock, HUNG/grandchild, write-surface snapshot diff, partial-never-pass. | 1 |
+| test_gate_run.py | 30 tests (T1-T29 incl. env-requirement + missing-STATE.md-config CANT_START): pipe-bug lock, HUNG/grandchild, write-surface snapshot diff, partial-never-pass. | 1 |
 | .gitignore | Ignores Python bytecode, config/identity.json, and gate_run's write surfaces (gate_receipts.jsonl, reports/). Protects W2/W3 — treat as TIER 0. | 0 |
 | CLAUDE.md | This contract. | 2 |
 
@@ -149,7 +149,7 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-02: **345 tests, all green**
+Full suite baseline 2026-09-02: **346 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest test_play_forge`).
 (test_play_forge renders at the real 4500×5400 — the full suite takes
 a few minutes now; that is the cost of W5, not a bug.)

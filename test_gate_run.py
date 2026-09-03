@@ -163,6 +163,35 @@ class TestGateRun(Fixture):
         by = {s["name"]: s for s in report["stages"]}
         self.assertEqual(by["sku"]["status"], "PASS")
 
+    def test_T29_missing_state_md_config_is_cant_start(self):
+        """Fable cleanup 2026-09-02: a {STATE_MD} stage with no
+        GATE_RUN_STATE_MD set and no default STATE.md on disk is
+        CANT_START, named — never a FAIL that masquerades as the
+        linter's own verdict (exit precedence per R5 unchanged)."""
+        fleet = self.ok_fleet(1)
+        self.tool("lint.py", "sys.exit(0)")
+        fleet.append(self.entry("lint", "lint.py",
+                                args=[gr.STATE_MD_PLACEHOLDER]))
+        report = self.run_gate(fleet=fleet, environ={})
+        by = {s["name"]: s for s in report["stages"]}
+        self.assertEqual(by["lint"]["status"], "CANT_START")
+        self.assertIn(gr.STATE_MD_ENV, by["lint"]["stderr_text"])
+        self.assertEqual(report["exit_code"], gr.EXIT_FAIL)
+        # env pointing at a missing file: still CANT_START, named
+        report = self.run_gate(
+            fleet=fleet,
+            environ={gr.STATE_MD_ENV: str(self.dir / "ghost.md")})
+        by = {s["name"]: s for s in report["stages"]}
+        self.assertEqual(by["lint"]["status"], "CANT_START")
+        self.assertIn("missing file", by["lint"]["stderr_text"])
+        # a real file: the stage runs
+        state = self.dir / "STATE.md"
+        state.write_text("| D-1 |\n", encoding="utf-8")
+        report = self.run_gate(fleet=fleet,
+                               environ={gr.STATE_MD_ENV: str(state)})
+        by = {s["name"]: s for s in report["stages"]}
+        self.assertEqual(by["lint"]["status"], "PASS")
+
     def test_T06_empty_fleet_exit_2(self):
         with self.assertRaises(gr.InvocationError):
             self.run_gate(fleet=[])
