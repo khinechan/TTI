@@ -137,6 +137,12 @@ FONT_ROSTER = {
 }
 FONT_EXTS = (".otf", ".ttf")
 
+# Brandkit register rule (v5.2, wired on Khai's order 2026-09-02):
+# Midtown Script is Title Case only, never ALL CAPS. The wired half
+# is the enforceable half — an all-caps line in a listed font rejects
+# the variant by name.
+TITLE_CASE_ONLY_FONTS = ("Midtown Script",)
+
 MIN_FIT_SIZE = 20                 # W4 binary-search bounds
 MAX_FIT_SIZE = 1400
 STROKE_WIDTH_DIVISOR = 28         # outline stroke = size/28, min 2
@@ -725,6 +731,14 @@ def render_variant(variant, roster, config, provenance):
     stroke_fill = variant["outline_hex"]
     hero_path = roster[variant["font_pair"]["hero"]]
     support_path = roster[variant["font_pair"]["support"]]
+    for font_name, line in ((variant["font_pair"]["hero"], punch),
+                            (variant["font_pair"]["support"], setup)):
+        if font_name in TITLE_CASE_ONLY_FONTS:
+            letters = [c for c in line if c.isalpha()]
+            if letters and all(c.isupper() for c in letters):
+                raise VariantRejected(
+                    "REGISTER: %s is Title Case only, got %r"
+                    % (font_name, line))
     hero_target = layout["hero_frac"] * usable
     setup_target = layout["support_frac"] * usable
     ring_r = int(CANVAS_W * BADGE_RING_FRAC)

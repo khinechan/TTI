@@ -452,6 +452,44 @@ class BenchF6MeasuredAnchors(ForgeCase):
         self.assertNotIn("OVERLAP", reason)
 
 
+class MidtownRegister(ForgeCase):
+    def _midtown_play(self, setup):
+        variant = self.base_variants()[0]
+        variant["font_pair"] = {"hero": "Baseball Athlete Jersey",
+                                "support": "Midtown Script"}
+        play = {"play_id": "2026-09-02-register",
+                "line": {"setup": setup, "punch": "NOT MY CALL."},
+                "named_feeling": "deadpan judgment",
+                "variants": [variant]}
+        path = os.path.join(self.tmp, "register.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(play, fh)
+        return path
+
+    def test_all_caps_in_midtown_rejected_by_name(self):
+        """Brandkit register rule: Midtown Script is Title Case only
+        — an ALL-CAPS line in it rejects the variant by name."""
+        code, _, _ = self.run_tool(
+            self._midtown_play("CAN'T LEAVE IT NEXT DOOR."))
+        self.assertEqual(code, 1)
+        receipt = self.receipts()[-1]
+        self.assertEqual(len(receipt["rejected"]), 1)
+        reason = receipt["rejected"][0]["reason"]
+        self.assertIn("REGISTER: Midtown Script is Title Case only",
+                      reason)
+        self.assertIn("CAN'T LEAVE IT NEXT DOOR.", reason)
+
+    def test_title_case_in_midtown_renders(self):
+        """Same play, Title Case setup -> renders (red goes green on
+        the case alone)."""
+        code, _, _ = self.run_tool(
+            self._midtown_play("Can't Leave It Next Door."))
+        self.assertIn(code, (0, 1))
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["rejected"], [])
+        self.assertEqual(receipt["rendered"], 1)
+
+
 class BenchF4OutDir(ForgeCase):
     def test_second_run_refused_unless_overwrite(self):
         """Bench F4: a non-empty out_dir/<play_id> refuses; the
