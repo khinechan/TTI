@@ -846,6 +846,7 @@ def append_receipt(report):
         "skipped_duplicate_stem": report.get("skipped_duplicate_stem",
                                              []),
         "raster_over_vector": report.get("raster_over_vector", []),
+        "findings": report.get("findings", []),
         "needs_human": [item["file"] for item
                         in report.get("needs_human", [])],
         "refusals": report.get("refusals", []),
@@ -993,6 +994,15 @@ def run_ingest(config, input_path, opts):
             else:
                 counts["cant_convert"] += 1
                 cant_convert.append({"file": rel, "reason": reason})
+    # Fable cleanup 2026-09-02: when the dedupe's skip reasons say
+    # "duplicate" but nothing converted, the receipt must say WHY
+    # nothing ran — not leave the reader to infer it
+    unconvertible = sorted(
+        ext for ext in CONVERTIBLE_EXTS
+        if by_ext.get(ext) and not stem_ext_usable(ext, converters))
+    if unconvertible and counts["converted"] == 0:
+        findings.append("all candidates skipped: no converter for %s "
+                        "on this box" % "/".join(unconvertible))
     raster_rels = [rel for ext in RASTER_EXTS
                    for rel in by_ext.get(ext, []) if _is_winner(rel)]
     jpeg_only = bool(raster_rels) and not converted_paths and all(

@@ -884,6 +884,46 @@ class T25RasterFloor(IngestCase):
         self.assertEqual(report["raster_over_vector"], [])
 
 
+class ConversionNote(IngestCase):
+    def test_receipt_names_why_nothing_ran(self):
+        """Fable cleanup: dedupe skips say 'duplicate', but when zero
+        files converted the receipt carries one line naming WHY."""
+        for name in ("art.svg", "art.eps"):
+            with open(os.path.join(self.input_dir, name), "wb") as fh:
+                fh.write(b"vector bytes\n")
+        with mock.patch.object(
+                ai, "probe_converters",
+                lambda: {"gs": None, "inkscape": None,
+                         "cairosvg": None}):
+            report = self.ingest_report()
+        note = ("all candidates skipped: no converter for .eps/.svg "
+                "on this box")
+        self.assertIn(note, report["findings"])
+        self.assertIn(note, self.receipts()[-1]["findings"])
+
+    def test_no_note_when_something_converted(self):
+        """A successful conversion means the note stays silent."""
+        import sys
+        import types
+        with open(os.path.join(self.input_dir, "art.svg"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("<svg xmlns='http://www.w3.org/2000/svg'/>")
+        fake = types.ModuleType("cairosvg")
+
+        def svg2png(url=None, write_to=None, output_width=None):
+            img = Image.new("RGBA", (output_width, 80), (0, 0, 0, 0))
+            ImageDraw.Draw(img).rectangle((10, 10, 70, 70),
+                                          fill=(0, 0, 0, 255))
+            img.save(write_to)
+            img.close()
+
+        fake.svg2png = svg2png
+        with mock.patch.dict(sys.modules, {"cairosvg": fake}):
+            report = self.ingest_report()
+        self.assertFalse(any("no converter" in f
+                             for f in report["findings"]))
+
+
 class ZipInput(IngestCase):
     def test_zip_ingest_parses_stem_product_id(self):
         png = os.path.join(self.tmp, "art.png")
