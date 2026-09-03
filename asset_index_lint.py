@@ -100,8 +100,36 @@ def is_separator_row(line):
 
 
 def is_header_row(line):
+    """True for the CANONICAL 7-column header only. Line-local, so it
+    cannot see a legacy header — use find_header_lines() when you have
+    the whole file."""
     cells = split_cells(line)
     return cells is not None and tuple(cells) == HEADER_CELLS
+
+
+def find_header_lines(lines):
+    """Indices of every table HEADER row, identified STRUCTURALLY: a
+    table row immediately followed by a separator row — markdown's own
+    definition of a header.
+
+    Sonnet's cert of 00fd755 caught the reason this exists: the older
+    sections of the live ASSET_INDEX carry 5-column headers ending in
+    "Notes", which are not the canonical 7-column HEADER_CELLS, so an
+    equality check called them data rows and every consumer treated
+    them as such — the migrator padded them with "pending" cells that
+    should have read Colors/Recolor/Used in. A vocabulary list of
+    known header spellings would just go stale again; the position
+    above the separator cannot.
+    """
+    headers = set()
+    for index in range(len(lines) - 1):
+        if split_cells(lines[index]) is None:
+            continue
+        if is_separator_row(lines[index]):
+            continue
+        if is_separator_row(lines[index + 1]):
+            headers.add(index)
+    return headers
 
 
 def lint_row(line):

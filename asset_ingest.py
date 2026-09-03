@@ -210,6 +210,24 @@ LEGACY_COLUMN_MAPS = {
     6: (0, 1, 2, 3, 4, 5),   # ...plus Recolor
 }
 
+# Sonnet's cert of 00fd755 read the live file and disproved the guess
+# above: legacy rows are Asset|License|Style|Niche tags|NOTES, and the
+# canonical shape has NO Notes column, so padding two "pending" cells
+# files old Notes prose under "Colors" — on all 26 rows, not an edge
+# case. Where Notes content belongs is Khai/Fable's ruling, not this
+# tool's guess, so those shapes are HELD: they report UNMIGRATABLE
+# naming the open question instead of writing a wrong cell. Lifting a
+# hold is deleting one line here, once the ruling lands.
+LEGACY_COLUMN_MAPS_HELD = {
+    5: ("legacy 5-column rows end in a NOTES cell the 7-column shape "
+        "has no home for — migrating would file Notes prose under "
+        "Colors (Sonnet cert of 00fd755). HELD pending Khai/Fable's "
+        "ruling on where Notes goes"),
+    6: ("the 6-column map was inferred, never seen in the live file, "
+        "and the same Notes conflation may apply — HELD until a real "
+        "6-column row is read"),
+}
+
 # Old asset-cell spellings the backfill parser cannot read. Each
 # normalizer is NAMED so the receipt says which one touched a row;
 # they only ever reshape the path's spelling, never its identity.
@@ -887,6 +905,8 @@ def append_receipt(report):
         "unmigratable": [{"line": i["line"], "detail": i["detail"]}
                          for i in report.get("unmigratable", [])],
         "backup": report.get("backup"),
+        "legacy_headers": [{"line": i["line"], "cells": i["cells"]}
+                           for i in report.get("legacy_headers", [])],
         "needs_human": [item["file"] for item
                         in report.get("needs_human", [])],
         "refusals": report.get("refusals", []),
@@ -910,7 +930,8 @@ def _new_counts():
             "crumbs_dropped": 0, "confirmed": 0, "rows_appended": 0,
             "rows_rejected": 0, "sidecar_entries": 0, "symlinks": 0,
             "missing_files": 0, "skipped_duplicate_stem": 0,
-            "rows_migrated": 0, "unmigratable": 0}
+            "rows_migrated": 0, "unmigratable": 0,
+            "legacy_headers": 0}
 
 
 def product_out_dir(config, product_id):
@@ -1397,6 +1418,10 @@ def migrate_line(line):
     if len(cells) == COLUMN_TARGET:
         new_cells = list(cells)
     else:
+        held = LEGACY_COLUMN_MAPS_HELD.get(len(cells))
+        if held is not None:
+            return line, "UNMIGRATABLE", "%d columns: %s" % (
+                len(cells), held)
         mapping = LEGACY_COLUMN_MAPS.get(len(cells))
         if mapping is None:
             return (line, "UNMIGRATABLE",
@@ -1437,13 +1462,26 @@ def run_migrate(config, opts):
     with open(idx, "r", encoding="utf-8") as handle:
         original = handle.read()
     lines = original.split("\n")
+    header_lines = ail.find_header_lines(lines)   # structural (cert)
     proposals = []
     unmigratable = []
+    legacy_headers = []
     new_lines = list(lines)
     for number, line in enumerate(lines):
         if not line.strip().startswith("|"):
             continue
-        if ail.is_separator_row(line) or ail.is_header_row(line):
+        if ail.is_separator_row(line):
+            continue
+        if number in header_lines:
+            # A HEADER is never data. A legacy one is reported so a
+            # human sees the section still names its old columns —
+            # rewriting it belongs with the held Notes ruling.
+            if not ail.is_header_row(line):
+                legacy_headers.append(
+                    {"line": number + 1,
+                     "section": _section_of(lines, number),
+                     "cells": ail.split_cells(line)})
+                counts["legacy_headers"] += 1
             continue
         new_line, kind, detail = migrate_line(line)
         if kind == "OK":
@@ -1486,7 +1524,8 @@ def run_migrate(config, opts):
     return {
         "tool": TOOL_NAME, "run": "MIGRATE", "product_id": None,
         "counts": counts, "proposals": proposals,
-        "unmigratable": unmigratable, "applied": applied,
+        "unmigratable": unmigratable,
+        "legacy_headers": legacy_headers, "applied": applied,
         "backup": backup_path, "refusals": [],
         "cant_convert": [], "needs_human": [], "findings": [],
         "note": ("written (backup: %s)" % backup_path if applied else
@@ -1508,12 +1547,13 @@ def run_backfill(config, opts):
     with open(idx, "r", encoding="utf-8") as handle:
         lines = handle.read().split("\n")
     sidecar = load_sidecar(sidecar_path(config))
+    header_lines = ail.find_header_lines(lines)   # structural (cert)
     proposals = {}
     bad_rows = []
     for number, line in enumerate(lines, start=1):
         if not line.strip().startswith("|"):
             continue
-        if ail.is_separator_row(line) or ail.is_header_row(line):
+        if ail.is_separator_row(line) or (number - 1) in header_lines:
             continue
         findings = ail.lint_row(line)
         if findings:
@@ -1620,6 +1660,11 @@ def format_report(report):
                          % (item["line"], item["section"],
                             item["detail"]))
             lines.append("    - %s" % item["before"])
+        for item in report["legacy_headers"]:
+            lines.append("  LEGACY HEADER line %d [%s]: %d columns "
+                         "%s — left alone, never padded as data"
+                         % (item["line"], item["section"],
+                            len(item["cells"]), item["cells"]))
     if report["run"] == "BACKFILL":
         for rel in sorted(report["proposed_entries"]):
             lines.append("  BACKFILL %s: %s" %

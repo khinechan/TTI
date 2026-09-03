@@ -885,18 +885,22 @@ class T25RasterFloor(IngestCase):
 
 
 class MigrateLegacyRows(IngestCase):
-    """Fable order 2026-09-02: legacy 5-column rows and old
-    asset-path spellings come to the 7-column D-419 shape. Dry-run
-    default, backup before write, untouched rows byte-faithful, every
-    migrated row through asset_index_lint BEFORE it is written."""
+    """Fable order 2026-09-02, amended by Sonnet's cert of 00fd755:
+    legacy rows come to the 7-column D-419 shape, EXCEPT the shapes
+    the cert put on hold. Dry-run default, backup before write,
+    untouched rows byte-faithful, every migrated row through
+    asset_index_lint BEFORE it is written."""
 
     GOOD = ("| `a/good.png` | CF Subscription, verified | cartoon | "
             "dog | tonal | flat | Product 28 |")
     LEGACY5 = ("| `b/legacy.png` | CF Subscription, verified | flat "
-               "badge | raccoon | brown/tan |")
+               "badge | raccoon | Sourced for Family N per D-046 |")
     OLDPATH = ("| Merch/Design Assets/c/old.png | CF Subscription, "
                "verified | cartoon | owl | grey | tonal | Product 3 |")
     UNKNOWN = "| `d/weird.png` | only | three |"
+    LEGACY_HEADER = ("| Asset (path under `Merch/Design Assets/`) | "
+                     "License | Style | Niche tags | Notes |")
+    LEGACY_SEP = "|---|---|---|---|---|"
 
     def write_index(self, body_lines):
         text = (HEADER + "\n" + SEPARATOR + "\n"
@@ -912,20 +916,16 @@ class MigrateLegacyRows(IngestCase):
         return report
 
     def test_dry_run_proposes_and_writes_nothing(self):
-        before = self.write_index([self.GOOD, self.LEGACY5,
-                                   self.OLDPATH])
+        before = self.write_index([self.GOOD, self.OLDPATH])
         report = self.migrate()
         self.assertEqual(report["exit_code"], 1)
-        self.assertEqual(report["counts"]["rows_migrated"], 2)
+        self.assertEqual(report["counts"]["rows_migrated"], 1)
         self.assertFalse(report["applied"])
         with open(self.index_file, encoding="utf-8") as fh:
             self.assertEqual(fh.read(), before)   # byte-identical
-        sections = {p["line"]: p["section"] for p in
-                    report["proposals"]}
-        self.assertTrue(all(isinstance(k, int) for k in sections))
 
     def test_apply_migrates_and_leaves_good_rows_byte_faithful(self):
-        self.write_index([self.GOOD, self.LEGACY5, self.OLDPATH])
+        self.write_index([self.GOOD, self.OLDPATH])
         report = self.migrate(apply=True)
         self.assertTrue(report["applied"])
         rows = self.index_rows()
@@ -933,19 +933,15 @@ class MigrateLegacyRows(IngestCase):
         for row in rows[2:]:
             self.assertEqual(ail.lint_row(row), [], row)
             self.assertEqual(len(ail.split_cells(row)), 7)
-        migrated = [r for r in rows if "legacy.png" in r][0]
-        cells = ail.split_cells(migrated)
-        self.assertEqual(cells[:5],
-                         ["`b/legacy.png`", "CF Subscription, "
-                          "verified", "flat badge", "raccoon",
-                          "brown/tan"])
-        self.assertEqual(cells[5:], [ai.PENDING_CELL,
-                                     ai.PENDING_CELL])
         oldpath = [r for r in rows if "old.png" in r][0]
         self.assertEqual(ail.asset_path(oldpath), "c/old.png")
+        cells = ail.split_cells(oldpath)
+        self.assertEqual(cells[1:], ["CF Subscription, verified",
+                                     "cartoon", "owl", "grey",
+                                     "tonal", "Product 3"])
 
     def test_backup_written_and_matches_the_original(self):
-        before = self.write_index([self.LEGACY5])
+        before = self.write_index([self.OLDPATH])
         report = self.migrate(apply=True)
         self.assertTrue(os.path.isfile(report["backup"]))
         with open(report["backup"], encoding="utf-8") as fh:
@@ -964,6 +960,53 @@ class MigrateLegacyRows(IngestCase):
         with open(self.index_file, encoding="utf-8") as fh:
             self.assertEqual(fh.read(), before)
 
+    def test_held_shape_is_refused_naming_the_open_question(self):
+        """Sonnet cert of 00fd755: a legacy 5-column row ends in
+        NOTES, which the 7-column shape has no home for. HELD — the
+        row is reported, never padded into Colors."""
+        before = self.write_index([self.GOOD, self.LEGACY5])
+        report = self.migrate(apply=True)
+        self.assertEqual(report["counts"]["rows_migrated"], 0)
+        self.assertEqual(report["counts"]["unmigratable"], 1)
+        detail = report["unmigratable"][0]["detail"]
+        self.assertIn("NOTES", detail)
+        self.assertIn("HELD", detail)
+        self.assertFalse(report["applied"])
+        with open(self.index_file, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), before)   # untouched
+
+    def test_legacy_header_is_never_padded_as_data(self):
+        """Sonnet cert of 00fd755: a 5-column SECTION HEADER is not a
+        data row. It is recognised structurally (the row above a
+        separator), reported, and left exactly as it is."""
+        before = self.write_index([self.GOOD, "", "## Bootleg Parts",
+                                   self.LEGACY_HEADER,
+                                   self.LEGACY_SEP, self.OLDPATH])
+        report = self.migrate(apply=True)
+        self.assertEqual(report["counts"]["legacy_headers"], 1)
+        header = report["legacy_headers"][0]
+        self.assertEqual(header["section"], "Bootleg Parts")
+        self.assertEqual(header["cells"][-1], "Notes")
+        # the header is untouched and NOT among the migrated rows
+        rows = self.index_rows()
+        self.assertIn(self.LEGACY_HEADER, rows)
+        self.assertFalse(any("pending" in r for r in rows
+                             if "Niche tags" in r))
+        self.assertNotIn(self.LEGACY_HEADER,
+                         [p["before"] for p in report["proposals"]])
+        self.assertEqual(self.receipts()[-1]["legacy_headers"][0][
+            "line"], header["line"])
+        del before
+
+    def test_backfill_also_skips_legacy_headers(self):
+        """The same bug hit --backfill: a legacy header was linted as
+        a data row and reported as a bad row."""
+        self.write_index([self.GOOD, "", "## Bootleg Parts",
+                          self.LEGACY_HEADER, self.LEGACY_SEP])
+        config = ai.load_config(self.config_path)
+        report = ai.run_backfill(config, {"apply": False})
+        self.assertEqual(report["bad_rows"], [])
+
     def test_clean_index_is_exit_0_and_untouched(self):
         before = self.write_index([self.GOOD])
         report = self.migrate(apply=True)
@@ -973,17 +1016,18 @@ class MigrateLegacyRows(IngestCase):
             self.assertEqual(fh.read(), before)
 
     def test_idempotent(self):
-        self.write_index([self.GOOD, self.LEGACY5, self.OLDPATH])
+        self.write_index([self.GOOD, self.OLDPATH])
         self.migrate(apply=True)
         with open(self.index_file, encoding="utf-8") as fh:
             after_first = fh.read()
         second = self.migrate(apply=True)
         self.assertEqual(second["exit_code"], 0)
+        self.assertEqual(second["counts"]["rows_migrated"], 0)
         with open(self.index_file, encoding="utf-8") as fh:
             self.assertEqual(fh.read(), after_first)
 
     def test_cli_flags_fail_closed(self):
-        self.write_index([self.LEGACY5])
+        self.write_index([self.OLDPATH])
         with mock.patch("sys.stderr", io.StringIO()):
             self.assertEqual(
                 self.run_tool("--migrate", "--backfill"), 2)
