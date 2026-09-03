@@ -54,10 +54,18 @@ def has_near(image, rgb, tol):
     return combined.getbbox() is not None
 
 
-def soft_blob(path):
+def soft_blob(path, shape="blob"):
+    """'blob' = fat centered circle (the mailbox stand-in); 'strip' =
+    thin centered vertical bar (the laurel stand-in — a fat blob
+    beside frame text trips the F5 overlap wall, exactly as a fat
+    laurel would in real life)."""
     big = Image.new("RGBA", (400, 400), (0, 0, 0, 0))
-    ImageDraw.Draw(big).ellipse((30, 30, 370, 370),
-                                fill=OLD_HUE + (255,))
+    if shape == "strip":
+        ImageDraw.Draw(big).ellipse((160, 20, 240, 380),
+                                    fill=OLD_HUE + (255,))
+    else:
+        ImageDraw.Draw(big).ellipse((30, 30, 370, 370),
+                                    fill=OLD_HUE + (255,))
     small = big.resize((300, 300))    # resampling makes a soft edge
     big.close()
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -81,7 +89,8 @@ class ForgeCase(unittest.TestCase):
         rows = []
         for key in (MAILBOX_KEY, LAUREL_KEY):
             path = os.path.join(self.index_root, *key.split("/"))
-            soft_blob(path)
+            soft_blob(path, shape=("strip" if key == LAUREL_KEY
+                                   else "blob"))
             self.entries[key] = {"sha256": pf.hash_file(path),
                                  "product_id": "835842",
                                  "ingested_utc": "2026-09-02"}
@@ -295,6 +304,135 @@ class T04MinStroke(ForgeCase):
             self.play_out(), pf.CONTACT_FULLS_NAME)))
 
 
+class BenchF1SurvivalBites(ForgeCase):
+    """Bench F1: the survival floor must actually fire on a real
+    font at the DEFAULT config. Calibration (Liberation Sans,
+    kernel 5, measured 2026-09-02): fitted 486px -> survival 0.886;
+    fitted 75px (an ~80-char line) -> 0.365. Default floor 0.50
+    separates them."""
+
+    LONG_PUNCH = ("NOT MY CALL. NOT MY CALL. NOT MY CALL. NOT MY "
+                  "CALL. NOT MY CALL. NOT MY CALL.")
+
+    def _long_play(self):
+        play = {"play_id": "2026-09-02-long-play",
+                "line": {"setup": "CAN'T LEAVE IT NEXT DOOR.",
+                         "punch": self.LONG_PUNCH},
+                "named_feeling": "deadpan judgment",
+                "variants": [self.base_variants()[0]]}
+        path = os.path.join(self.tmp, "long.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(play, fh)
+        return path
+
+    def test_default_floor_rejects_thin_named_with_measurement(self):
+        code, out, _ = self.run_tool(self._long_play())
+        self.assertEqual(code, 1)
+        receipt = self.receipts()[-1]
+        self.assertEqual(len(receipt["rejected"]), 1)
+        reason = receipt["rejected"][0]["reason"]
+        self.assertIn("W4 MIN_STROKE", reason)
+        self.assertIn("of its ink survives", reason)   # measured
+
+    def test_red_goes_green_on_the_config_knob(self):
+        """The SAME play renders when the floor is lowered — the
+        rejection comes from the survival mechanism, nothing else."""
+        self.write_config(min_stroke_survival=0.05)
+        code, _, _ = self.run_tool(self._long_play())
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["rejected"], [])
+        self.assertEqual(receipt["rendered"], 1)
+
+    def test_normal_line_passes_the_default_floor(self):
+        variants = [self.base_variants()[0]]
+        code, _, _ = self.run_tool(self.write_play(variants))
+        self.assertIn(code, (0, 1))
+        self.assertEqual(self.receipts()[-1]["rejected"], [])
+
+
+class BenchF5Overlap(ForgeCase):
+    def test_element_parked_on_the_hero_line_goes_red(self):
+        """Bench F5: any pixel intersection between layers rejects
+        the variant by name — gates can't see overlap, the wall can."""
+        variants = [self.base_variants()[0]]
+        variants[0]["elements"] = [
+            {"asset_id": MAILBOX_ID, "recolor_hex": "#D9A441",
+             "size_fraction": 0.55, "position": "center"}]
+        code, _, _ = self.run_tool(self.write_play(variants))
+        self.assertEqual(code, 1)
+        receipt = self.receipts()[-1]
+        self.assertEqual(len(receipt["rejected"]), 1)
+        self.assertIn("OVERLAP", receipt["rejected"][0]["reason"])
+        self.assertIn(" x ", receipt["rejected"][0]["reason"])
+
+
+class BenchF2F3Families(ForgeCase):
+    def test_arc_support_clears_the_measured_arc(self):
+        """Bench F2: the arc variant that collided on the bench now
+        renders with zero layer intersection (the F5 wall would have
+        rejected it otherwise)."""
+        variants = [{
+            "id": 1, "garment": "Black",
+            "font_pair": {"hero": "Vorn", "support": "Mango Dream"},
+            "color_path": "outline_path", "layout": "art_hero",
+            "family": "arc", "fill_hex": "#7A9CB0",
+            "outline_hex": "#D9A441", "elements": []}]
+        code, _, _ = self.run_tool(self.write_play(variants))
+        self.assertIn(code, (0, 1))
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["rejected"], [])
+        self.assertEqual(receipt["rendered"], 1)
+
+    def test_badge_caps_text_to_the_ring_chord(self):
+        """Bench F3: text_dominant's 0.86 hero_frac broke the ring on
+        the bench; the chord cap + ring layer make it render clean."""
+        variants = [{
+            "id": 1, "garment": "Black",
+            "font_pair": {"hero": "Mango Dream", "support": "Vorn"},
+            "color_path": "flat_pool", "layout": "text_dominant",
+            "family": "badge", "fill_hex": "#F5F0E1",
+            "outline_hex": None,
+            "elements": [{"asset_id": MAILBOX_ID,
+                          "recolor_hex": "#F5F0E1",
+                          "size_fraction": 0.12,
+                          "position": "below_support"}]}]
+        code, _, _ = self.run_tool(self.write_play(variants))
+        self.assertIn(code, (0, 1))
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["rejected"], [])
+        self.assertEqual(receipt["rendered"], 1)
+        # the hero really was capped tighter than the layout fraction
+        with open(os.path.join(self.play_out(),
+                               "variant_01_spec.json"),
+                  encoding="utf-8") as fh:
+            spec = json.load(fh)
+        chord = (2 * (int(4500 * pf.BADGE_RING_FRAC)
+                      - max(6, int(4500 * pf.BADGE_RING_WIDTH_FRAC))
+                      - 40) * pf.BADGE_TEXT_CHORD_FRAC)
+        font = ImageFont.truetype(
+            os.path.join(self.fonts_dir, "Mango Dream.ttf"),
+            spec["fitted_sizes"]["hero"])
+        self.assertLessEqual(font.getlength("NOT MY CALL."),
+                             chord + 1)
+
+
+class BenchF4OutDir(ForgeCase):
+    def test_second_run_refused_unless_overwrite(self):
+        """Bench F4: a non-empty out_dir/<play_id> refuses; the
+        receipt names the mode when --overwrite is deliberate."""
+        play = self.write_play()
+        self.assertIn(self.run_tool(play)[0], (0, 1))
+        code, _, err = self.run_tool(play)
+        self.assertEqual(code, 2)
+        self.assertIn("OUT_DIR", err)
+        self.assertEqual(self.receipts()[-1]["refusals"][0]["kind"],
+                         "OUT_DIR_NOT_EMPTY")
+        code, _, _ = self.run_tool(play, "--overwrite")
+        self.assertIn(code, (0, 1))
+        self.assertEqual(self.receipts()[-1]["out_dir_mode"],
+                         "OVERWRITE")
+
+
 class T06T07Structure(ForgeCase):
     def test_one_axis_difference_rejected(self):
         """T6 (W6): a pair differing on ONE axis rejects the spec."""
@@ -461,8 +599,11 @@ class T16Eyes(ForgeCase):
             self.assertEqual(json.load(fh)["gates"]["eyes"]["verdict"],
                              pf.EYES_NA)
         # absent module (this repo's reality): recorded, not faked
+        # (--overwrite because the F4 guard now refuses the reuse of
+        # a non-empty out_dir — which is itself the guard working)
         sys.modules.pop("render_qc", None)
-        code, _, _ = self.run_tool(self.write_play(variants))
+        code, _, _ = self.run_tool(self.write_play(variants),
+                                   "--overwrite")
         with open(os.path.join(self.play_out(),
                                "variant_01_spec.json"),
                   encoding="utf-8") as fh:

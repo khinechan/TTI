@@ -133,3 +133,36 @@ and `thumb_check.py <png> <garment> --json`.
 7. Midtown Script's "Title Case only, never ALL CAPS" register rule
    (brandkit) is NOT enforced by this tool — noticed, reported, not
    wired without a court order.
+
+## FABLE BENCH FIXES (F1-F5, 2026-09-02, applied on 31b1601)
+
+F1 the survival floor is REAL now: min_stroke_survival is rule data
+AND a config key beside min_stroke_px (both PROVISIONAL, court
+wording kept). Default 0.50 — the bench measured Baseball/Vorn
+0.80-0.89, Mango 0.44-0.62, Midtown 0.38-0.58 at a 5px kernel, so
+0.50 bites the thin scripts in tight layouts. The old 0.01 could
+never fire: prose. Local calibration (Liberation, kernel 5): fitted
+486px → 0.886 survival, fitted 75px → 0.365 — the red→green fixture
+is built from those measurements and flips on the config knob alone.
+
+F5 OVERLAP WALL (closes F2/F3 structurally): every element, every
+text line, and the badge ring renders on its own layer; ANY pixel
+intersection between layers rejects the variant with
+"OVERLAP: <a> x <b>, N px". F2: the arc family now MEASURES its
+rendered extent and places the support below it (ARC_SUPPORT_GAP_PX),
+overflow past the margin is its own named rejection. F3: badge text
+fits to the ring's inner chord (BADGE_TEXT_CHORD_FRAC), never the
+layout's hero_frac; badge element anchors are ring-aware (clear
+above/below, inset left/right). Fallout, deliberate and recorded:
+frame's hero_frac 0.58→0.46 / support 0.42→0.36 (the old widths ran
+under the framing art — unrenderable once the wall went live) and
+text_hero support_cy 0.24→0.22; the test laurel fixture became a
+thin strip because a fat blob beside frame text overlaps exactly the
+way a fat laurel would.
+
+F4 out_dir clobber: a non-empty out_dir/<play_id> now REFUSES
+(OUT_DIR_NOT_EMPTY, exit 2, receipted) unless --overwrite; the
+receipt records out_dir_mode FRESH|OVERWRITE.
+
+Not fixed on purpose: Midtown uppercase (deviation 7 above — Khai's
+one-line order, per the bench's own call list).

@@ -79,7 +79,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 import asset_index_lint as ail
 import color_check as cc
@@ -98,7 +98,8 @@ RECEIPTS_NAME = "play_forge_receipts.jsonl"   # gitignored (W11)
 DEFAULT_CONFIG_NAME = "play_forge.config.json"
 REQUIRED_CONFIG_KEYS = ("index_root", "fonts_dir", "out_dir")
 KNOWN_CONFIG_KEYS = REQUIRED_CONFIG_KEYS + ("cluster_distance",
-                                            "min_stroke_px")
+                                            "min_stroke_px",
+                                            "min_stroke_survival")
 
 DEFAULT_CLUSTER_DISTANCE = 10.0   # W2: #D9A441 vs #D9A442 = 1.0,
                                   # vs #7A9CB0 = 146.3
@@ -107,8 +108,17 @@ MAX_COLOR_CLUSTERS = 2            # the shop's 2-color law (D-053)
 DEFAULT_MIN_STROKE_PX = 5         # W4 — PROVISIONAL: Khai's wash
                                   # rule, NOT yet a D-number; do not
                                   # cite one
-MIN_STROKE_SURVIVAL = 0.01        # fitted-line ink surviving erosion
-                                  # below this fraction = too thin
+DEFAULT_MIN_STROKE_SURVIVAL = 0.50
+# W4, bench F1 (Fable, 2026-09-02): the fraction of the fitted line's
+# ink that must survive erosion by min_stroke_px. PROVISIONAL, same
+# wording as min_stroke_px, and a config key beside it. The original
+# 0.01 asked "does the thickest 1% survive" — it could NEVER fire on
+# a real font (measured on the real roster at a 5px kernel:
+# Baseball/Vorn 0.80-0.89 at every layout, Mango Dream 0.44-0.62,
+# Midtown Script 0.38-0.58; a 142px Midtown support rendered as a
+# hairline and PASSED). At 0.50 the thin scripts are rejected in the
+# tight layouts and the block fonts pass everywhere — a floor that
+# actually bites.
 
 CANVAS_W, CANVAS_H = 4500, 5400   # W5: author natively (300dpi)
 MARGIN_PX = 150                   # brandkit minimum margin
@@ -139,7 +149,7 @@ LAYOUT_SPECS = {
         "doc": "the TEXT is the biggest element; art is a small "
                "accent around it",
         "hero_frac": 0.80, "support_frac": 0.52,
-        "hero_cy": 0.46, "support_cy": 0.24},
+        "hero_cy": 0.46, "support_cy": 0.22},
     "text_dominant": {
         "doc": "text overwhelms the canvas; art sits tiny below the "
                "lines",
@@ -158,7 +168,10 @@ LAYOUT_SPECS = {
     "frame": {
         "doc": "left/right elements frame the centered text between "
                "them",
-        "hero_frac": 0.58, "support_frac": 0.42,
+        # bench F5 fallout: the old 0.58 hero ran under the framing
+        # art at sample scale — with the overlap wall live, frame
+        # text must actually FIT between its frames
+        "hero_frac": 0.46, "support_frac": 0.36,
         "hero_cy": 0.44, "support_cy": 0.30},
 }
 
@@ -174,8 +187,17 @@ FAMILY_DOCS = {
              "ring, hero straight in the center",
 }
 ARC_SPAN_RAD = 1.9                # radians of arc the hero line spans
-BADGE_RING_FRAC = 0.40            # ring radius as fraction of canvas W
+ARC_SUPPORT_GAP_PX = 120          # bench F2: support sits BELOW the
+                                  # arc's MEASURED extent, this far
+BADGE_RING_CY = 0.45              # ring center as canvas-H fraction
+BADGE_RING_FRAC = 0.33            # ring radius as fraction of canvas W
 BADGE_RING_WIDTH_FRAC = 0.012
+BADGE_TEXT_CHORD_FRAC = 0.72      # bench F3: badge text width is
+                                  # capped by the ring's inner chord,
+                                  # never by the layout's hero_frac
+BADGE_ANCHOR_GAP = 0.06           # bench F3: badge anchors clear the
+BADGE_ELEMENT_INSET = 0.22        # ring (above/below) or sit inside
+                                  # it (left/right at 0.5±inset)
 
 # Element positions: x is fixed per position; y derives from the
 # LAYOUT's own line positions (anchor_for below), so "between" really
@@ -284,6 +306,12 @@ def load_config(path):
     if not isinstance(min_stroke, int) or isinstance(min_stroke, bool) \
             or min_stroke < 1:
         raise ForgeError("min_stroke_px must be a positive integer")
+    survival = raw.get("min_stroke_survival",
+                       DEFAULT_MIN_STROKE_SURVIVAL)
+    if not isinstance(survival, (int, float)) \
+            or isinstance(survival, bool) or not 0 < survival < 1:
+        raise ForgeError("min_stroke_survival must be a number in "
+                         "(0, 1)")
     config = {key: os.path.abspath(raw[key])
               for key in REQUIRED_CONFIG_KEYS}
     if not os.path.isdir(config["index_root"]):
@@ -294,6 +322,7 @@ def load_config(path):
                          % config["fonts_dir"])
     config["cluster_distance"] = float(cluster_distance)
     config["min_stroke_px"] = min_stroke
+    config["min_stroke_survival"] = float(survival)
     return config
 
 
@@ -342,10 +371,11 @@ def fit_text_size(text, font_path, target_width):
     return best
 
 
-def stroke_survives(text, font_path, size, min_stroke_px):
-    """W4's measurement: render the fitted line's mask and erode by
-    min_stroke_px. Ink that does not survive means the strokes are
-    thinner than the wash rule allows."""
+def measure_stroke_survival(text, font_path, size, min_stroke_px):
+    """W4's measurement: render the fitted line's mask, erode by
+    min_stroke_px, return the surviving ink FRACTION. The caller
+    compares it to min_stroke_survival — the number is measured, the
+    floor is config (bench F1)."""
     font = ImageFont.truetype(font_path, size)
     left, top, right, bottom = font.getbbox(text)
     width = max(1, right - left)
@@ -355,13 +385,13 @@ def stroke_survives(text, font_path, size, min_stroke_px):
                               fill=255)
     ink = sum(1 for v in mask.tobytes() if v)
     if ink == 0:
-        return False
+        return 0.0
     kernel = min_stroke_px if min_stroke_px % 2 else min_stroke_px + 1
     eroded = mask.filter(ImageFilter.MinFilter(kernel))
     survived = sum(1 for v in eroded.tobytes() if v)
     mask.close()
     eroded.close()
-    return survived >= MIN_STROKE_SURVIVAL * ink
+    return survived / ink
 
 
 # ── colour law (W2/W8) ─────────────────────────────────────────────────
@@ -592,11 +622,25 @@ def resolve_element(asset_id, sidecar_entries, index_paths_set,
 
 # ── drawing ────────────────────────────────────────────────────────────
 
-def anchor_for(position, layout):
+def anchor_for(position, layout, family):
     """Element anchor as canvas fractions — y computed from the
     layout's own line positions so positions mean the same thing in
-    every layout."""
+    every layout. Badge anchors are RING-aware (bench F3): above and
+    below clear the ring, left/right sit inside it."""
     x = POSITION_X[position]
+    if family == "badge":
+        ring_ry = BADGE_RING_FRAC * CANVAS_W / CANVAS_H
+        if position == "above_hero":
+            return x, max(ABOVE_HERO_FLOOR,
+                          BADGE_RING_CY - ring_ry - BADGE_ANCHOR_GAP)
+        if position == "below_support":
+            return x, min(BELOW_SUPPORT_CEIL,
+                          BADGE_RING_CY + ring_ry + BADGE_ANCHOR_GAP)
+        if position == "left":
+            return 0.50 - BADGE_ELEMENT_INSET, BADGE_RING_CY
+        if position == "right":
+            return 0.50 + BADGE_ELEMENT_INSET, BADGE_RING_CY
+        return 0.50, BADGE_RING_CY
     top = layout["support_cy"]
     bottom = layout["hero_cy"]
     if position == "above_hero":
@@ -662,111 +706,161 @@ def draw_arc_line(canvas, text, font_path, size, center, radius, fill,
         theta += step
 
 
-def draw_badge(canvas, setup, punch, roster, variant, size_setup,
-               size_punch, fill, stroke_fill):
-    """Family D mechanics: ring + arced setup on the top of the ring
-    + straight hero center. The outline path flows through (W12)."""
-    cx, cy = CANVAS_W // 2, int(CANVAS_H * 0.45)
+def render_variant(variant, roster, config, provenance):
+    """W5: author natively at 4500x5400. Every drawn thing — each
+    element, each text line, the badge ring — goes onto its OWN layer,
+    and any pixel intersection between layers rejects the variant with
+    a name (bench F5: a machine can fail it; a human never has to see
+    it first). Returns (canvas, placed, sizes) or raises
+    VariantRejected."""
+    layout = LAYOUT_SPECS[variant["layout"]]
+    usable = CANVAS_W - 2 * MARGIN_PX
+    setup = variant["_setup"]
+    punch = variant["_punch"]
+    family = variant["family"]
+    fill = variant["fill_hex"]
+    stroke_fill = variant["outline_hex"]
+    hero_path = roster[variant["font_pair"]["hero"]]
+    support_path = roster[variant["font_pair"]["support"]]
+    hero_target = layout["hero_frac"] * usable
+    setup_target = layout["support_frac"] * usable
     ring_r = int(CANVAS_W * BADGE_RING_FRAC)
     ring_w = max(6, int(CANVAS_W * BADGE_RING_WIDTH_FRAC))
-    draw = ImageDraw.Draw(canvas)
-    box = (cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r)
-    if stroke_fill:
-        draw.ellipse(box, outline=stroke_fill,
-                     width=ring_w + 2 * _stroke_width(size_punch))
-    draw.ellipse(box, outline=fill, width=ring_w)
-    draw_arc_line(canvas, setup,
-                  roster[variant["font_pair"]["support"]], size_setup,
-                  (cx, cy), int(ring_r * 0.80), fill, stroke_fill)
-    draw_straight_line(canvas, punch,
-                       roster[variant["font_pair"]["hero"]],
-                       size_punch, (cx, cy), fill, stroke_fill)
+    if family == "badge":
+        # bench F3: badge text is capped by the ring's inner chord,
+        # never by the layout's width fraction
+        chord = 2 * (ring_r - ring_w - 40) * BADGE_TEXT_CHORD_FRAC
+        hero_target = min(hero_target, chord)
+        setup_target = min(setup_target, chord)
+    size_punch = fit_text_size(punch, hero_path, hero_target)
+    size_setup = fit_text_size(setup, support_path, setup_target)
+    for line, path, size, role in (
+            (punch, hero_path, size_punch, "hero"),
+            (setup, support_path, size_setup, "support")):
+        survival = measure_stroke_survival(line, path, size,
+                                           config["min_stroke_px"])
+        if survival < config["min_stroke_survival"]:
+            raise VariantRejected(
+                "W4 MIN_STROKE: %s line %r fits at size %d but only "
+                "%.2f of its ink survives a %dpx erosion (floor "
+                "%.2f) — a line that only fits by going too thin is "
+                "a wash failure"
+                % (role, line, size, survival,
+                   config["min_stroke_px"],
+                   config["min_stroke_survival"]))
+    canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    layer_masks = []
 
+    def add_layer(name, painter):
+        layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+        painter(layer)
+        mask = layer.getchannel("A").point(
+            lambda v: 255 if v else 0)
+        for other_name, other_mask in layer_masks:
+            overlap_img = ImageChops.darker(mask, other_mask)
+            overlap = overlap_img.histogram()[255]
+            overlap_img.close()
+            if overlap:
+                mask.close()
+                layer.close()
+                for _, m in layer_masks:
+                    m.close()
+                canvas.close()
+                raise VariantRejected(
+                    "OVERLAP (bench F5): %s x %s, %d px — layers "
+                    "never intersect" % (name, other_name, overlap))
+        canvas.alpha_composite(layer)
+        layer.close()
+        layer_masks.append((name, mask))
+        return mask
 
-def place_elements(canvas, variant, provenance):
-    """Load, recolor (W1: recolor.py only), scale, composite — one
-    element in memory at a time."""
-    layout = LAYOUT_SPECS[variant["layout"]]
     placed = []
     for element in variant["elements"]:
         key, sha, file_path = provenance[element["asset_id"]]
-        img = Image.open(file_path)
-        rgba = img.convert("RGBA")
-        img.close()
-        colored = recolor.recolor(rgba, element["recolor_hex"])
-        rgba.close()
-        target = max(1, int(element["size_fraction"] * CANVAS_W))
-        scale = target / max(colored.size)
-        resized = colored.resize(
-            (max(1, int(colored.width * scale)),
-             max(1, int(colored.height * scale))), RESAMPLE)
-        colored.close()
-        ax, ay = anchor_for(element["position"], layout)
-        x = int(ax * CANVAS_W - resized.width / 2)
-        y = int(ay * CANVAS_H - resized.height / 2)
-        canvas.alpha_composite(resized, (x, y))
-        resized.close()
+
+        def paint_element(layer, element=element,
+                          file_path=file_path):
+            img = Image.open(file_path)
+            rgba = img.convert("RGBA")
+            img.close()
+            colored = recolor.recolor(rgba, element["recolor_hex"])
+            rgba.close()
+            target = max(1, int(element["size_fraction"] * CANVAS_W))
+            scale = target / max(colored.size)
+            resized = colored.resize(
+                (max(1, int(colored.width * scale)),
+                 max(1, int(colored.height * scale))), RESAMPLE)
+            colored.close()
+            ax, ay = anchor_for(element["position"], layout, family)
+            layer.alpha_composite(
+                resized, (int(ax * CANVAS_W - resized.width / 2),
+                          int(ay * CANVAS_H - resized.height / 2)))
+            resized.close()
+
+        add_layer("element:%s" % element["asset_id"], paint_element)
         placed.append({"asset_id": element["asset_id"], "path": key,
                        "sha256": sha, "kind": element["kind"],
                        "recolor_hex": element["recolor_hex"],
                        "size_fraction": element["size_fraction"],
                        "position": element["position"]})
-    return placed
-
-
-def render_variant(variant, roster, config, provenance):
-    """W5: author natively at 4500x5400. Returns
-    (canvas, placed, sizes) or raises VariantRejected."""
-    layout = LAYOUT_SPECS[variant["layout"]]
-    usable = CANVAS_W - 2 * MARGIN_PX
-    setup = variant["_setup"]
-    punch = variant["_punch"]
-    hero_path = roster[variant["font_pair"]["hero"]]
-    support_path = roster[variant["font_pair"]["support"]]
-    size_punch = fit_text_size(punch, hero_path,
-                               layout["hero_frac"] * usable)
-    size_setup = fit_text_size(setup, support_path,
-                               layout["support_frac"] * usable)
-    for line, path, size, role in (
-            (punch, hero_path, size_punch, "hero"),
-            (setup, support_path, size_setup, "support")):
-        if not stroke_survives(line, path, size,
-                               config["min_stroke_px"]):
-            raise VariantRejected(
-                "W4 MIN_STROKE: %s line %r only fits at size %d, "
-                "which puts the stroke below min_stroke_px=%d — a "
-                "line that only fits by going too thin is a wash "
-                "failure" % (role, line, size,
-                             config["min_stroke_px"]))
-    canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-    placed = place_elements(canvas, variant, provenance)
-    fill = variant["fill_hex"]
-    stroke_fill = variant["outline_hex"]
-    family = variant["family"]
     if family == "badge":
-        draw_badge(canvas, setup, punch, roster, variant, size_setup,
-                   size_punch, fill, stroke_fill)
+        cx, cy = CANVAS_W // 2, int(CANVAS_H * BADGE_RING_CY)
+        box = (cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r)
+
+        def paint_ring(layer):
+            draw = ImageDraw.Draw(layer)
+            if stroke_fill:
+                draw.ellipse(box, outline=stroke_fill,
+                             width=ring_w
+                             + 2 * _stroke_width(size_punch))
+            draw.ellipse(box, outline=fill, width=ring_w)
+
+        add_layer("ring", paint_ring)
+        add_layer("support", lambda layer: draw_arc_line(
+            layer, setup, support_path, size_setup, (cx, cy),
+            int((ring_r - ring_w) * 0.78), fill, stroke_fill))
+        add_layer("hero", lambda layer: draw_straight_line(
+            layer, punch, hero_path, size_punch, (cx, cy), fill,
+            stroke_fill))
     elif family == "arc":
         radius = max(600, int(
             ImageFont.truetype(hero_path, size_punch)
             .getlength(punch) / ARC_SPAN_RAD))
         center = (CANVAS_W // 2,
                   int(layout["hero_cy"] * CANVAS_H) + radius // 3)
-        draw_arc_line(canvas, punch, hero_path, size_punch, center,
-                      radius, fill, stroke_fill)
-        draw_straight_line(canvas, setup, support_path, size_setup,
-                           (CANVAS_W // 2,
-                            int(layout["support_cy"] * CANVAS_H)),
-                           fill, stroke_fill)
+        hero_mask = add_layer("hero", lambda layer: draw_arc_line(
+            layer, punch, hero_path, size_punch, center, radius,
+            fill, stroke_fill))
+        # bench F2: place the support below the arc's MEASURED
+        # extent, never at a hoped-for layout position
+        arc_bbox = hero_mask.getbbox()
+        arc_bottom = arc_bbox[3] if arc_bbox else center[1]
+        setup_font = ImageFont.truetype(support_path, size_setup)
+        s_top, s_bottom = setup_font.getbbox(setup)[1::2]
+        half_height = max(1, (s_bottom - s_top) // 2)
+        support_cy = arc_bottom + ARC_SUPPORT_GAP_PX + half_height
+        if support_cy + half_height > CANVAS_H - MARGIN_PX:
+            for _, m in layer_masks:
+                m.close()
+            canvas.close()
+            raise VariantRejected(
+                "ARC_OVERFLOW (bench F2): the arc's measured extent "
+                "(bottom %d) leaves no room for the support line "
+                "above the %dpx margin" % (arc_bottom, MARGIN_PX))
+        add_layer("support", lambda layer: draw_straight_line(
+            layer, setup, support_path, size_setup,
+            (CANVAS_W // 2, support_cy), fill, stroke_fill))
     else:
-        draw_straight_line(canvas, setup, support_path, size_setup,
-                           (CANVAS_W // 2,
-                            int(layout["support_cy"] * CANVAS_H)),
-                           fill, stroke_fill)
-        draw_straight_line(canvas, punch, hero_path, size_punch,
-                           (CANVAS_W // 2,
-                            int(layout["hero_cy"] * CANVAS_H)),
-                           fill, stroke_fill)
+        add_layer("support", lambda layer: draw_straight_line(
+            layer, setup, support_path, size_setup,
+            (CANVAS_W // 2, int(layout["support_cy"] * CANVAS_H)),
+            fill, stroke_fill))
+        add_layer("hero", lambda layer: draw_straight_line(
+            layer, punch, hero_path, size_punch,
+            (CANVAS_W // 2, int(layout["hero_cy"] * CANVAS_H)),
+            fill, stroke_fill))
+    for _, mask in layer_masks:
+        mask.close()
     return canvas, placed, {"hero": size_punch, "support": size_setup}
 
 
@@ -946,6 +1040,7 @@ def append_receipt(report):
         "gate_fails": report.get("gate_fails", []),
         "refusals": report.get("refusals", []),
         "out_dir": report.get("out_dir"),
+        "out_dir_mode": report.get("out_dir_mode"),
         "duration_s": report.get("duration_s"),
         "completed_utc": _utc_now().isoformat(timespec="seconds"),
     }
@@ -960,7 +1055,7 @@ def append_receipt(report):
 
 # ── the run ────────────────────────────────────────────────────────────
 
-def run_forge(config, play_path):
+def run_forge(config, play_path, overwrite=False):
     started = time.monotonic()
     try:
         play = play_schema.load_play(play_path)
@@ -984,6 +1079,18 @@ def run_forge(config, play_path):
                     element["asset_id"], sidecar, index_set,
                     config["index_root"])
     out_dir = os.path.join(config["out_dir"], play["play_id"])
+    out_dir_mode = "FRESH"
+    if os.path.isdir(out_dir) and os.listdir(out_dir):
+        # bench F4: a second run of the same play_id silently
+        # overwrote the first (mark-never-delete). Refuse unless the
+        # human says overwrite — vault_backup W0 shape.
+        if not overwrite:
+            raise ForgeError(
+                "OUT_DIR (bench F4): %s is non-empty — a second run "
+                "would overwrite the previous renders. Re-run with "
+                "--overwrite to do that deliberately." % out_dir,
+                kind="OUT_DIR_NOT_EMPTY")
+        out_dir_mode = "OVERWRITE"
     os.makedirs(out_dir, exist_ok=True)
     full_tiles = []
     squint_tiles = []
@@ -1078,6 +1185,7 @@ def run_forge(config, play_path):
         "refusals": [],
         "variants": variant_reports,
         "out_dir": out_dir,
+        "out_dir_mode": out_dir_mode,
         "duration_s": round(time.monotonic() - started, 3),
         "exit_code": exit_code,
     }
@@ -1123,6 +1231,10 @@ def main(argv=None):
                         help="the play.json (D-419 shape)")
     parser.add_argument("--config", default=DEFAULT_CONFIG_NAME)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="allow re-rendering into a non-empty "
+                             "out_dir/<play_id> (bench F4 — refused "
+                             "otherwise)")
     parser.add_argument("--explain", action="store_true",
                         help="print the layout/family registries and "
                              "their hierarchy rules")
@@ -1139,7 +1251,8 @@ def main(argv=None):
         if not args.play:
             raise ForgeError("a play.json path is required")
         config = load_config(args.config)
-        report = run_forge(config, args.play)
+        report = run_forge(config, args.play,
+                           overwrite=args.overwrite)
     except ForgeError as err:
         report = {"tool": TOOL_NAME, "play_id": None,
                   "variants_total": 0, "rendered": 0, "rejected": [],
