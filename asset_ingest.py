@@ -178,6 +178,14 @@ PROPOSAL_NAME = "split_proposal.json"
 CONTACT_SHEET_FMT = "contact_sheet_%s.png"
 PIECE_NAME_FMT = "piece_%02d.png"
 THUMB_NAME_FMT = "piece_%02d_thumb.png"
+# Fable 2026-09-02: ids joined with "+" on --confirm mean ONE piece
+# cut from the MERGED masks of those proposals — outline art that
+# components split into loops (a ring and its inner counter) is one
+# object to a human. A group's files carry every id it was cut from,
+# so the name can never be confused with a single-piece run.
+GROUP_JOIN = "+"
+GROUP_NAME_FMT = "piece_%s.png"
+GROUP_THUMB_NAME_FMT = "piece_%s_thumb.png"
 CONVERTED_DIRNAME = "converted"
 PIECES_DIRNAME = "pieces"
 THUMBS_DIRNAME = "thumbs"
@@ -1109,22 +1117,34 @@ def _parse_confirm_ids(opts, all_ids):
         text = opts["confirm"]
     text = text.strip()
     if text.lower() == "all":
-        return sorted(all_ids)
-    ids = []
+        return [(i,) for i in sorted(all_ids)]
+    groups = []
+    seen = []
     for token in re.split(r"[\s,]+", text):
         if not token:
             continue
-        if not token.isdigit():
-            raise ToolError("--confirm takes piece ids like '1,3,5' "
-                            "or 'all' (got %r)" % token)
-        ids.append(int(token))
-    unknown = sorted(set(ids) - set(all_ids))
-    if unknown:
-        raise ToolError("confirm ids %s are not in the proposal "
-                        "(has %s)" % (unknown, sorted(all_ids)))
-    if not ids:
+        members = []
+        for part in token.split(GROUP_JOIN):
+            if not part.isdigit():
+                raise ToolError(
+                    "--confirm takes piece ids like '1,3,5', a group "
+                    "like '2%s3%s4', or 'all' (got %r)"
+                    % (GROUP_JOIN, GROUP_JOIN, token))
+            members.append(int(part))
+        unknown = sorted(set(members) - set(all_ids))
+        if unknown:
+            raise ToolError("confirm ids %s are not in the proposal "
+                            "(has %s)" % (unknown, sorted(all_ids)))
+        for member in members:
+            if member in seen:
+                raise ToolError("piece id %d appears twice in "
+                                "--confirm — a piece belongs to one "
+                                "output, never two" % member)
+            seen.append(member)
+        groups.append(tuple(sorted(set(members))))
+    if not groups:
         raise ToolError("--confirm resolved to zero ids")
-    return sorted(set(ids))
+    return sorted(groups)
 
 
 def run_confirm(config, input_path, opts):
@@ -1177,14 +1197,26 @@ def run_confirm(config, input_path, opts):
     os.makedirs(thumbs_dir, exist_ok=True)
     today = _utc_now().strftime("%Y-%m-%d")
     params = proposal["params"]
-    chosen = set(ids)
+    groups = ids
+    id_to_source = {}
+    for index, source in enumerate(proposal["sources"]):
+        for piece in source["proposals"]:
+            id_to_source[piece["id"]] = index
+    for group in groups:
+        sources_touched = {id_to_source[i] for i in group}
+        if len(sources_touched) > 1:
+            raise ToolError(
+                "group %s spans %d source images — a merged piece is "
+                "cut from ONE sheet"
+                % (GROUP_JOIN.join(str(i) for i in group),
+                   len(sources_touched)))
     rejected = []
     confirmed = []
-    for source in proposal["sources"]:
-        wanted = [p for p in source["proposals"]
-                  if p["id"] in chosen]
+    for index, source in enumerate(proposal["sources"]):
+        wanted = [g for g in groups if id_to_source[g[0]] == index]
         if not wanted:
             continue
+        by_id = {p["id"]: p for p in source["proposals"]}
         img = _open_image(source["path"])
         try:
             rgba = img.convert("RGBA")
@@ -1199,11 +1231,28 @@ def run_confirm(config, input_path, opts):
                      else build_mask(alpha,
                                      params["alpha_threshold"], 0))
         alpha.close()
-        for piece in wanted:
-            piece_id = piece["id"]
-            left, top, right, bottom = piece["bbox"]
+        for group in wanted:
+            pieces = [by_id[i] for i in group]
+            label = GROUP_JOIN.join("%02d" % i for i in group)
+            piece_id = group[0] if len(group) == 1 else label
+            left = min(p["bbox"][0] for p in pieces)
+            top = min(p["bbox"][1] for p in pieces)
+            right = max(p["bbox"][2] for p in pieces)
+            bottom = max(p["bbox"][3] for p in pieces)
             box = (left, top, right + 1, bottom + 1)
-            membership = flood_membership(dilated, piece["seed"])
+            # one output from the MERGED masks of every member: the
+            # union is what a human means by "these loops are one
+            # piece"; the cut still uses the un-dilated mask (F2)
+            membership = None
+            for piece in pieces:
+                member = flood_membership(dilated, piece["seed"])
+                if membership is None:
+                    membership = member
+                else:
+                    merged = ImageChops.lighter(membership, member)
+                    membership.close()
+                    member.close()
+                    membership = merged
             cut_mask = (membership if undilated is dilated
                         else ImageChops.darker(membership, undilated))
             crop = rgba.crop(box)
@@ -1214,14 +1263,18 @@ def run_confirm(config, input_path, opts):
             if cut_mask is not membership:
                 cut_mask.close()
             membership.close()
-            piece_path = os.path.join(pieces_dir,
-                                      PIECE_NAME_FMT % piece_id)
+            if len(group) == 1:
+                piece_name = PIECE_NAME_FMT % group[0]
+                thumb_name = THUMB_NAME_FMT % group[0]
+            else:
+                piece_name = GROUP_NAME_FMT % label
+                thumb_name = GROUP_THUMB_NAME_FMT % label
+            piece_path = os.path.join(pieces_dir, piece_name)
             crop.save(piece_path)
             thumb = crop.copy()
             crop.close()
             thumb.thumbnail((THUMB_PX, THUMB_PX))
-            thumb.save(os.path.join(thumbs_dir,
-                                    THUMB_NAME_FMT % piece_id))
+            thumb.save(os.path.join(thumbs_dir, thumb_name))
             thumb.close()
             counts["confirmed"] += 1
             rel = os.path.relpath(
@@ -1365,7 +1418,7 @@ def format_report(report):
                             "  LIKELY-MERGE" if piece["likely_merge"]
                             else ""))
     for item in report.get("confirmed", []):
-        lines.append("  CATALOGED #%d -> %s"
+        lines.append("  CATALOGED #%s -> %s"
                      % (item["id"], item["path"]))
     for item in report.get("rows_rejected", []):
         lines.append("  ROW REJECTED (never written): piece %s — %s"
@@ -1399,7 +1452,9 @@ def main(argv=None):
                         help="CF folder or zip (omit for --backfill)")
     parser.add_argument("--config", default=DEFAULT_CONFIG_NAME)
     parser.add_argument("--confirm", default=None,
-                        help="piece ids to catalog: '1,3,5' or 'all'")
+                        help="piece ids to catalog: '1,3,5', "
+                             "'all', or a group like '2+3+4' — one "
+                             "piece cut from those merged masks")
     parser.add_argument("--confirm-file", default=None,
                         help="file holding the ids (same syntax)")
     parser.add_argument("--reingest", action="store_true",

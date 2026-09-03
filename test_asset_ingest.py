@@ -884,6 +884,80 @@ class T25RasterFloor(IngestCase):
         self.assertEqual(report["raster_over_vector"], [])
 
 
+class ConfirmGroups(IngestCase):
+    """Fable 2026-09-02: outline art splits into loops — a ring and
+    the counter inside it are TWO components but ONE object. Ids
+    joined with '+' cut one piece from the merged masks."""
+
+    def _nested_loops(self):
+        """A ring plus a separate dot inside it: two components whose
+        bboxes nest, which is exactly the outline-art shape."""
+        img = Image.new("RGBA", (300, 300), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.ellipse((40, 40, 260, 260), outline=(20, 20, 20, 255),
+                     width=22)
+        draw.ellipse((130, 130, 170, 170), fill=(20, 20, 20, 255))
+        img.save(os.path.join(self.input_dir, "loops.png"))
+        img.close()
+
+    def test_group_makes_one_piece_from_merged_masks(self):
+        """'1+2' -> ONE piece carrying BOTH components' pixels, one
+        row, one sidecar entry."""
+        self._nested_loops()
+        report = self.ingest_report()
+        proposals = self.total_proposals(report)
+        self.assertEqual(len(proposals), 2)
+        expected = sum(p["pixels"] for p in proposals)
+        self.assertEqual(self.run_tool(self.input_dir, "--confirm",
+                                       "1+2"), 1)
+        piece = os.path.join(self.out_dir(), ai.PIECES_DIRNAME,
+                             "piece_01+02.png")
+        self.assertTrue(os.path.exists(piece))
+        self.assertTrue(os.path.exists(os.path.join(
+            self.out_dir(), ai.THUMBS_DIRNAME,
+            "piece_01+02_thumb.png")))
+        with Image.open(piece) as img:
+            opaque = sum(1 for a in img.getchannel("A").tobytes()
+                         if a)
+        self.assertEqual(opaque, expected)   # both loops, nothing else
+        rows = self.index_rows()
+        self.assertEqual(len(rows), 3)       # header + sep + ONE row
+        self.assertEqual(ail.lint_row(rows[-1]), [])
+        config = ai.load_config(self.config_path)
+        with open(ai.sidecar_path(config), encoding="utf-8") as fh:
+            entries = json.load(fh)["entries"]
+        self.assertEqual(len(entries), 1)
+        self.assertIn("piece_01+02.png", list(entries)[0])
+
+    def test_separate_ids_still_make_separate_pieces(self):
+        """The same fixture confirmed as '1,2' -> TWO pieces, each
+        carrying only its own component (the group is opt-in)."""
+        self._nested_loops()
+        report = self.ingest_report()
+        sizes = {p["id"]: p["pixels"]
+                 for p in self.total_proposals(report)}
+        self.assertEqual(self.run_tool(self.input_dir, "--confirm",
+                                       "1,2"), 1)
+        for piece_id in (1, 2):
+            path = os.path.join(self.out_dir(), ai.PIECES_DIRNAME,
+                                ai.PIECE_NAME_FMT % piece_id)
+            with Image.open(path) as img:
+                opaque = sum(1 for a in img.getchannel("A").tobytes()
+                             if a)
+            self.assertEqual(opaque, sizes[piece_id])
+        self.assertEqual(len(self.index_rows()), 4)   # two rows
+
+    def test_bad_group_syntax_and_reuse_refused(self):
+        self._nested_loops()
+        self.run_tool(self.input_dir)
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(
+                self.run_tool(self.input_dir, "--confirm", "1+x"), 2)
+            self.assertEqual(
+                self.run_tool(self.input_dir, "--confirm", "1,1+2"),
+                2)
+
+
 class ConversionNote(IngestCase):
     def test_receipt_names_why_nothing_ran(self):
         """Fable cleanup: dedupe skips say 'duplicate', but when zero
