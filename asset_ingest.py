@@ -191,6 +191,33 @@ PIECES_DIRNAME = "pieces"
 THUMBS_DIRNAME = "thumbs"
 STAGING_DIRNAME = "_ingest_staging"   # zip extraction target
 
+# ── MIGRATION rule data (Fable order 2026-09-02) ──────────────────
+# Legacy ASSET_INDEX rows predate the 7-column D-419 shape. The
+# mapping is DATA and it FAILS CLOSED: a row shape with no rule here
+# is reported UNMIGRATABLE and never rewritten by guesswork.
+#
+# LEGACY_COLUMN_MAPS[n] lists, for an n-column legacy row, which
+# 7-column slot each legacy cell fills (0-based). Slots no legacy
+# cell fills get PENDING_CELL.
+#
+# PROVISIONAL — the 5-column map assumes the table GREW by appending
+# (Recolor and Used in are the newest two concepts), so a 5-col row
+# is the first five headers. This build cannot see the live file:
+# run --migrate WITHOUT --apply and check the proposed rows against
+# the real ones before anything is written.
+LEGACY_COLUMN_MAPS = {
+    5: (0, 1, 2, 3, 4),      # Asset|License|Style|Niche tags|Colors
+    6: (0, 1, 2, 3, 4, 5),   # ...plus Recolor
+}
+
+# Old asset-cell spellings the backfill parser cannot read. Each
+# normalizer is NAMED so the receipt says which one touched a row;
+# they only ever reshape the path's spelling, never its identity.
+ASSET_PREFIX_STRIPS = ("Merch/Design Assets/", "Merch\\Design Assets\\")
+
+COLUMN_TARGET = ail.COLUMN_COUNT   # 7, from the ONE lint
+MIGRATE_BACKUP_FMT = "%s.migrate.%s.bak"
+
 EXIT_CLEAN = 0
 EXIT_FINDINGS = 1
 EXIT_ERROR = 2
@@ -855,6 +882,11 @@ def append_receipt(report):
                                              []),
         "raster_over_vector": report.get("raster_over_vector", []),
         "findings": report.get("findings", []),
+        "migrated": [{"line": i["line"], "section": i["section"]}
+                     for i in report.get("proposals", [])],
+        "unmigratable": [{"line": i["line"], "detail": i["detail"]}
+                         for i in report.get("unmigratable", [])],
+        "backup": report.get("backup"),
         "needs_human": [item["file"] for item
                         in report.get("needs_human", [])],
         "refusals": report.get("refusals", []),
@@ -877,7 +909,8 @@ def _new_counts():
             "cant_open": 0, "needs_human": 0, "proposed": 0,
             "crumbs_dropped": 0, "confirmed": 0, "rows_appended": 0,
             "rows_rejected": 0, "sidecar_entries": 0, "symlinks": 0,
-            "missing_files": 0, "skipped_duplicate_stem": 0}
+            "missing_files": 0, "skipped_duplicate_stem": 0,
+            "rows_migrated": 0, "unmigratable": 0}
 
 
 def product_out_dir(config, product_id):
@@ -1312,6 +1345,158 @@ def run_confirm(config, input_path, opts):
     }
 
 
+def normalize_asset_cell(cell):
+    """Reshape an old asset-cell spelling into the D-419 shape:
+    backtick-quoted, forward slashes, relative to
+    'Merch/Design Assets/'. Returns (new_cell, notes). Only the
+    SPELLING changes — never which file the row points at."""
+    notes = []
+    text = cell.strip()
+    if text.startswith("`") and text.endswith("`") and len(text) > 1:
+        inner = text[1:-1]
+    else:
+        inner = text
+        notes.append("added backticks")
+    if "\\" in inner:
+        inner = inner.replace("\\", "/")
+        notes.append("backslashes to forward slashes")
+    for prefix in ASSET_PREFIX_STRIPS:
+        normalized_prefix = prefix.replace("\\", "/")
+        if inner.startswith(normalized_prefix):
+            inner = inner[len(normalized_prefix):]
+            notes.append("stripped the %r prefix"
+                         % normalized_prefix)
+            break
+    if inner.startswith("/"):
+        inner = inner.lstrip("/")
+        notes.append("made the path relative")
+    inner = inner.strip()
+    return "`%s`" % inner, notes
+
+
+def _section_of(lines, index):
+    """Nearest preceding markdown heading — the receipt names it so a
+    human can find the row without counting lines."""
+    for number in range(index, -1, -1):
+        stripped = lines[number].strip()
+        if stripped.startswith("#"):
+            return stripped.lstrip("#").strip()
+    return "(no section heading)"
+
+
+def migrate_line(line):
+    """One content row -> (new_line, kind, detail). kind is OK (already
+    valid, untouched), MIGRATED, or UNMIGRATABLE. Pure: no writes, no
+    guessing — a shape with no rule comes back UNMIGRATABLE."""
+    if not ail.lint_row(line):
+        return line, "OK", "already the 7-column D-419 shape"
+    cells = ail.split_cells(line)
+    if cells is None:
+        return line, "UNMIGRATABLE", "not a table row"
+    notes = []
+    if len(cells) == COLUMN_TARGET:
+        new_cells = list(cells)
+    else:
+        mapping = LEGACY_COLUMN_MAPS.get(len(cells))
+        if mapping is None:
+            return (line, "UNMIGRATABLE",
+                    "%d columns, and no LEGACY_COLUMN_MAPS rule for "
+                    "that shape — refusing to guess" % len(cells))
+        new_cells = [PENDING_CELL] * COLUMN_TARGET
+        for position, slot in enumerate(mapping):
+            new_cells[slot] = cells[position]
+        notes.append("%d columns -> %d (slots %s filled, the rest "
+                     "%r)" % (len(cells), COLUMN_TARGET,
+                              list(mapping), PENDING_CELL))
+    asset_cell, asset_notes = normalize_asset_cell(new_cells[0])
+    if asset_cell != new_cells[0]:
+        new_cells[0] = asset_cell
+        notes.extend(asset_notes)
+    new_cells = [cell if cell.strip() else PENDING_CELL
+                 for cell in new_cells]
+    try:
+        new_line = ail.format_row(new_cells)      # W9: lint or bust
+    except ValueError as err:
+        return line, "UNMIGRATABLE", str(err)
+    if not notes:
+        notes.append("cells unchanged; row reformatted to the "
+                     "canonical spacing")
+    return new_line, "MIGRATED", "; ".join(notes)
+
+
+def run_migrate(config, opts):
+    """Bring legacy ASSET_INDEX rows to the 7-column D-419 shape.
+    Dry-run default; --apply writes after a verified backup. Rows
+    that are already valid are byte-faithful — untouched, not
+    reformatted."""
+    started = time.monotonic()
+    counts = _new_counts()
+    idx = index_path(config)
+    if not os.path.isfile(idx):
+        raise ToolError("%s missing at %s" % (INDEX_NAME, idx))
+    with open(idx, "r", encoding="utf-8") as handle:
+        original = handle.read()
+    lines = original.split("\n")
+    proposals = []
+    unmigratable = []
+    new_lines = list(lines)
+    for number, line in enumerate(lines):
+        if not line.strip().startswith("|"):
+            continue
+        if ail.is_separator_row(line) or ail.is_header_row(line):
+            continue
+        new_line, kind, detail = migrate_line(line)
+        if kind == "OK":
+            continue
+        record = {"line": number + 1,
+                  "section": _section_of(lines, number),
+                  "before": line, "after": new_line,
+                  "detail": detail}
+        if kind == "UNMIGRATABLE":
+            unmigratable.append(record)
+            counts["unmigratable"] += 1
+            continue
+        proposals.append(record)
+        new_lines[number] = new_line
+        counts["rows_migrated"] += 1
+    applied = False
+    backup_path = None
+    if proposals and opts["apply"]:
+        stamp = _utc_now().strftime("%Y%m%dT%H%M%SZ")
+        backup_path = MIGRATE_BACKUP_FMT % (idx, stamp)
+        with open(backup_path, "w", encoding="utf-8",
+                  newline="") as handle:
+            handle.write(original)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if hash_file(backup_path) != hashlib.sha256(
+                original.encode("utf-8")).hexdigest():
+            raise ToolError("backup at %s does not match the file it "
+                            "copied — refusing to write"
+                            % backup_path)
+        payload = "\n".join(new_lines)
+        tmp = idx + ".%s.tmp" % uuid.uuid4().hex
+        with open(tmp, "w", encoding="utf-8", newline="") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, idx)
+        applied = True
+    busy = bool(proposals or unmigratable)
+    return {
+        "tool": TOOL_NAME, "run": "MIGRATE", "product_id": None,
+        "counts": counts, "proposals": proposals,
+        "unmigratable": unmigratable, "applied": applied,
+        "backup": backup_path, "refusals": [],
+        "cant_convert": [], "needs_human": [], "findings": [],
+        "note": ("written (backup: %s)" % backup_path if applied else
+                 "dry-run — nothing written; --apply writes after a "
+                 "verified backup"),
+        "duration_s": round(time.monotonic() - started, 3),
+        "exit_code": EXIT_FINDINGS if busy else EXIT_CLEAN,
+    }
+
+
 def run_backfill(config, opts):
     """W8: propose sidecar entries for every EXISTING index row that
     lacks one. Dry-run default; --apply writes; only ever ADDS keys."""
@@ -1423,6 +1608,18 @@ def format_report(report):
     for item in report.get("rows_rejected", []):
         lines.append("  ROW REJECTED (never written): piece %s — %s"
                      % (item["piece"], item["reason"]))
+    if report["run"] == "MIGRATE":
+        for item in report["proposals"]:
+            lines.append("  MIGRATE line %d [%s]: %s"
+                         % (item["line"], item["section"],
+                            item["detail"]))
+            lines.append("    - %s" % item["before"])
+            lines.append("    + %s" % item["after"])
+        for item in report["unmigratable"]:
+            lines.append("  UNMIGRATABLE line %d [%s]: %s"
+                         % (item["line"], item["section"],
+                            item["detail"]))
+            lines.append("    - %s" % item["before"])
     if report["run"] == "BACKFILL":
         for rel in sorted(report["proposed_entries"]):
             lines.append("  BACKFILL %s: %s" %
@@ -1467,9 +1664,13 @@ def main(argv=None):
     parser.add_argument("--backfill", action="store_true",
                         help="propose sidecar entries for existing "
                              "index rows (W8)")
+    parser.add_argument("--migrate", action="store_true",
+                        help="bring legacy ASSET_INDEX rows to the "
+                             "7-column D-419 shape (dry-run; "
+                             "--apply writes after a backup)")
     parser.add_argument("--apply", action="store_true",
-                        help="with --backfill: write the proposed "
-                             "entries")
+                        help="with --backfill or --migrate: write "
+                             "the proposals")
     parser.add_argument("--min-side", type=int, dest="min_side",
                         default=DEFAULT_MIN_SIZE,
                         help="smallest proposal kept: the LONGEST "
@@ -1493,19 +1694,24 @@ def main(argv=None):
     run_kind = "INGEST"
     report = None
     try:
-        if args.backfill and (args.input or args.confirm
-                              or args.confirm_file):
-            raise ToolError("--backfill takes no input and no "
-                            "--confirm")
-        if args.apply and not args.backfill:
+        if args.backfill and args.migrate:
+            raise ToolError("--backfill and --migrate are different "
+                            "runs — pick one")
+        for flag_name, flag in (("--backfill", args.backfill),
+                                ("--migrate", args.migrate)):
+            if flag and (args.input or args.confirm
+                         or args.confirm_file):
+                raise ToolError("%s takes no input and no --confirm"
+                                % flag_name)
+        if args.apply and not (args.backfill or args.migrate):
             raise ToolError("--apply only means something with "
-                            "--backfill")
+                            "--backfill or --migrate")
         if args.confirm and args.confirm_file:
             raise ToolError("--confirm and --confirm-file are one "
                             "mechanism — pick one")
-        if not args.backfill and not args.input:
+        if not (args.backfill or args.migrate) and not args.input:
             raise ToolError("input folder or zip required (or "
-                            "--backfill)")
+                            "--backfill / --migrate)")
         if not (0 <= args.alpha_threshold <= 255):
             raise ToolError("--alpha-threshold must be 0..255")
         if args.min_side < 1 or args.gap_close < 0:
@@ -1521,7 +1727,10 @@ def main(argv=None):
                 "style": args.style, "tags": args.tags,
                 "colors": args.colors,
                 "recolor_mode": args.recolor_mode}
-        if args.backfill:
+        if args.migrate:
+            run_kind = "MIGRATE"
+            report = run_migrate(config, opts)
+        elif args.backfill:
             run_kind = "BACKFILL"
             report = run_backfill(config, opts)
         elif args.confirm or args.confirm_file:

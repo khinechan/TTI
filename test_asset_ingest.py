@@ -884,6 +884,114 @@ class T25RasterFloor(IngestCase):
         self.assertEqual(report["raster_over_vector"], [])
 
 
+class MigrateLegacyRows(IngestCase):
+    """Fable order 2026-09-02: legacy 5-column rows and old
+    asset-path spellings come to the 7-column D-419 shape. Dry-run
+    default, backup before write, untouched rows byte-faithful, every
+    migrated row through asset_index_lint BEFORE it is written."""
+
+    GOOD = ("| `a/good.png` | CF Subscription, verified | cartoon | "
+            "dog | tonal | flat | Product 28 |")
+    LEGACY5 = ("| `b/legacy.png` | CF Subscription, verified | flat "
+               "badge | raccoon | brown/tan |")
+    OLDPATH = ("| Merch/Design Assets/c/old.png | CF Subscription, "
+               "verified | cartoon | owl | grey | tonal | Product 3 |")
+    UNKNOWN = "| `d/weird.png` | only | three |"
+
+    def write_index(self, body_lines):
+        text = (HEADER + "\n" + SEPARATOR + "\n"
+                + "\n".join(body_lines) + "\n")
+        with open(self.index_file, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return text
+
+    def migrate(self, apply=False):
+        config = ai.load_config(self.config_path)
+        report = ai.run_migrate(config, {"apply": apply})
+        ai.append_receipt(report)
+        return report
+
+    def test_dry_run_proposes_and_writes_nothing(self):
+        before = self.write_index([self.GOOD, self.LEGACY5,
+                                   self.OLDPATH])
+        report = self.migrate()
+        self.assertEqual(report["exit_code"], 1)
+        self.assertEqual(report["counts"]["rows_migrated"], 2)
+        self.assertFalse(report["applied"])
+        with open(self.index_file, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), before)   # byte-identical
+        sections = {p["line"]: p["section"] for p in
+                    report["proposals"]}
+        self.assertTrue(all(isinstance(k, int) for k in sections))
+
+    def test_apply_migrates_and_leaves_good_rows_byte_faithful(self):
+        self.write_index([self.GOOD, self.LEGACY5, self.OLDPATH])
+        report = self.migrate(apply=True)
+        self.assertTrue(report["applied"])
+        rows = self.index_rows()
+        self.assertIn(self.GOOD, rows)            # untouched, verbatim
+        for row in rows[2:]:
+            self.assertEqual(ail.lint_row(row), [], row)
+            self.assertEqual(len(ail.split_cells(row)), 7)
+        migrated = [r for r in rows if "legacy.png" in r][0]
+        cells = ail.split_cells(migrated)
+        self.assertEqual(cells[:5],
+                         ["`b/legacy.png`", "CF Subscription, "
+                          "verified", "flat badge", "raccoon",
+                          "brown/tan"])
+        self.assertEqual(cells[5:], [ai.PENDING_CELL,
+                                     ai.PENDING_CELL])
+        oldpath = [r for r in rows if "old.png" in r][0]
+        self.assertEqual(ail.asset_path(oldpath), "c/old.png")
+
+    def test_backup_written_and_matches_the_original(self):
+        before = self.write_index([self.LEGACY5])
+        report = self.migrate(apply=True)
+        self.assertTrue(os.path.isfile(report["backup"]))
+        with open(report["backup"], encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), before)
+        self.assertEqual(self.receipts()[-1]["backup"],
+                         report["backup"])
+
+    def test_unknown_shape_is_reported_never_guessed(self):
+        before = self.write_index([self.GOOD, self.UNKNOWN])
+        report = self.migrate(apply=True)
+        self.assertEqual(report["counts"]["unmigratable"], 1)
+        self.assertEqual(report["counts"]["rows_migrated"], 0)
+        self.assertIn("no LEGACY_COLUMN_MAPS rule",
+                      report["unmigratable"][0]["detail"])
+        self.assertFalse(report["applied"])       # nothing to write
+        with open(self.index_file, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), before)
+
+    def test_clean_index_is_exit_0_and_untouched(self):
+        before = self.write_index([self.GOOD])
+        report = self.migrate(apply=True)
+        self.assertEqual(report["exit_code"], 0)
+        self.assertFalse(report["applied"])
+        with open(self.index_file, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), before)
+
+    def test_idempotent(self):
+        self.write_index([self.GOOD, self.LEGACY5, self.OLDPATH])
+        self.migrate(apply=True)
+        with open(self.index_file, encoding="utf-8") as fh:
+            after_first = fh.read()
+        second = self.migrate(apply=True)
+        self.assertEqual(second["exit_code"], 0)
+        with open(self.index_file, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), after_first)
+
+    def test_cli_flags_fail_closed(self):
+        self.write_index([self.LEGACY5])
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(
+                self.run_tool("--migrate", "--backfill"), 2)
+            self.assertEqual(
+                self.run_tool("--migrate", self.input_dir), 2)
+        self.assertEqual(self.run_tool("--migrate"), 1)   # dry-run
+
+
 class ConfirmGroups(IngestCase):
     """Fable 2026-09-02: outline art splits into loops — a ring and
     the counter inside it are TWO components but ONE object. Ids
