@@ -490,6 +490,55 @@ class MidtownRegister(ForgeCase):
         self.assertEqual(receipt["rendered"], 1)
 
 
+class BadgeMeasuredAnchors(ForgeCase):
+    """Fable live-run fix: the F5 wall fired on a real badge variant
+    ("element x ring, 619 px") because badge anchors were a fixed
+    fraction off the ring radius — F6 had covered straight/arc only.
+    Badge above/below now measure the ring mask and the element's own
+    ink, same as every other family."""
+
+    def _badge_play(self, size_fraction, position="below_support"):
+        variant = {
+            "id": 1, "garment": "Black",
+            "font_pair": {"hero": "Vorn", "support": "Vorn"},
+            "color_path": "flat_pool", "layout": "text_dominant",
+            "family": "badge", "fill_hex": "#F5F0E1",
+            "outline_hex": None,
+            "elements": [{"asset_id": MAILBOX_ID,
+                          "recolor_hex": "#F5F0E1",
+                          "size_fraction": size_fraction,
+                          "position": position}]}
+        return self.write_play([variant])
+
+    def test_tall_element_below_support_renders(self):
+        """A tall element on a badge renders with zero intersection —
+        the anchor comes off the MEASURED ring, not a constant."""
+        code, _, _ = self.run_tool(self._badge_play(0.28))
+        self.assertIn(code, (0, 1))
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["rejected"], [])
+        self.assertEqual(receipt["rendered"], 1)
+
+    def test_impossible_element_is_named_not_overlap(self):
+        """An element that cannot clear the ring goes red as
+        ELEMENT_NO_ROOM with needs/has — never a bare OVERLAP."""
+        code, _, _ = self.run_tool(self._badge_play(0.45))
+        self.assertEqual(code, 1)
+        reason = self.receipts()[-1]["rejected"][0]["reason"]
+        self.assertIn("ELEMENT_NO_ROOM", reason)
+        self.assertIn("below_support", reason)
+        self.assertNotIn("OVERLAP", reason)
+
+    def test_above_hero_on_badge_also_measured(self):
+        """The same holds above the ring."""
+        code, _, _ = self.run_tool(
+            self._badge_play(0.45, position="above_hero"))
+        self.assertEqual(code, 1)
+        reason = self.receipts()[-1]["rejected"][0]["reason"]
+        self.assertIn("ELEMENT_NO_ROOM", reason)
+        self.assertIn("above_hero", reason)
+
+
 class BenchF4OutDir(ForgeCase):
     def test_second_run_refused_unless_overwrite(self):
         """Bench F4: a non-empty out_dir/<play_id> refuses; the

@@ -892,9 +892,14 @@ def render_variant(variant, roster, config, provenance):
             or (0, 0, resized.width, resized.height)
         ink_h = ink[3] - ink[1]
         ink_mid = (ink[1] + ink[3]) // 2
-        measured = (family != "badge"
-                    and position in ("above_hero", "below_support",
-                                     "between"))
+        # Fable live-run fix (2026-09-02): badge above/below now
+        # MEASURE too — F6 covered straight/arc only, so a tall
+        # element on a badge still anchored off a fixed ring-radius
+        # fraction and hit the F5 wall ("element x ring"). For badge,
+        # the measured text extent IS the ring mask (it encloses the
+        # arced support and the hero).
+        measured = position in ("above_hero", "below_support") or (
+            family != "badge" and position == "between")
         if measured and position == "above_hero":
             room = text_top - MARGIN_PX - ELEMENT_GAP_PX
             paste_y = text_top - ELEMENT_GAP_PX - ink[3]
