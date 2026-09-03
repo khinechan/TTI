@@ -166,3 +166,17 @@ receipt records out_dir_mode FRESH|OVERWRITE.
 
 Not fixed on purpose: Midtown uppercase (deviation 7 above — Khai's
 one-line order, per the bench's own call list).
+
+F6 (re-bench of 2c9b635): the wall was right, the anchor was wrong —
+above_hero was a fixed fraction blind to the element's own height, so
+a legal small accent collided with the retuned support line and any
+element taller than ~650px could never render at that position. Now
+TEXT LAYERS RENDER FIRST and above_hero / below_support / between
+anchor off the MEASURED text masks: the element's INK edge sits
+ELEMENT_GAP_PX from the nearest text edge; no room within margin /
+floor / ceiling ⇒ named rejection "ELEMENT_NO_ROOM: <position>,
+needs N px, has M px" — never a bare OVERLAP. left/right keep the
+line midgap; badge anchors stay ring-aware (F3). Verified by eye on
+the real-shaped case (0.18 accent above_hero on text_hero) and
+byte-identical sample output across the compositing reorder
+(disjoint layers commute — variant_02 deea44b7… unchanged).

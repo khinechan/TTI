@@ -416,6 +416,42 @@ class BenchF2F3Families(ForgeCase):
                              chord + 1)
 
 
+class BenchF6MeasuredAnchors(ForgeCase):
+    def _one_variant(self, size_fraction):
+        variant = self.base_variants()[0]
+        variant["elements"] = [
+            {"asset_id": MAILBOX_ID, "recolor_hex": "#D9A441",
+             "size_fraction": size_fraction,
+             "position": "above_hero"}]
+        return [variant]
+
+    def test_tall_element_above_hero_renders(self):
+        """Bench F6: a legal tall accent at above_hero on text_hero
+        renders with zero intersection — the anchor comes off the
+        MEASURED text mask, not a fixed fraction blind to the
+        element's height."""
+        code, _, _ = self.run_tool(
+            self.write_play(self._one_variant(0.18)))
+        self.assertIn(code, (0, 1))
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["rejected"], [])
+        self.assertEqual(receipt["rendered"], 1)
+
+    def test_impossible_element_rejected_by_name(self):
+        """Bench F6: an element that cannot fit goes red as
+        ELEMENT_NO_ROOM with needs/has — never as a bare OVERLAP."""
+        code, _, _ = self.run_tool(
+            self.write_play(self._one_variant(0.60)))
+        self.assertEqual(code, 1)
+        receipt = self.receipts()[-1]
+        self.assertEqual(len(receipt["rejected"]), 1)
+        reason = receipt["rejected"][0]["reason"]
+        self.assertIn("ELEMENT_NO_ROOM", reason)
+        self.assertIn("above_hero", reason)
+        self.assertIn("needs", reason)
+        self.assertNotIn("OVERLAP", reason)
+
+
 class BenchF4OutDir(ForgeCase):
     def test_second_run_refused_unless_overwrite(self):
         """Bench F4: a non-empty out_dir/<play_id> refuses; the

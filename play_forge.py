@@ -214,6 +214,9 @@ POSITION_X = {
 }
 ABOVE_HERO_FLOOR = 0.10
 BELOW_SUPPORT_CEIL = 0.90
+ELEMENT_GAP_PX = 40               # bench F6: breathing gap between an
+                                  # element's INK and the measured
+                                  # text edge it anchors against
 
 GATE_TIMEOUT_S = 180
 EYES_NA = "EYES_N/A"
@@ -774,35 +777,16 @@ def render_variant(variant, roster, config, provenance):
         layer_masks.append((name, mask))
         return mask
 
-    placed = []
-    for element in variant["elements"]:
-        key, sha, file_path = provenance[element["asset_id"]]
+    def _reject(message):
+        for _, mask in layer_masks:
+            mask.close()
+        canvas.close()
+        raise VariantRejected(message)
 
-        def paint_element(layer, element=element,
-                          file_path=file_path):
-            img = Image.open(file_path)
-            rgba = img.convert("RGBA")
-            img.close()
-            colored = recolor.recolor(rgba, element["recolor_hex"])
-            rgba.close()
-            target = max(1, int(element["size_fraction"] * CANVAS_W))
-            scale = target / max(colored.size)
-            resized = colored.resize(
-                (max(1, int(colored.width * scale)),
-                 max(1, int(colored.height * scale))), RESAMPLE)
-            colored.close()
-            ax, ay = anchor_for(element["position"], layout, family)
-            layer.alpha_composite(
-                resized, (int(ax * CANVAS_W - resized.width / 2),
-                          int(ay * CANVAS_H - resized.height / 2)))
-            resized.close()
-
-        add_layer("element:%s" % element["asset_id"], paint_element)
-        placed.append({"asset_id": element["asset_id"], "path": key,
-                       "sha256": sha, "kind": element["kind"],
-                       "recolor_hex": element["recolor_hex"],
-                       "size_fraction": element["size_fraction"],
-                       "position": element["position"]})
+    # bench F6: text renders FIRST so above_hero / below_support /
+    # between anchor off the MEASURED text masks, never a fixed
+    # fraction that ignores the element's own height
+    text_bboxes = {}
     if family == "badge":
         cx, cy = CANVAS_W // 2, int(CANVAS_H * BADGE_RING_CY)
         box = (cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r)
@@ -815,13 +799,16 @@ def render_variant(variant, roster, config, provenance):
                              + 2 * _stroke_width(size_punch))
             draw.ellipse(box, outline=fill, width=ring_w)
 
-        add_layer("ring", paint_ring)
-        add_layer("support", lambda layer: draw_arc_line(
-            layer, setup, support_path, size_setup, (cx, cy),
-            int((ring_r - ring_w) * 0.78), fill, stroke_fill))
-        add_layer("hero", lambda layer: draw_straight_line(
-            layer, punch, hero_path, size_punch, (cx, cy), fill,
-            stroke_fill))
+        text_bboxes["ring"] = add_layer("ring", paint_ring).getbbox()
+        text_bboxes["support"] = add_layer(
+            "support", lambda layer: draw_arc_line(
+                layer, setup, support_path, size_setup, (cx, cy),
+                int((ring_r - ring_w) * 0.78), fill,
+                stroke_fill)).getbbox()
+        text_bboxes["hero"] = add_layer(
+            "hero", lambda layer: draw_straight_line(
+                layer, punch, hero_path, size_punch, (cx, cy), fill,
+                stroke_fill)).getbbox()
     elif family == "arc":
         radius = max(600, int(
             ImageFont.truetype(hero_path, size_punch)
@@ -831,34 +818,120 @@ def render_variant(variant, roster, config, provenance):
         hero_mask = add_layer("hero", lambda layer: draw_arc_line(
             layer, punch, hero_path, size_punch, center, radius,
             fill, stroke_fill))
+        text_bboxes["hero"] = hero_mask.getbbox()
         # bench F2: place the support below the arc's MEASURED
         # extent, never at a hoped-for layout position
-        arc_bbox = hero_mask.getbbox()
+        arc_bbox = text_bboxes["hero"]
         arc_bottom = arc_bbox[3] if arc_bbox else center[1]
         setup_font = ImageFont.truetype(support_path, size_setup)
         s_top, s_bottom = setup_font.getbbox(setup)[1::2]
         half_height = max(1, (s_bottom - s_top) // 2)
         support_cy = arc_bottom + ARC_SUPPORT_GAP_PX + half_height
         if support_cy + half_height > CANVAS_H - MARGIN_PX:
-            for _, m in layer_masks:
-                m.close()
-            canvas.close()
-            raise VariantRejected(
+            _reject(
                 "ARC_OVERFLOW (bench F2): the arc's measured extent "
                 "(bottom %d) leaves no room for the support line "
                 "above the %dpx margin" % (arc_bottom, MARGIN_PX))
-        add_layer("support", lambda layer: draw_straight_line(
-            layer, setup, support_path, size_setup,
-            (CANVAS_W // 2, support_cy), fill, stroke_fill))
+        text_bboxes["support"] = add_layer(
+            "support", lambda layer: draw_straight_line(
+                layer, setup, support_path, size_setup,
+                (CANVAS_W // 2, support_cy), fill,
+                stroke_fill)).getbbox()
     else:
-        add_layer("support", lambda layer: draw_straight_line(
-            layer, setup, support_path, size_setup,
-            (CANVAS_W // 2, int(layout["support_cy"] * CANVAS_H)),
-            fill, stroke_fill))
-        add_layer("hero", lambda layer: draw_straight_line(
-            layer, punch, hero_path, size_punch,
-            (CANVAS_W // 2, int(layout["hero_cy"] * CANVAS_H)),
-            fill, stroke_fill))
+        text_bboxes["support"] = add_layer(
+            "support", lambda layer: draw_straight_line(
+                layer, setup, support_path, size_setup,
+                (CANVAS_W // 2,
+                 int(layout["support_cy"] * CANVAS_H)),
+                fill, stroke_fill)).getbbox()
+        text_bboxes["hero"] = add_layer(
+            "hero", lambda layer: draw_straight_line(
+                layer, punch, hero_path, size_punch,
+                (CANVAS_W // 2, int(layout["hero_cy"] * CANVAS_H)),
+                fill, stroke_fill)).getbbox()
+    boxes = [b for b in text_bboxes.values() if b]
+    text_top = min(b[1] for b in boxes)
+    text_bottom = max(b[3] for b in boxes)
+    hero_box = text_bboxes.get("hero")
+    support_box = text_bboxes.get("support")
+    gap_top = gap_bottom = None
+    if hero_box and support_box:
+        upper, lower = sorted((hero_box, support_box),
+                              key=lambda b: b[1])
+        gap_top, gap_bottom = upper[3], lower[1]
+    placed = []
+    for element in variant["elements"]:
+        key, sha, file_path = provenance[element["asset_id"]]
+        position = element["position"]
+        img = Image.open(file_path)
+        rgba = img.convert("RGBA")
+        img.close()
+        colored = recolor.recolor(rgba, element["recolor_hex"])
+        rgba.close()
+        target = max(1, int(element["size_fraction"] * CANVAS_W))
+        scale = target / max(colored.size)
+        resized = colored.resize(
+            (max(1, int(colored.width * scale)),
+             max(1, int(colored.height * scale))), RESAMPLE)
+        colored.close()
+        ink = resized.getchannel("A").getbbox() \
+            or (0, 0, resized.width, resized.height)
+        ink_h = ink[3] - ink[1]
+        ink_mid = (ink[1] + ink[3]) // 2
+        measured = (family != "badge"
+                    and position in ("above_hero", "below_support",
+                                     "between"))
+        if measured and position == "above_hero":
+            room = text_top - MARGIN_PX - ELEMENT_GAP_PX
+            paste_y = text_top - ELEMENT_GAP_PX - ink[3]
+            if ink_h > room or (paste_y + ink_mid
+                                < ABOVE_HERO_FLOOR * CANVAS_H):
+                resized.close()
+                _reject("ELEMENT_NO_ROOM (bench F6): above_hero, "
+                        "needs %d px, has %d px"
+                        % (ink_h + ELEMENT_GAP_PX,
+                           max(0, text_top - MARGIN_PX)))
+        elif measured and position == "below_support":
+            room = (CANVAS_H - MARGIN_PX) - text_bottom \
+                - ELEMENT_GAP_PX
+            paste_y = text_bottom + ELEMENT_GAP_PX - ink[1]
+            if ink_h > room or (paste_y + ink_mid
+                                > BELOW_SUPPORT_CEIL * CANVAS_H):
+                resized.close()
+                _reject("ELEMENT_NO_ROOM (bench F6): below_support, "
+                        "needs %d px, has %d px"
+                        % (ink_h + ELEMENT_GAP_PX,
+                           max(0, CANVAS_H - MARGIN_PX
+                               - text_bottom)))
+        elif measured:                        # between
+            room = ((gap_bottom - gap_top - 2 * ELEMENT_GAP_PX)
+                    if gap_top is not None else 0)
+            if ink_h > room:
+                resized.close()
+                _reject("ELEMENT_NO_ROOM (bench F6): between, needs "
+                        "%d px, has %d px"
+                        % (ink_h + 2 * ELEMENT_GAP_PX,
+                           max(0, (gap_bottom - gap_top)
+                               if gap_top is not None else 0)))
+            paste_y = (gap_top + gap_bottom) // 2 - ink_mid
+        if measured:
+            paste_x = int(POSITION_X[position] * CANVAS_W
+                          - resized.width / 2)
+        else:
+            ax, ay = anchor_for(position, layout, family)
+            paste_x = int(ax * CANVAS_W - resized.width / 2)
+            paste_y = int(ay * CANVAS_H - resized.height / 2)
+        try:
+            add_layer("element:%s" % element["asset_id"],
+                      lambda layer: layer.alpha_composite(
+                          resized, (paste_x, paste_y)))
+        finally:
+            resized.close()
+        placed.append({"asset_id": element["asset_id"], "path": key,
+                       "sha256": sha, "kind": element["kind"],
+                       "recolor_hex": element["recolor_hex"],
+                       "size_fraction": element["size_fraction"],
+                       "position": element["position"]})
     for _, mask in layer_masks:
         mask.close()
     return canvas, placed, {"hero": size_punch, "support": size_setup}
