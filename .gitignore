@@ -28,3 +28,7 @@ asset_ingest_receipts.jsonl
 # dirs and are NEVER committed (B2 W11).
 play_forge.config.json
 play_forge_receipts.jsonl
+
+# play_new: receipts are a machine-generated write surface. Its OUTPUT
+# (the play.json) lands in the configured out_dir, never in the repo.
+play_new_receipts.jsonl

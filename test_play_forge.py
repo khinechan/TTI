@@ -539,6 +539,24 @@ class BadgeMeasuredAnchors(ForgeCase):
         self.assertIn("above_hero", reason)
 
 
+class RegisterPredicateFactoredOut(unittest.TestCase):
+    """Fable rider 2026-09-04: the register predicate is factored out
+    so play_new can IMPORT it and predict this tool exactly, instead
+    of keeping a second copy that drifts. Same rule, one home."""
+
+    def test_whole_line_rule(self):
+        self.assertTrue(pf.line_is_all_caps("CAN'T LEAVE IT NEXT DOOR."))
+        self.assertTrue(pf.line_is_all_caps("NOT MY CALL."))
+        self.assertFalse(pf.line_is_all_caps("Not My Call."))
+        self.assertFalse(pf.line_is_all_caps("I Can't Leave It Next Door"))
+        self.assertFalse(pf.line_is_all_caps("123 !!!"))   # no letters
+
+    def test_the_register_check_uses_it(self):
+        source = open(pf.__file__, encoding="utf-8").read()
+        self.assertIn("if line_is_all_caps(line):", source)
+        self.assertEqual(source.count("c.isupper() for c in letters"), 1)
+
+
 class BenchF4OutDir(ForgeCase):
     def test_second_run_refused_unless_overwrite(self):
         """Bench F4: a non-empty out_dir/<play_id> refuses; the

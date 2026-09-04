@@ -663,6 +663,16 @@ def anchor_for(position, layout, family):
     return x, y
 
 
+def line_is_all_caps(line):
+    """True when every LETTER in the line is uppercase (and there is
+    at least one). Whole-line, deliberately: this is the exact rule
+    the Midtown Script register check has always applied, factored out
+    here so play_new can IMPORT it and predict this tool instead of
+    keeping a second copy that drifts (Fable rider, 2026-09-04)."""
+    letters = [c for c in line if c.isalpha()]
+    return bool(letters) and all(c.isupper() for c in letters)
+
+
 def _stroke_width(size):
     return max(2, size // STROKE_WIDTH_DIVISOR)
 
@@ -734,8 +744,7 @@ def render_variant(variant, roster, config, provenance):
     for font_name, line in ((variant["font_pair"]["hero"], punch),
                             (variant["font_pair"]["support"], setup)):
         if font_name in TITLE_CASE_ONLY_FONTS:
-            letters = [c for c in line if c.isalpha()]
-            if letters and all(c.isupper() for c in letters):
+            if line_is_all_caps(line):
                 raise VariantRejected(
                     "REGISTER: %s is Title Case only, got %r"
                     % (font_name, line))
