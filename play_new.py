@@ -562,7 +562,7 @@ def pin_candidates(candidates, values, tag, index_root):
     ORDER THE FLAGS WERE GIVEN. Fails closed on every ambiguity."""
     available = [item["asset_id"] for item in candidates]
     by_id = {item["asset_id"]: item for item in candidates}
-    pinned, pins = [], []
+    pinned, pins, claimed = [], [], {}
     for value in values:
         hits = _pin_hits(value, available)
         if len(hits) > 1:
@@ -577,11 +577,18 @@ def pin_candidates(candidates, values, tag, index_root):
                     "--art %r matches %s in the index, but that row "
                     "does not carry the tag %r. Fix it by tagging the "
                     "row in ASSET_INDEX — that is the long-term fix, "
-                    "not a flag." % (value, ", ".join(sorted(outside)),
+                    "not a flag." % (value,
+                                     ", ".join(sorted(set(outside))),
                                      tag), kind="ART_OUTSIDE_TAG")
             raise NewPlayError(
                 "--art %r matches no candidate for the tag %r"
                 % (value, tag), kind="ART_NOT_FOUND")
+        if hits[0] in claimed:
+            raise NewPlayError(
+                "--art %r and --art %r both resolve to %s — pin it "
+                "once" % (claimed[hits[0]], value, hits[0]),
+                kind="ART_DUPLICATE")
+        claimed[hits[0]] = value
         pinned.append(by_id[hits[0]])
         pins.append({"value": value, "asset_id": hits[0]})
     return pinned, pins

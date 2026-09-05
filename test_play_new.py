@@ -220,6 +220,28 @@ class ArtPin(PlayNewCase):
         self.assertIn(TAG, err)
         self.assertIn("tagging the row in ASSET_INDEX", err)
 
+    def test_two_pins_for_one_asset_are_refused(self):
+        """Fable bench cosmetic: --art piece_05 --art piece_05.png both
+        resolve to the same row and were accepted silently — two pins
+        in the receipt, and the frame layout doubled the art. REFUSE,
+        naming both values, rather than dedupe quietly."""
+        code, _, err = self.run_tool("--art", "cf/mailbox.png",
+                                     "--art", "mailbox")
+        self.assertEqual(code, 2)
+        self.assertIn("ART_DUPLICATE", err)
+        self.assertIn("cf/mailbox.png", err)
+        self.assertIn("'mailbox'", err)
+        self.assertFalse(os.path.exists(self.out_path()))
+
+    def test_outside_tag_names_each_asset_once(self):
+        """Fable bench cosmetic: two index rows for one path made the
+        message read "matches cf/other.png, cf/other.png"."""
+        self.write_index(self.ROWS + (("cf/other.png", "trucker"),))
+        code, _, err = self.run_tool("--art", "other")
+        self.assertEqual(code, 2)
+        self.assertIn("ART_OUTSIDE_TAG", err)
+        self.assertEqual(err.count("cf/other.png"), 1)
+
     def test_folder_rows_are_still_not_pinnable(self):
         code, _, err = self.run_tool("--art", "folder-pack")
         self.assertEqual(code, 2)
