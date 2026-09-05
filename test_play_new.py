@@ -70,9 +70,11 @@ class PlayNewCase(unittest.TestCase):
 
     def write_index(self, rows):
         lines, entries = [], {}
-        for path, tags in rows:
+        for row in rows:
+            path, tags = row[0], row[1]
+            style = row[2] if len(row) > 2 else "flat"
             lines.append(ail.format_row(
-                ["`%s`" % path, "CF Subscription, verified", "flat",
+                ["`%s`" % path, "CF Subscription, verified", style,
                  tags, "tonal", "flat", "Product X"]))
             if not path.endswith("/"):
                 entries[path] = {"sha256": "a" * 64,
@@ -237,6 +239,86 @@ class ArtPin(PlayNewCase):
         self.assertEqual(payload["art_pins"],
                          [{"value": "mailbox",
                            "asset_id": "cf/mailbox.png"}])
+
+
+class ElementKind(PlayNewCase):
+    """The kind item: play_forge's eyes gate only fires on
+    kind:"character", and play_new was emitting no kind at all. The
+    live Style column is free prose, so this is a keyword table that
+    fails closed — never an invented Style->kind map."""
+
+    def test_single_kind_keyword_is_inferred(self):
+        self.write_index((("cf/raccoon.png", TAG, "cartoon"),))
+        code, _, _ = self.run_tool()
+        self.assertIn(code, (0, 1))
+        for variant in self.play()["variants"]:
+            for element in variant["elements"]:
+                self.assertEqual(element["kind"], "character")
+        self.assertFalse(any("ELEMENT_KIND_UNKNOWN" in f
+                             for f in self.receipts()[-1]["findings"]))
+
+    def test_ornament_keyword(self):
+        self.write_index((("cf/wreath.png", TAG,
+                           "flat wreath outline, SVG+EPS"),))
+        self.assertIn(self.run_tool()[0], (0, 1))
+        kinds = {element["kind"]
+                 for variant in self.play()["variants"]
+                 for element in variant["elements"]}
+        self.assertEqual(kinds, {"ornament"})
+
+    def test_zero_match_leaves_kind_absent_with_a_finding(self):
+        self.write_index((("cf/blob.png", TAG, "flat"),))
+        code, out, _ = self.run_tool()
+        self.assertEqual(code, 1)
+        for variant in self.play()["variants"]:
+            for element in variant["elements"]:
+                self.assertNotIn("kind", element)
+        self.assertIn("ELEMENT_KIND_UNKNOWN: cf/blob.png", out)
+        self.assertIn("'flat'", out)
+        self.assertIn(pn.KIND_UNKNOWN_NOTE, out)
+
+    def test_conflicting_kinds_leave_it_absent_too(self):
+        self.write_index((("cf/mix.png", TAG,
+                           "flat cartoon mascot badge"),))
+        code, out, _ = self.run_tool()
+        self.assertEqual(code, 1)
+        self.assertIn("ELEMENT_KIND_UNKNOWN: cf/mix.png", out)
+        self.assertIn("keywords disagree", out)
+        for variant in self.play()["variants"]:
+            for element in variant["elements"]:
+                self.assertNotIn("kind", element)
+
+    def test_pending_style_is_a_finding_by_construction(self):
+        self.write_index((("cf/todo.png", TAG, "pending"),))
+        code, out, _ = self.run_tool()
+        self.assertEqual(code, 1)
+        self.assertIn("ELEMENT_KIND_UNKNOWN: cf/todo.png", out)
+        self.assertIn("no KIND_KEYWORDS keyword matched", out)
+
+    def test_receipt_names_the_keyword_that_fired(self):
+        self.write_index((("cf/raccoon.png", TAG,
+                           "cartoon, grumpy/attitude dog"),))
+        self.assertIn(self.run_tool()[0], (0, 1))
+        candidate = self.receipts()[-1]["candidates"][0]
+        self.assertEqual(candidate["kind"], "character")
+        self.assertEqual(candidate["kind_keyword"], "cartoon")
+        self.assertEqual(candidate["style"],
+                         "cartoon, grumpy/attitude dog")
+
+    def test_infer_kind_is_nfc_casefold_substring(self):
+        self.assertEqual(pn.infer_kind("CARTOON"),
+                         ("character", "cartoon"))
+        self.assertEqual(pn.infer_kind("retro sunset badge/ring")[0],
+                         "ornament")
+        self.assertIsNone(pn.infer_kind("tonal")[0])
+        self.assertIsNone(pn.infer_kind("")[0])
+
+    def test_one_finding_per_asset_not_per_element(self):
+        self.write_index((("cf/blob.png", TAG, "flat"),))
+        self.assertEqual(self.run_tool()[0], 1)
+        findings = [f for f in self.receipts()[-1]["findings"]
+                    if "ELEMENT_KIND_UNKNOWN" in f]
+        self.assertEqual(len(findings), 1)
 
 
 class T04T13Register(PlayNewCase):

@@ -152,7 +152,38 @@ SLUG_SEPARATOR = "-"
 SLUG_MAX_LEN = 60
 
 TAG_SEPARATOR = ","
-NICHE_TAGS_COLUMN = 3          # the D-419 7-column shape
+STYLE_COLUMN = 2               # the D-419 7-column shape
+NICHE_TAGS_COLUMN = 3
+
+# Element kind, so play_forge's eyes gate can actually run — it only
+# fires on kind:"character" (B2 W9 court rider).
+#
+# The live Style column is FREE PROSE, not a vocabulary: 73 rows carry
+# 10x "cartoon", 9x "pending", 6x "flat", then ~40 one-off phrases
+# like "cartoon, grumpy/attitude dog" or "spray-paint circle badge
+# frame". A Style->kind map does not exist, so this is a KEYWORD
+# table and it fails closed: exactly one kind must match, or the kind
+# is left ABSENT and the run says so. "subject" is never inferred —
+# too broad to guess safely. "pending" matches nothing here by
+# construction, not by a special case.
+KIND_KEYWORDS = (
+    ("character", "cartoon"),
+    ("character", "mascot"),
+    ("character", "character"),
+    ("ornament", "badge"),
+    ("ornament", "frame"),
+    ("ornament", "ring"),
+    ("ornament", "wreath"),
+    ("ornament", "sunburst"),
+    ("ornament", "ribbon"),
+    ("ornament", "banner"),
+    ("ornament", "sparkle"),
+    ("ornament", "seal"),
+    ("ornament", "emblem"),
+)
+KIND_UNKNOWN_NOTE = ("eyes gate will not run for this element; add a "
+                     "keyword to KIND_KEYWORDS or set kind by hand "
+                     "in the DRAFT.")
 SIDECAR_NAME = "ASSET_INDEX.hashes.json"
 INDEX_NAME = "ASSET_INDEX.md"
 
@@ -413,6 +444,22 @@ def tag_matches(cell, wanted):
     return nfc(wanted).strip().casefold() in tags
 
 
+def infer_kind(style_cell):
+    """(kind, keyword) when EXACTLY one kind matches, else
+    (None, reason). NFC -> casefold -> substring, same discipline as
+    the tag and pin rules."""
+    text = nfc(style_cell).casefold()
+    hits = [(kind, keyword) for kind, keyword in KIND_KEYWORDS
+            if keyword in text]
+    kinds = sorted({kind for kind, _ in hits})
+    if len(kinds) == 1:
+        return hits[0][0], hits[0][1]
+    if not hits:
+        return None, "no KIND_KEYWORDS keyword matched"
+    return None, ("keywords disagree (%s)"
+                  % ", ".join("%s<-%r" % pair for pair in hits))
+
+
 def art_candidates(index_root, tag):
     """Rows that carry the tag, have a sidecar entry, pass the row
     lint, and name a FILE. In INDEX ORDER."""
@@ -441,9 +488,15 @@ def art_candidates(index_root, tag):
         entry = entries.get(path)
         if not entry or not entry.get("sha256"):
             continue
+        style = cells[STYLE_COLUMN]
+        kind, why = infer_kind(style)
         candidates.append({"asset_id": path,
                            "expected_sha256": entry["sha256"],
-                           "index_line": number + 1})
+                           "index_line": number + 1,
+                           "style": style,
+                           "kind": kind,
+                           "kind_keyword": why if kind else None,
+                           "kind_reason": None if kind else why})
     return candidates
 
 
@@ -553,13 +606,16 @@ def build_play(args, candidates, axes, garments, date_text):
                 asset = candidates[pointer % len(candidates)]
                 if len(candidates) > 1:
                     pointer += 1        # advance by assets CONSUMED
-                elements.append({
+                element = {
                     "asset_id": asset["asset_id"],
                     "expected_sha256": asset["expected_sha256"],
                     "recolor_hex": fill_hex,
                     "size_fraction": size_fraction,
                     "position": position,
-                })
+                }
+                if asset.get("kind"):
+                    element["kind"] = asset["kind"]
+                elements.append(element)
         variants.append({
             "id": index + 1,
             "garment": garment.title(),
@@ -748,6 +804,17 @@ def run(args, report):
     report["axis_assignment"] = how
     garments = garment_sequence(count, fixed_garment)
     play = build_play(args, candidates, axes, garments, date_text)
+    placed = {element["asset_id"]
+              for variant in play["variants"]
+              for element in variant["elements"]}
+    for asset in sorted(placed):          # sorted: W9, never a set
+        record = next(item for item in candidates
+                      if item["asset_id"] == asset)
+        if record["kind"] is None:
+            report["findings"].append(
+                "ELEMENT_KIND_UNKNOWN: %s — Style is %r (%s); %s"
+                % (asset, record["style"], record["kind_reason"],
+                   KIND_UNKNOWN_NOTE))
     os.makedirs(config["out_dir"], exist_ok=True)
     write_validated(play, out_path, config)
     report["written"] = True
