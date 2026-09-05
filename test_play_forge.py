@@ -557,6 +557,31 @@ class RegisterPredicateFactoredOut(unittest.TestCase):
         self.assertEqual(source.count("c.isupper() for c in letters"), 1)
 
 
+class CrashFloor(ForgeCase):
+    """Fleet crash floor: a Python traceback exits 1, which this
+    tool's contract reads as "rendered with findings". Exit 2 and a
+    CRASH receipt are what tell a wrapper the tool broke."""
+
+    def test_uncaught_exception_is_exit_2_with_a_receipt(self):
+        with mock.patch.object(pf, "run_forge",
+                               side_effect=RuntimeError("injected")):
+            with mock.patch("sys.stderr", io.StringIO()) as err:
+                code = pf.main([self.write_play(), "--config",
+                                self.config_path])
+        self.assertEqual(code, 2)
+        self.assertIn("CRASH (RuntimeError): injected", err.getvalue())
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["refusals"][0]["kind"], "CRASH")
+        self.assertEqual(receipt["exit_code"], 2)
+        self.assertFalse(os.path.exists(self.play_out()))
+
+    def test_argparse_exit_is_not_swallowed(self):
+        with mock.patch("sys.stderr", io.StringIO()):
+            with self.assertRaises(SystemExit) as caught:
+                pf.main(["--bogus-flag"])
+        self.assertEqual(caught.exception.code, 2)
+
+
 class BenchF4OutDir(ForgeCase):
     def test_second_run_refused_unless_overwrite(self):
         """Bench F4: a non-empty out_dir/<play_id> refuses; the

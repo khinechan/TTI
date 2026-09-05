@@ -1321,7 +1321,7 @@ def format_report(report):
     return "\n".join(lines)
 
 
-def main(argv=None):
+def _main(argv=None):
     _ensure_utf8_console()
     parser = argparse.ArgumentParser(
         prog="play_forge.py",
@@ -1375,6 +1375,33 @@ def main(argv=None):
     else:
         print(format_report(report))
     return report["exit_code"]
+
+
+def main(argv=None):
+    """CRASH FLOOR. A bare traceback exits 1, and this tool's contract
+    reads 1 as "rendered with findings" — so without this guard a
+    crash and a good run are the same integer to gate_run and to any
+    wrapper. SystemExit and KeyboardInterrupt are NOT caught: argparse
+    owns exit 2 for a bad flag and must stay untouched."""
+    try:
+        return _main(argv)
+    except Exception as err:
+        report = {"tool": TOOL_NAME, "exit_code": EXIT_ERROR,
+                  "refusals": [{"kind": "CRASH",
+                                "reason": "%s: %s"
+                                          % (type(err).__name__, err)}]}
+        try:
+            append_receipt(report)
+        except Exception:
+            pass                      # a receipt must never mask this
+        source = sys.argv[1:] if argv is None else list(argv)
+        if "--json" in source:
+            print(json.dumps(report, sort_keys=True,
+                             ensure_ascii=False))
+        else:
+            print("CRASH (%s): %s" % (type(err).__name__, err),
+                  file=sys.stderr)
+        return EXIT_ERROR
 
 
 if __name__ == "__main__":
