@@ -1276,6 +1276,28 @@ class ZipInput(IngestCase):
             self.assets_dir, ai.STAGING_DIRNAME, "Zip-Bundle-777")))
 
 
+class CrashFloor(IngestCase):
+    """Fleet crash floor: a Python traceback exits 1, which this
+    tool's contract reads as "proposed / applied". Exit 2 and a CRASH
+    receipt are what tell a wrapper the tool broke.
+    (test_unknown_flag_exits_2 below is the other half: argparse's
+    SystemExit still gets through the guard untouched.)"""
+
+    def test_uncaught_exception_is_exit_2_with_a_receipt(self):
+        with mock.patch.object(ai, "run_ingest",
+                               side_effect=RuntimeError("injected")):
+            with mock.patch("sys.stdout", io.StringIO()), \
+                    mock.patch("sys.stderr", io.StringIO()) as err:
+                code = ai.main(["--config", self.config_path,
+                                self.input_dir])
+        self.assertEqual(code, 2)
+        self.assertIn("CRASH (RuntimeError): injected", err.getvalue())
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["refusals"][0]["kind"], "CRASH")
+        self.assertEqual(receipt["exit_code"], 2)
+        self.assertFalse(os.path.exists(self.out_dir()))
+
+
 class ConfigFailClosed(IngestCase):
     def test_unknown_key_missing_file_bad_layout(self):
         with open(self.config_path, "w", encoding="utf-8") as fh:
