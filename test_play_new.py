@@ -160,6 +160,85 @@ class T02T03Candidates(PlayNewCase):
         self.assertTrue(pn.tag_matches("Mail Carrier", "mail carrier"))
 
 
+class ArtPin(PlayNewCase):
+    """D-439, the art-pin item: blind rotation is by design, but a tag
+    match hit older rows in index order first and V1/V5 shipped with a
+    heart. --art says WHICH, and fails closed on every ambiguity."""
+
+    def test_exact_asset_id_pins_it(self):
+        code, out, _ = self.run_tool("--art", "cf/mailbox.png")
+        self.assertIn(code, (0, 1))
+        chosen = {element["asset_id"]
+                  for variant in self.play()["variants"]
+                  for element in variant["elements"]}
+        self.assertEqual(chosen, {"cf/mailbox.png"})
+        self.assertIn("art pin: 'cf/mailbox.png' -> cf/mailbox.png",
+                      out)
+
+    def test_unique_substring_pins_it(self):
+        code, _, _ = self.run_tool("--art", "LAUREL")
+        self.assertIn(code, (0, 1))
+        chosen = {element["asset_id"]
+                  for variant in self.play()["variants"]
+                  for element in variant["elements"]}
+        self.assertEqual(chosen, {"cf/laurel.png"})
+
+    def test_order_is_the_flag_order_not_index_order(self):
+        code, _, _ = self.run_tool("--art", "laurel",
+                                   "--art", "mailbox")
+        self.assertIn(code, (0, 1))
+        first = self.play()["variants"][0]["elements"][0]["asset_id"]
+        self.assertEqual(first, "cf/laurel.png")   # index order is
+        pins = self.receipts()[-1]["art_pins"]      # mailbox first
+        self.assertEqual([p["value"] for p in pins],
+                         ["laurel", "mailbox"])
+        self.assertEqual([p["asset_id"] for p in pins],
+                         ["cf/laurel.png", "cf/mailbox.png"])
+
+    def test_no_match_refuses_by_name(self):
+        code, _, err = self.run_tool("--art", "no-such-thing")
+        self.assertEqual(code, 2)
+        self.assertIn("ART_NOT_FOUND", err)
+        self.assertIn("no-such-thing", err)
+        self.assertIn(TAG, err)
+        self.assertFalse(os.path.exists(self.out_path()))
+
+    def test_ambiguous_pin_lists_every_match(self):
+        code, _, err = self.run_tool("--art", "cf/")
+        self.assertEqual(code, 2)
+        self.assertIn("ART_AMBIGUOUS", err)
+        self.assertIn("cf/laurel.png", err)
+        self.assertIn("cf/mailbox.png", err)
+
+    def test_row_outside_the_tag_refuses_and_names_the_fix(self):
+        code, _, err = self.run_tool("--art", "other")
+        self.assertEqual(code, 2)
+        self.assertIn("ART_OUTSIDE_TAG", err)
+        self.assertIn("cf/other.png", err)
+        self.assertIn(TAG, err)
+        self.assertIn("tagging the row in ASSET_INDEX", err)
+
+    def test_folder_rows_are_still_not_pinnable(self):
+        code, _, err = self.run_tool("--art", "folder-pack")
+        self.assertEqual(code, 2)
+        self.assertIn("ART_NOT_FOUND", err)
+
+    def test_art_with_no_art_is_a_contradiction(self):
+        code, _, err = self.run_tool("--art", "mailbox", "--no-art")
+        self.assertEqual(code, 2)
+        self.assertIn("ART_WITH_NO_ART", err)
+        self.assertIn("--art", err)
+        self.assertIn("--no-art", err)
+
+    def test_pins_are_in_the_json_report(self):
+        code, out, _ = self.run_tool("--art", "mailbox", "--json")
+        self.assertIn(code, (0, 1))
+        payload = json.loads(out)
+        self.assertEqual(payload["art_pins"],
+                         [{"value": "mailbox",
+                           "asset_id": "cf/mailbox.png"}])
+
+
 class T04T13Register(PlayNewCase):
     def test_title_case_only_font_never_on_an_all_caps_line(self):
         code, _, _ = self.run_tool()

@@ -156,6 +156,14 @@ NICHE_TAGS_COLUMN = 3          # the D-419 7-column shape
 SIDECAR_NAME = "ASSET_INDEX.hashes.json"
 INDEX_NAME = "ASSET_INDEX.md"
 
+# --art pin match discipline (Fable D-439). Blind rotation is by
+# design, but it left Khai no way to say WHICH art: a tag match hit
+# older rows in index order first. A pin NARROWS the tag's pool — the
+# tag stays the intent — and the same sidecar / lint / file-not-folder
+# checks still apply to every pinned row.
+ART_PIN_MATCH_RULE = ("NFC -> casefold -> exact asset_id, else a "
+                      "UNIQUE case-folded substring")
+
 SIDECAR_NOTE = "sidecar: PRESENT, NOT VERIFIED"
 DRAFT_NOTE = ("DRAFT: font_pair rotated by rule, not by register — "
               "edit before render.")
@@ -439,6 +447,69 @@ def art_candidates(index_root, tag):
     return candidates
 
 
+def index_asset_ids(index_root):
+    """Every valid FILE row's asset_id, tag or no tag. Used only to
+    tell "you meant a row that exists but is not tagged" apart from
+    "you meant nothing here"."""
+    index_path = os.path.join(index_root, INDEX_NAME)
+    with open(index_path, "r", encoding="utf-8") as handle:
+        lines = handle.read().split("\n")
+    headers = ail.find_header_lines(lines)
+    found = []
+    for number, line in enumerate(lines):
+        if not line.strip().startswith("|"):
+            continue
+        if ail.is_separator_row(line) or number in headers:
+            continue
+        if ail.lint_row(line):
+            continue
+        path = ail.asset_path(line)
+        if path and not path.endswith("/"):
+            found.append(path)
+    return found
+
+
+def _pin_hits(value, asset_ids):
+    """ART_PIN_MATCH_RULE, applied. An exact hit wins outright;
+    otherwise every case-folded substring hit is returned so an
+    ambiguous pin can name them all."""
+    wanted = nfc(value).strip().casefold()
+    exact = [a for a in asset_ids if nfc(a).casefold() == wanted]
+    if exact:
+        return exact
+    return [a for a in asset_ids if wanted in nfc(a).casefold()]
+
+
+def pin_candidates(candidates, values, tag, index_root):
+    """W2 + D-439: narrow the tag's pool to the pinned rows, IN THE
+    ORDER THE FLAGS WERE GIVEN. Fails closed on every ambiguity."""
+    available = [item["asset_id"] for item in candidates]
+    by_id = {item["asset_id"]: item for item in candidates}
+    pinned, pins = [], []
+    for value in values:
+        hits = _pin_hits(value, available)
+        if len(hits) > 1:
+            raise NewPlayError(
+                "--art %r matches %d candidates (%s) — name one"
+                % (value, len(hits), ", ".join(sorted(hits))),
+                kind="ART_AMBIGUOUS")
+        if not hits:
+            outside = _pin_hits(value, index_asset_ids(index_root))
+            if outside:
+                raise NewPlayError(
+                    "--art %r matches %s in the index, but that row "
+                    "does not carry the tag %r. Fix it by tagging the "
+                    "row in ASSET_INDEX — that is the long-term fix, "
+                    "not a flag." % (value, ", ".join(sorted(outside)),
+                                     tag), kind="ART_OUTSIDE_TAG")
+            raise NewPlayError(
+                "--art %r matches no candidate for the tag %r"
+                % (value, tag), kind="ART_NOT_FOUND")
+        pinned.append(by_id[hits[0]])
+        pins.append({"value": value, "asset_id": hits[0]})
+    return pinned, pins
+
+
 # ── build ──────────────────────────────────────────────────────────────
 
 def placement_for(layout, family):
@@ -569,6 +640,8 @@ def append_receipt(report):
         "variants": report.get("variant_count", 0),
         "candidates": report.get("candidates", []),
         "sidecar": SIDECAR_NOTE,
+        "art_pins": report.get("art_pins", []),
+        "art_pin_match_rule": ART_PIN_MATCH_RULE,
         "tag_match_rule": ("NFC -> casefold -> split on commas -> "
                            "strip -> exact whole tag"),
         "axis_assignment": report.get("axis_assignment"),
@@ -595,6 +668,9 @@ def format_report(report):
     if report.get("axis_assignment"):
         lines.append("  axes assigned by: %s"
                      % report["axis_assignment"])
+    for pin in report.get("art_pins", []):
+        lines.append("  art pin: %r -> %s"
+                     % (pin["value"], pin["asset_id"]))
     for item in report.get("candidates", []):
         lines.append("  candidate: %s (index line %d)"
                      % (item["asset_id"], item["index_line"]))
@@ -617,6 +693,11 @@ def run(args, report):
         pf.preflight_fonts(config["fonts_dir"])      # W8, imported
     except pf.ForgeError as err:
         raise NewPlayError(str(err), kind="FONTS_MISSING")
+    if args.art and args.no_art:
+        raise NewPlayError(
+            "--art and --no-art contradict each other: one pins which "
+            "art to use, the other says use none",
+            kind="ART_WITH_NO_ART")
     fixed_garment = resolve_garment_argument(args.garment)
     date_text = args.date or datetime.date.today().strftime(DATE_FORMAT)
     play_slug = slug(args.punch)
@@ -641,6 +722,9 @@ def run(args, report):
                 "no ASSET_INDEX row carries the tag %r with a sidecar "
                 "entry — use --no-art to write a type-only play"
                 % args.tag, kind="NO_ART_FOR_TAG")
+        if args.art:
+            candidates, report["art_pins"] = pin_candidates(
+                candidates, args.art, args.tag, config["index_root"])
     report["candidates"] = candidates
     layouts = (ART_FREE_LAYOUTS if args.no_art
                else tuple(play_schema.LAYOUTS))
@@ -689,6 +773,12 @@ def build_parser():
                         help="niche tag to match, whole-tag exact")
     parser.add_argument("--garment", default=None,
                         help="Black | Sport Grey | both (default)")
+    parser.add_argument("--art", action="append", default=None,
+                        metavar="VALUE",
+                        help="pin WHICH art, repeatable, applied in "
+                             "the order given: " + ART_PIN_MATCH_RULE
+                             + ". Narrows the --tag pool; it never "
+                               "widens it")
     parser.add_argument("--no-art", action="store_true",
                         dest="no_art")
     parser.add_argument("--overwrite", action="store_true")
@@ -704,7 +794,8 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)          # argparse owns exit 2 here
     report = {"tool": TOOL_NAME, "written": False, "findings": [],
-              "refusals": [], "candidates": [], "variant_count": 0}
+              "refusals": [], "candidates": [], "variant_count": 0,
+              "art_pins": []}
     try:
         if FLEET_IMPORT_ERROR is not None:
             raise NewPlayError(
