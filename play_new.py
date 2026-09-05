@@ -87,6 +87,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 import unicodedata
 import uuid
@@ -163,9 +164,27 @@ NICHE_TAGS_COLUMN = 3
 # like "cartoon, grumpy/attitude dog" or "spray-paint circle badge
 # frame". A Style->kind map does not exist, so this is a KEYWORD
 # table and it fails closed: exactly one kind must match, or the kind
-# is left ABSENT and the run says so. "subject" is never inferred —
-# too broad to guess safely. "pending" matches nothing here by
-# construction, not by a special case.
+# is left ABSENT and the run says so. "pending" matches nothing here
+# by construction, not by a special case.
+#
+# Runs of LETTERS are the tokens (Fable bench, live Style column):
+# substring matching read "lettering" as ornament because "ring" sits
+# inside it. Splitting on non-letters keeps "badge/ring",
+# "sunburst-ring" and "flat/cartoon" hitting while "lettering" does
+# not.
+KIND_TOKEN_PATTERN = r"[^\W\d_]+"
+
+# Only the HEAD CLAUSE is read — the text before the first of these.
+# On the live column the head clause is where the asset itself is
+# named; everything after is detail about it. "…pyramid stack of
+# wrapped gift boxes -- …multiple ribbon/bow colors" is a gift-box
+# stack, not a ribbon (Fable bench).
+KIND_CLAUSE_DELIMITERS = (" -- ", ",")
+
+# A cell that literally SAYS a kind is not an inference, it is the
+# value. "subject" appears here for that reason ONLY: it is the
+# literal, and no other keyword maps to it — "subject" is too broad
+# to ever guess from surrounding prose.
 KIND_KEYWORDS = (
     ("character", "cartoon"),
     ("character", "mascot"),
@@ -180,6 +199,8 @@ KIND_KEYWORDS = (
     ("ornament", "sparkle"),
     ("ornament", "seal"),
     ("ornament", "emblem"),
+    ("ornament", "ornament"),
+    ("subject", "subject"),
 )
 KIND_UNKNOWN_NOTE = ("eyes gate will not run for this element; add a "
                      "keyword to KIND_KEYWORDS or set kind by hand "
@@ -446,11 +467,14 @@ def tag_matches(cell, wanted):
 
 def infer_kind(style_cell):
     """(kind, keyword) when EXACTLY one kind matches, else
-    (None, reason). NFC -> casefold -> substring, same discipline as
-    the tag and pin rules."""
+    (None, reason). NFC -> casefold -> head clause -> letter tokens ->
+    EXACT on a whole token. Never a substring."""
     text = nfc(style_cell).casefold()
+    for delimiter in KIND_CLAUSE_DELIMITERS:
+        text = text.split(delimiter, 1)[0]
+    tokens = set(re.findall(KIND_TOKEN_PATTERN, text))
     hits = [(kind, keyword) for kind, keyword in KIND_KEYWORDS
-            if keyword in text]
+            if keyword in tokens]
     kinds = sorted({kind for kind, _ in hits})
     if len(kinds) == 1:
         return hits[0][0], hits[0][1]

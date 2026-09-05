@@ -305,13 +305,50 @@ class ElementKind(PlayNewCase):
         self.assertEqual(candidate["style"],
                          "cartoon, grumpy/attitude dog")
 
-    def test_infer_kind_is_nfc_casefold_substring(self):
+    def test_infer_kind_is_nfc_casefold_whole_word(self):
         self.assertEqual(pn.infer_kind("CARTOON"),
                          ("character", "cartoon"))
         self.assertEqual(pn.infer_kind("retro sunset badge/ring")[0],
                          "ornament")
         self.assertIsNone(pn.infer_kind("tonal")[0])
         self.assertIsNone(pn.infer_kind("")[0])
+
+    def test_keywords_match_whole_words_not_substrings(self):
+        """Fable bench, live Style column: "chrome/metal lettering"
+        came back ornament because "ring" sits inside "lettering".
+        Tokens are runs of letters, so the separators the live column
+        actually uses still split."""
+        self.assertIsNone(
+            pn.infer_kind("chrome/metal lettering, full A-Z")[0])
+        self.assertIsNone(pn.infer_kind("lettering")[0])
+        self.assertEqual(pn.infer_kind("badge/ring")[0], "ornament")
+        self.assertEqual(pn.infer_kind("sunburst-ring")[0], "ornament")
+        self.assertEqual(pn.infer_kind("flat/cartoon")[0], "character")
+
+    def test_only_the_head_clause_is_read(self):
+        """Fable bench: a gift-box stack read as ornament because
+        "ribbon" appeared in the trailing detail. The head clause is
+        where the live column names the asset itself."""
+        boxes = ("tonal, richly painted/patterned pyramid stack of "
+                 "wrapped gift boxes -- stripes, polka dots, multiple "
+                 "ribbon/bow colors")
+        self.assertIsNone(pn.infer_kind(boxes)[0])
+        self.assertIsNone(
+            pn.infer_kind("wrapped gift boxes -- ribbon colors")[0])
+        self.assertIsNone(
+            pn.infer_kind("wrapped gift boxes, ribbon colors")[0])
+        self.assertEqual(
+            pn.infer_kind("vintage circular seal/emblem, sunburst-ring "
+                          "detail")[0], "ornament")
+        self.assertEqual(pn.KIND_CLAUSE_DELIMITERS, (" -- ", ","))
+
+    def test_literal_kind_names_are_the_value_not_an_inference(self):
+        """A Style cell that literally says a kind IS the kind. And
+        "subject" is a literal only — no other keyword may reach it."""
+        for literal in play_schema.ELEMENT_KINDS:
+            self.assertEqual(pn.infer_kind(literal), (literal, literal))
+        self.assertEqual([keyword for kind, keyword in pn.KIND_KEYWORDS
+                          if kind == "subject"], ["subject"])
 
     def test_one_finding_per_asset_not_per_element(self):
         self.write_index((("cf/blob.png", TAG, "flat"),))
