@@ -16,6 +16,7 @@ import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest import mock
 
 from PIL import Image
 
@@ -654,6 +655,32 @@ class TestLossyInputAdvisory(Fixture):
 
 
 # ── Windows console-encoding fix (STATE.md D-378) ───────────────────────
+
+class TestCrashFloor(Fixture):
+    """Fleet crash floor: a Python traceback exits 1, which this tool's
+    contract reads as FAIL — a real verdict on a real image. Exit 2 is
+    what tells a wrapper the tool broke instead."""
+
+    def test_uncaught_exception_is_exit_2_and_names_the_type(self):
+        path = self.touching_pair(FOREST, CHOCOLATE)
+        with mock.patch.object(tc, "run_gate",
+                               side_effect=RuntimeError("injected")):
+            code, out, err = run([path, "black"])
+        self.assertEqual(code, ERROR)
+        self.assertIn("CRASH (RuntimeError): injected", err)
+        self.assertEqual(out, "")
+
+    def test_crash_json_parity(self):
+        path = self.touching_pair(FOREST, CHOCOLATE)
+        with mock.patch.object(tc, "run_gate",
+                               side_effect=RuntimeError("injected")):
+            code, out, _ = run([path, "black", "--json"])
+        self.assertEqual(code, ERROR)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "CRASH")
+        self.assertEqual(payload["exit_code"], ERROR)
+        self.assertIn("RuntimeError: injected", payload["error"])
+
 
 class TestConsoleEncoding(Fixture):
     """thumb_check.py crashed with UnicodeEncodeError on a real Windows
