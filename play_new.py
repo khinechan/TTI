@@ -485,8 +485,15 @@ def infer_kind(style_cell):
 
 
 def art_candidates(index_root, tag):
-    """Rows that carry the tag, have a sidecar entry, pass the row
-    lint, and name a FILE. In INDEX ORDER."""
+    """(candidates, duplicates). Rows that carry the tag, have a
+    sidecar entry, pass the row lint, and name a FILE. In INDEX ORDER.
+
+    ONE CANDIDATE PER ASSET, not per row (Fable bench): two tagged
+    rows for one path made rotation place a single asset as if it
+    were two, and made a pin read as ambiguous against itself. The
+    first row in index order wins; every later row for the same
+    asset_id comes back as a duplicate, named with both line numbers.
+    """
     index_path = os.path.join(index_root, INDEX_NAME)
     if not os.path.isfile(index_path):
         raise NewPlayError("no %s in %s" % (INDEX_NAME, index_root),
@@ -495,7 +502,7 @@ def art_candidates(index_root, tag):
         lines = handle.read().split("\n")
     entries = load_sidecar(index_root)
     headers = ail.find_header_lines(lines)
-    candidates = []
+    candidates, duplicates, kept_line = [], [], {}
     for number, line in enumerate(lines):
         if not line.strip().startswith("|"):
             continue
@@ -512,6 +519,12 @@ def art_candidates(index_root, tag):
         entry = entries.get(path)
         if not entry or not entry.get("sha256"):
             continue
+        if path in kept_line:
+            duplicates.append({"asset_id": path,
+                               "kept_line": kept_line[path],
+                               "skipped_line": number + 1})
+            continue
+        kept_line[path] = number + 1
         style = cells[STYLE_COLUMN]
         kind, why = infer_kind(style)
         candidates.append({"asset_id": path,
@@ -521,7 +534,7 @@ def art_candidates(index_root, tag):
                            "kind": kind,
                            "kind_keyword": why if kind else None,
                            "kind_reason": None if kind else why})
-    return candidates
+    return candidates, duplicates
 
 
 def index_asset_ids(index_root):
@@ -803,7 +816,16 @@ def run(args, report):
             kind="OUT_FILE_EXISTS")
     candidates = []
     if not args.no_art:
-        candidates = art_candidates(config["index_root"], args.tag)
+        candidates, duplicates = art_candidates(config["index_root"],
+                                                args.tag)
+        for row in duplicates:
+            report["findings"].append(
+                "DUPLICATE_INDEX_ROW: %s is on index lines %d and %d "
+                "for the tag %r — line %d used, line %d ignored. One "
+                "row per asset; fix it in ASSET_INDEX."
+                % (row["asset_id"], row["kept_line"],
+                   row["skipped_line"], args.tag, row["kept_line"],
+                   row["skipped_line"]))
         if not candidates:
             raise NewPlayError(
                 "no ASSET_INDEX row carries the tag %r with a sidecar "

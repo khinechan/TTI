@@ -233,6 +233,40 @@ class ArtPin(PlayNewCase):
         self.assertIn("'mailbox'", err)
         self.assertFalse(os.path.exists(self.out_path()))
 
+    def test_two_tagged_rows_for_one_asset_are_one_candidate(self):
+        """Fable bench, upstream of the message repeat: art_candidates
+        emitted one candidate per ROW, so a doubled index row let
+        rotation place one asset as if it were two. First row in index
+        order wins; the skipped row is a finding naming both lines."""
+        self.write_index((("cf/mailbox.png", TAG),
+                          ("cf/laurel.png", TAG),
+                          ("cf/mailbox.png", TAG)))
+        code, out, _ = self.run_tool()
+        self.assertEqual(code, 1)
+        report = self.receipts()[-1]
+        ids = [item["asset_id"] for item in report["candidates"]]
+        self.assertEqual(ids, ["cf/mailbox.png", "cf/laurel.png"])
+        finding = [f for f in report["findings"]
+                   if f.startswith("DUPLICATE_INDEX_ROW")]
+        self.assertEqual(len(finding), 1)
+        self.assertIn("cf/mailbox.png", finding[0])
+        self.assertIn("lines 3 and 5", finding[0])
+        self.assertIn("DUPLICATE_INDEX_ROW", out)
+        self.assertTrue(os.path.exists(self.out_path()))
+
+    def test_a_doubled_row_no_longer_reads_as_ambiguous(self):
+        """The AMBIGUOUS repeat was the symptom. With one candidate
+        per asset the pin resolves instead of refusing."""
+        self.write_index((("cf/mailbox.png", TAG),
+                          ("cf/mailbox.png", TAG)))
+        code, _, err = self.run_tool("--art", "mailbox")
+        self.assertIn(code, (0, 1))
+        self.assertNotIn("ART_AMBIGUOUS", err)
+        chosen = {element["asset_id"]
+                  for variant in self.play()["variants"]
+                  for element in variant["elements"]}
+        self.assertEqual(chosen, {"cf/mailbox.png"})
+
     def test_outside_tag_names_each_asset_once(self):
         """Fable bench cosmetic: two index rows for one path made the
         message read "matches cf/other.png, cf/other.png"."""
