@@ -11,6 +11,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest import mock
 from itertools import combinations
 
 import color_check as cc
@@ -585,6 +586,30 @@ class TestInputDoctrine(BaseCase):
 
 
 # ── 23: Windows console-encoding fix (STATE.md D-378) ──────────────────
+
+class TestCrashFloor(BaseCase):
+    """Fleet crash floor: a Python traceback exits 1, which this tool's
+    contract reads as FAIL — a real verdict on a real design. Exit 2 is
+    what tells a wrapper the tool broke instead."""
+
+    def test_uncaught_exception_is_exit_2_and_names_the_type(self):
+        with mock.patch.object(cc, "run_check",
+                               side_effect=RuntimeError("injected")):
+            code, out, err = run(["black", "#FFFFFF"])
+        self.assertEqual(code, cc.EXIT_ERROR)
+        self.assertIn("CRASH (RuntimeError): injected", err)
+        self.assertEqual(out, "")
+
+    def test_crash_json_parity(self):
+        with mock.patch.object(cc, "run_check",
+                               side_effect=RuntimeError("injected")):
+            code, out, _ = run(["black", "#FFFFFF", "--json"])
+        self.assertEqual(code, cc.EXIT_ERROR)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "CRASH")
+        self.assertEqual(payload["exit_code"], cc.EXIT_ERROR)
+        self.assertIn("RuntimeError: injected", payload["error"])
+
 
 class TestConsoleEncoding(BaseCase):
     """color_check.py crashed with UnicodeEncodeError on a real Windows
