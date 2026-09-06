@@ -126,6 +126,15 @@ LUMINANCE_COEFFS = {
     "rec601": (0.299, 0.587, 0.114),
 }
 
+# LUMINANCE IS 0..1 IN THE RECIPE. Every document in this system — the
+# B5 spec, PM's review, Fable's bench script — writes "lum < 0.35", and
+# the first build range-checked 0..255 instead. On the real run
+# lum_max 0.35 passed every check, matched only pure black, produced an
+# EMPTY beanie layer, and the run went GREEN by coincidence. Wrong and
+# passing is the worst class of bug this repo has. The scale is applied
+# ONCE, inside luminance_band, and nowhere else.
+LUMINANCE_SCALE = 255.0
+
 # The CLOSED op registry: op name -> its required parameter names.
 # An op not here, or a parameter not listed, refuses.
 OP_PARAMS = {
@@ -141,6 +150,15 @@ OP_OPTIONAL_PARAMS = {
     "outline_thicken": (),
 }
 THICKEN_MODES = ("percent", "px")
+
+# outline_thicken grows the alpha by a SQUARE (Chebyshev) radius, which
+# is what MaxFilter(2r+1) does — but MaxFilter is O(k^2) and the real
+# beanie piece needed r=118: Fable measured MaxFilter(11) at 2.7s and
+# MaxFilter(41) at 22.2s on it, so r=118 is about twelve minutes for
+# one layer. A square max IS separable, so this dilates by doubling
+# steps instead: ~log2(r) rounds of shift-and-lighten per axis. See
+# dilate_alpha for the measured equivalence.
+DILATE_START_STEP = 1
 
 # W9. Resample filters, by name — pinned by the recipe, never chosen
 # here. Measured halo at a>0 vs a>=128 (50 -> 400px, Fable's bench):
@@ -171,7 +189,7 @@ GAP_KEYS = ("rel_to_own_height", "from", "edge")
 
 ALPHA_MIN, ALPHA_MAX = 0, 255
 COMPRESS_MIN, COMPRESS_MAX = 0, 9
-LUM_MIN, LUM_MAX = 0.0, 255.0
+LUM_MIN, LUM_MAX = 0.0, 1.0
 
 # The one honest sentence about what a green run proves. Quoted by
 # --explain and by the human report, verbatim.
@@ -418,6 +436,13 @@ def validate_ops(ops, where):
             low = (LUM_MIN if name == "ink_layer"
                    else _number(op["lum_min"], spot + ".lum_min"))
             high = _number(op["lum_max"], spot + ".lum_max")
+            for value, label in ((low, "lum_min"), (high, "lum_max")):
+                if not LUM_MIN <= value <= LUM_MAX:
+                    raise ComposeError(
+                        "%s.%s is %g; luminance is 0..1 in a recipe, "
+                        "not 0..255 — a 0..255 value here would match "
+                        "everything or nothing and still look green"
+                        % (spot, label, value), kind="RECIPE_RANGE")
             if low > high:
                 raise ComposeError("%s has lum_min above lum_max"
                                    % spot, kind="RECIPE_RANGE")
@@ -628,11 +653,16 @@ def luminance_band(image, coeffs, low, high):
     """The alpha of the pixels whose luminance falls in [low, high],
     MASKED TO a>0 FIRST. A transparent black pixel is not ink: without
     the mask every fully-transparent pixel reads luminance 0 and the
-    whole canvas becomes the ink layer."""
+    whole canvas becomes the ink layer.
+
+    low and high arrive on the RECIPE's 0..1 scale and are scaled to
+    the L-mode 0..255 band HERE, once. This is the only place the two
+    scales meet."""
     red, green, blue, alpha = image.split()
     visible = alpha.point(lambda v: 255 if v else 0)
     lum = Image.merge("RGB", (red, green, blue)).convert(
         "L", (coeffs[0], coeffs[1], coeffs[2], 0))
+    low, high = low * LUMINANCE_SCALE, high * LUMINANCE_SCALE
     band = lum.point(lambda v: 255 if low <= v <= high else 0)
     return ImageChops.darker(ImageChops.darker(band, visible), alpha)
 
@@ -656,14 +686,38 @@ def apply_op(image, op):
             grow = int(round(width * float(op["amount"]) / 100.0))
         else:
             grow = int(round(float(op["amount"])))
-        size = max(1, grow * 2 + 1)
-        if size % 2 == 0:
-            size += 1
-        thick = alpha.filter(ImageFilter.MaxFilter(size))
         out = image.copy()
-        out.putalpha(thick)
+        out.putalpha(dilate_alpha(alpha, max(0, grow)))
         return out
     raise ComposeError("unknown op %r" % name, kind="UNKNOWN_OP")
+
+
+def dilate_alpha(alpha, radius):
+    """Grow an alpha channel by a square radius. EXACTLY equal to
+    ImageFilter.MaxFilter(2*radius+1) — byte-for-byte on the grey
+    channel, not merely footprint-equal — because a square max is
+    separable and max is idempotent: a window of radius c, maxed with
+    itself shifted by s, is a window of radius c+s.
+
+    MEASURED on a 1200px fixture with 3px strokes and one lone pixel
+    (r=20): MaxFilter(41) 2.79s · this 0.124s, 0 differing pixels.
+    BoxBlur(20)-then-threshold, which the bench suggested, ran in
+    0.008s but lost 2433 pixels and moved the bbox by 1px on two edges
+    — a single opaque pixel averaged over a 41x41 box rounds to 0 in
+    uint8, so thin art loses ends. Exact and fast beat faster and
+    approximate, so this is the choice."""
+    if radius <= 0:
+        return alpha.copy()
+    out = alpha
+    covered = 0
+    step = DILATE_START_STEP
+    while covered < radius:
+        span = min(step, radius - covered)
+        for delta in ((span, 0), (-span, 0), (0, span), (0, -span)):
+            out = ImageChops.lighter(out, ImageChops.offset(out, *delta))
+        covered += span
+        step *= 2
+    return out
 
 
 def op_record(op):
@@ -719,6 +773,14 @@ def compose(recipe, sources, report):
         image = sources[layer["id"]]["image"]
         for op in layer["ops"]:
             image = apply_op(image, op)
+        if image.split()[3].getbbox() is None:
+            raise ComposeError(
+                "layer %r is EMPTY after its ops (%s) — a layer that "
+                "contributes nothing is never what a recipe meant, and "
+                "it is exactly how a wrong threshold produces a green "
+                "run" % (layer["id"],
+                         " -> ".join(op["op"] for op in layer["ops"])),
+                kind="EMPTY_LAYER")
         placement = layer["placement"]
         scale = placement["scale"]
         if scale["mode"] == "px":
@@ -1020,6 +1082,24 @@ def render_explain():
         "those same bytes. The output carries alpha only — colour is a "
         "render-time",
         "decision that belongs to play_forge.",
+        "",
+        "LUMINANCE IS 0..1 in a recipe, never 0..255. It is scaled to "
+        "the image's",
+        "0..255 band in one place inside the tool. A layer that comes "
+        "out EMPTY after",
+        "its ops refuses EMPTY_LAYER rather than quietly contributing "
+        "nothing.",
+        "",
+        "outline_thicken grows by a square radius, dilating in "
+        "doubling steps — the",
+        "same result as a max filter, without the O(k^2) cost that made "
+        "a real 3%",
+        "thicken take twelve minutes.",
+        "",
+        "The row and the sidecar carry product_id \"COMPOSED\", a "
+        "WORD not a number:",
+        "a composed piece descends from several products and has no "
+        "single one.",
         "",
         "Exit 0 clean · 1 findings (the stroke floor) · 2 refusal or "
         "tool error.",

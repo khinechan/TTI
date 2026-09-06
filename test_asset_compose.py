@@ -289,11 +289,13 @@ class RecipeDiscipline(ComposeCase):
         self.assertIn("UNKNOWN_OP", err)
 
     def test_overlapping_luminance_ranges_are_refused(self):
+        """RULE CHANGED 2026-09-06 (Fable): luminance is 0..1 in a
+        recipe. These were 120 / 100..200 on the old 0..255 scale."""
         data = self.recipe()
         data["layers"][0]["ops"] = [
-            {"op": "ink_layer", "luminance": "rec709", "lum_max": 120},
-            {"op": "mid_layer", "luminance": "rec709", "lum_min": 100,
-             "lum_max": 200}]
+            {"op": "ink_layer", "luminance": "rec709", "lum_max": 0.47},
+            {"op": "mid_layer", "luminance": "rec709", "lum_min": 0.39,
+             "lum_max": 0.78}]
         code, _, err = self.run_tool(self.write_recipe(data))
         self.assertEqual(code, ERROR)
         self.assertIn("RANGE_OVERLAP", err)
@@ -301,9 +303,9 @@ class RecipeDiscipline(ComposeCase):
     def test_allow_overlap_makes_it_deliberate(self):
         data = self.recipe()
         data["layers"][0]["ops"] = [
-            {"op": "ink_layer", "luminance": "rec709", "lum_max": 120},
-            {"op": "mid_layer", "luminance": "rec709", "lum_min": 100,
-             "lum_max": 200, "allow_overlap": True}]
+            {"op": "ink_layer", "luminance": "rec709", "lum_max": 0.47},
+            {"op": "mid_layer", "luminance": "rec709", "lum_min": 0.39,
+             "lum_max": 0.78, "allow_overlap": True}]
         data["output"]["expect_components"] = 2
         self.assertIn(self.run_tool(self.write_recipe(data))[0],
                       (CLEAN, FINDINGS, ERROR))   # not RANGE_OVERLAP
@@ -428,11 +430,13 @@ class Ops(ComposeCase):
         image = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
         image.paste((10, 10, 10, 255), (2, 2, 5, 5))
         alpha = ac.luminance_band(
-            image, ac.LUMINANCE_COEFFS["rec709"], 0.0, 120.0)
+            image, ac.LUMINANCE_COEFFS["rec709"], 0.0, 0.47)
         self.assertEqual(alpha.getbbox(), (2, 2, 5, 5))
         image.close()
 
     def test_outline_thicken_grows_the_alpha(self):
+        """Same footprint the MaxFilter gave: grow 3 px on every side.
+        """
         image = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
         image.paste((0, 0, 0, 255), (40, 40, 60, 60))
         before = image.split()[3].getbbox()
@@ -443,6 +447,92 @@ class Ops(ComposeCase):
         self.assertEqual(after, (37, 37, 63, 63))
         image.close()
         grown.close()
+
+
+class LuminanceScale(ComposeCase):
+    """Fable bench, the one that mattered. Every document in this
+    system writes "lum < 0.35"; the first build range-checked 0..255,
+    so 0.35 passed, matched only pure black, emptied the beanie layer
+    and went GREEN with the beard's own two parts. Wrong AND passing."""
+
+    def test_a_0_to_255_value_is_refused_by_range(self):
+        data = self.recipe()
+        data["layers"][0]["ops"] = [
+            {"op": "ink_layer", "luminance": "rec709", "lum_max": 89}]
+        code, _, err = self.run_tool(self.write_recipe(data))
+        self.assertEqual(code, ERROR)
+        self.assertIn("RECIPE_RANGE", err)
+        self.assertIn("0..1", err)
+
+    def test_the_scale_is_applied_once_inside_the_band(self):
+        """0.35 must mean 35% of full luminance, not 'darker than
+        0.35/255'. The beanie grey here is 200 -> 0.784."""
+        image = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+        image.paste((200, 200, 200, 255), (2, 2, 6, 6))
+        dark = ac.luminance_band(image, ac.LUMINANCE_COEFFS["rec709"],
+                                 0.0, 0.35)
+        light = ac.luminance_band(image, ac.LUMINANCE_COEFFS["rec709"],
+                                  0.35, 1.0)
+        self.assertIsNone(dark.getbbox())
+        self.assertEqual(light.getbbox(), (2, 2, 6, 6))
+        image.close()
+        self.assertEqual(ac.LUM_MAX, 1.0)
+        self.assertEqual(ac.LUMINANCE_SCALE, 255.0)
+
+
+class EmptyLayer(ComposeCase):
+    def test_a_layer_that_matches_nothing_refuses(self):
+        """The green-by-coincidence run, as a mechanism. The beard is
+        grey 20 (lum 0.078); nothing is darker than 0.01."""
+        data = self.recipe()
+        data["layers"][0]["ops"] = [
+            {"op": "ink_layer", "luminance": "rec709", "lum_max": 0.01}]
+        code, _, err = self.run_tool(self.write_recipe(data))
+        self.assertEqual(code, ERROR)
+        self.assertIn("EMPTY_LAYER", err)
+        self.assertIn("beard", err)
+        self.assertIn("ink_layer", err)
+
+    def test_the_op_chain_is_named_in_the_refusal(self):
+        data = self.recipe()
+        data["layers"][1]["ops"] = [
+            {"op": "solid"},
+            {"op": "ink_layer", "luminance": "rec601", "lum_max": 0.0}]
+        code, _, err = self.run_tool(self.write_recipe(data))
+        self.assertEqual(code, ERROR)
+        self.assertIn("EMPTY_LAYER", err)
+        self.assertIn("solid -> ink_layer", err)
+
+
+class ThickenKernel(ComposeCase):
+    def test_dilate_is_byte_identical_to_max_filter(self):
+        """W-perf. A square max is separable, so this dilates in
+        doubling steps instead of running an O(k^2) MaxFilter. Equality
+        asserted on the GREY channel, not just the footprint."""
+        from PIL import ImageChops, ImageFilter
+        alpha = Image.new("L", (300, 300), 0)
+        for x in range(20, 280, 47):
+            alpha.paste(255, (x, 40, x + 3, 260))
+        alpha.paste(255, (150, 150, 151, 151))      # one lone pixel
+        alpha.paste(128, (60, 60, 90, 90))          # a soft patch
+        for radius in (0, 1, 3, 8, 20):
+            mine = ac.dilate_alpha(alpha, radius)
+            theirs = alpha.filter(
+                ImageFilter.MaxFilter(2 * radius + 1)) if radius \
+                else alpha
+            diff = ImageChops.difference(mine, theirs)
+            self.assertEqual(sum(diff.histogram()[1:]), 0,
+                             "radius %d differs" % radius)
+        alpha.close()
+
+    def test_a_lone_pixel_survives_the_grow(self):
+        """The exact case a box-blur-then-threshold loses: one opaque
+        pixel averaged over a 41x41 box rounds to 0 in uint8."""
+        alpha = Image.new("L", (100, 100), 0)
+        alpha.paste(255, (50, 50, 51, 51))
+        grown = ac.dilate_alpha(alpha, 20)
+        self.assertEqual(grown.getbbox(), (30, 30, 71, 71))
+        alpha.close()
 
 
 class EdgesAndMeasurement(ComposeCase):
