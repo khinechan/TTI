@@ -17,6 +17,7 @@ import stat
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest import mock
 
 import vault_lint as vl
 import vault_repair as vr
@@ -598,6 +599,50 @@ class TestSourceDiscipline(Fixture):
 
 
 # ── Windows console-encoding fix (STATE.md D-378 class) ────────────────
+
+class TestCrashFloor(Fixture):
+    """Fleet crash floor: a Python traceback exits 1, which this tool's
+    contract reads as "proposed / applied". Exit 2 is what tells a
+    wrapper the tool broke instead. The CRASH receipt obeys the v1.0
+    wall — dry-run writes nothing, ever."""
+
+    def test_dry_run_crash_is_exit_2_and_writes_nothing(self):
+        path = self.standard()
+        before, listing = sha(path), sorted(os.listdir(self.dir))
+        with mock.patch.object(vr, "read_strict",
+                               side_effect=RuntimeError("injected")):
+            code, out, err = run([path])
+        self.assertEqual(code, ERROR)
+        self.assertIn("CRASH (RuntimeError): injected", err)
+        self.assertEqual(sha(path), before)
+        self.assertEqual(sorted(os.listdir(self.dir)), listing)
+        self.assertNotIn(vr.RECEIPTS_NAME, listing)
+
+    def test_close_only_crash_leaves_a_crash_receipt(self):
+        path = self.standard()
+        with mock.patch.object(vr, "run_close_only",
+                               side_effect=RuntimeError("injected")):
+            code, out, err = run([path, "--close-only"])
+        self.assertEqual(code, ERROR)
+        self.assertIn("CRASH (RuntimeError): injected", err)
+        receipts = os.path.join(self.dir, vr.RECEIPTS_NAME)
+        with open(receipts, encoding="utf-8") as handle:
+            lines = [json.loads(line) for line in handle if line.strip()]
+        self.assertEqual(lines[-1]["kind"], "CRASH")
+        self.assertEqual(lines[-1]["exit_code"], ERROR)
+        self.assertIn("RuntimeError: injected", lines[-1]["reason"])
+
+    def test_crash_json_parity_reports_receipt_written(self):
+        path = self.standard()
+        with mock.patch.object(vr, "read_strict",
+                               side_effect=RuntimeError("injected")):
+            code, out, _ = run([path, "--json"])
+        self.assertEqual(code, ERROR)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "CRASH")
+        self.assertEqual(payload["exit_code"], ERROR)
+        self.assertFalse(payload["receipt_written"])
+
 
 class TestConsoleEncoding(Fixture):
     """vault_repair.py carries the identical UnicodeEncodeError risk

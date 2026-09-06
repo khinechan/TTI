@@ -911,7 +911,7 @@ def _ensure_utf8_console():
                 pass
 
 
-def main(argv=None):
+def _main(argv=None):
     _ensure_utf8_console()
     parser = build_parser()
     if argv is None:
@@ -1057,6 +1057,68 @@ def main(argv=None):
                              sort_keys=True))
         else:
             sys.stderr.write("ERROR: %s\n" % exc)
+        return EXIT_ERROR
+
+
+def _crash_receipt_path(argv):
+    """The receipts path for a WRITE run, or None. This tool's ledger
+    lives next to the target file and only a successful apply has ever
+    written it: "dry-run writes nothing, ever" is a v1.0 wall, and a
+    crash is not permission to breach it. A dry run therefore gets the
+    CRASH line and NO receipt, and --json says which."""
+    source = sys.argv[1:] if argv is None else list(argv)
+    try:
+        args = build_parser().parse_args(source)
+    except SystemExit:
+        return None
+    if not (args.apply or args.close_only) or not args.path:
+        return None
+    return os.path.join(os.path.dirname(os.path.abspath(args.path)),
+                        RECEIPTS_NAME)
+
+
+def main(argv=None):
+    """CRASH FLOOR. A bare traceback exits 1, and this tool's contract
+    reads 1 as "proposed / applied" — so without this guard a crash and
+    a real repair are the same integer to gate_run and to any wrapper.
+    SystemExit and KeyboardInterrupt are NOT caught: argparse owns exit
+    2 for a bad flag and must stay untouched.
+
+    receipt_written is the OUTCOME, flipped only after the write
+    returns — having somewhere to write is not the same as having
+    written there."""
+    try:
+        return _main(argv)
+    except Exception as err:
+        reason = "%s: %s" % (type(err).__name__, err)
+        receipts_path = _crash_receipt_path(argv)
+        written = False
+        if receipts_path is not None:
+            try:
+                with open(receipts_path, "a", encoding="utf-8",
+                          newline="") as handle:
+                    handle.write(json.dumps(
+                        {"run_id": uuid.uuid4().hex,
+                         "written_utc": datetime.now(
+                             timezone.utc).isoformat(timespec="seconds"),
+                         "kind": "CRASH",
+                         "reason": reason,
+                         "class_version": CLOSE_ONLY_CLASS_VERSION,
+                         "exit_code": EXIT_ERROR},
+                        sort_keys=True, separators=(",", ":")) + "\n")
+                written = True
+            except Exception:
+                pass              # a receipt must never mask this
+        source = sys.argv[1:] if argv is None else list(argv)
+        if "--json" in source:
+            print(json.dumps({"verdict": "CRASH",
+                              "exit_code": EXIT_ERROR,
+                              "receipt_written": written,
+                              "error": reason},
+                             indent=2, sort_keys=True))
+        else:
+            sys.stderr.write("CRASH (%s): %s\n"
+                             % (type(err).__name__, err))
         return EXIT_ERROR
 
 
