@@ -205,7 +205,8 @@ class TestOriginal(Fixture):
         path = self.standard()
         run([path, "--apply"], keys=["y"])
         scan = vl.scan_file(path)
-        det = vl.detect(open(path, encoding="utf-8").readlines())
+        with open(path, encoding="utf-8") as fh:
+            det = vl.detect(fh.readlines())
         self.assertEqual([f for f in det["findings"]
                           if f["check"] == "broken"], [])
 
