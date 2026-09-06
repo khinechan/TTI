@@ -143,6 +143,8 @@ Any file you cannot classify is TIER 0 until Khai says otherwise.
 | PLAN_asset_ingest.md | The pre-build plan for MC FLEET B3 (survives compaction). | 2 |
 | gate_run.py | The gate runner: subprocess-only fleet orchestrator, exit codes 0/1/2/3/4 (court exception R5), receipts ledger + report file, receipt on every run incl. PASS. Never imports a tool, never parses output. THE ONE FLEET TOOL WITH NO CRASH FLOOR, deliberately: R5 already gives it exit 3 for a runner internal error, which is the same guarantee. | 1 |
 | test_gate_run.py | 30 tests (T1-T29 incl. env-requirement + missing-STATE.md-config CANT_START): pipe-bug lock, HUNG/grandchild, write-surface snapshot diff, partial-never-pass. | 1 |
+| pack_check.py | THE PACK GATE (2026-09-06): did play_forge actually render these PNGs? Hashes every .png DIRECTLY inside a folder (never a recursive walk) and looks the sha256 up in play_forge's receipts ledger — RENDER_VERIFIED names the play and the time; NOT_A_FORGE_RENDER names the file. Exit 0 all verified · 1 findings · 2 folder missing / no ledger / unreadable ledger / no PNGs at all (an empty pack is an input error, never a clean pass). READ-ONLY like vault_lint: writes nothing, not even its own receipt — no --fix, ever, proven by an AST scan not a grep. Ledger name and location IMPORTED from play_forge, never restated. Stdlib for its own imports; Pillow arrives transitively via play_forge and a missing one refuses DEP_MISSING (play_new's shape). Crash floor. | 1 |
+| test_pack_check.py | 25 tests: verified pack, one changed byte is NOT_A_FORGE_RENDER, stranger PNG, fail-closed on all four exit-2 inputs, subfolders not walked, read-only sweep (whole temp tree hashed before and after) + an AST scan for write calls, --json parity against the same report dict, determinism, crash floor, DEP_MISSING, and EndToEnd — a REAL play_forge run checked by the real gate, so a receipt-shape change fails here and not in the vault. unittest-style (pytest specced but absent — flagged deviation). | 1 |
 | .gitignore | Ignores Python bytecode, config/identity.json, every tool's REAL config (vault_backup / asset_ingest / play_forge — only the .example files travel) and every machine-generated write surface (gate_receipts.jsonl, reports/, vault_lint_baseline.json, and the vault_repair / asset_ingest / play_forge / play_new receipts). Protects W2/W3 — treat as TIER 0. | 0 |
 | CLAUDE.md | This contract. | 2 |
 
@@ -153,8 +155,8 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-06: **441 tests, all green**
-(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest test_play_forge test_play_new`).
+Full suite baseline 2026-09-06: **471 tests, all green**
+(`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest test_play_forge test_play_new test_pack_check`).
 (test_play_forge renders at the real 4500×5400 — the full suite takes
 a few minutes now; that is the cost of W5, not a bug.)
 
