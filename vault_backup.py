@@ -835,25 +835,30 @@ def main(argv=None):
     in the destination folder, so a crash before the config loads —
     or one aimed at a folder this tool has never written to — prints
     the CRASH line and exits 2 with NO receipt. An honest "no
-    destination yet" beats a receipt that silently is not written."""
+    destination yet" beats a receipt that silently is not written.
+    receipt_written is the OUTCOME, flipped only after the append
+    returns: having a destination is not the same as having written
+    there, and the flag must never claim the append it did not get."""
     try:
         return _main(argv)
     except Exception as err:
         reason = "%s: %s" % (type(err).__name__, err)
         destination = _crash_receipt_dir(argv)
+        written = False
         if destination is not None:
             try:
                 append_receipt(destination, {"tool": TOOL_NAME,
                                              "kind": "CRASH",
                                              "reason": reason,
                                              "exit_code": EXIT_ERROR})
+                written = True        # only AFTER it returned (Fable)
             except Exception:
                 pass                  # a receipt must never mask this
         source = sys.argv[1:] if argv is None else list(argv)
         if "--json" in source:
             print(json.dumps({"tool": TOOL_NAME, "kind": "CRASH",
                               "reason": reason,
-                              "receipt_written": destination is not None,
+                              "receipt_written": written,
                               "exit_code": EXIT_ERROR},
                              sort_keys=True, ensure_ascii=False))
         else:

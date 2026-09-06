@@ -534,6 +534,27 @@ class CrashFloor(BackupCase):
         self.assertIn("CRASH (RuntimeError): injected", err.getvalue())
         self.assertEqual(self.receipts(), [])
 
+    def test_receipt_written_is_the_outcome_not_the_intent(self):
+        """Fable bench: with an owned destination the flag said true
+        even when the append itself failed — the inner except swallowed
+        it. A receipts path that is a DIRECTORY makes append_receipt
+        raise; receipt_written must say false."""
+        self.put("a.txt")
+        self.assertIn(self.run_tool("--apply"), (0, 1))
+        receipts_path = os.path.join(self.dest, vb.RECEIPTS_NAME)
+        os.remove(receipts_path)
+        os.makedirs(receipts_path)
+        before = sorted(os.listdir(self.dest))
+        with mock.patch.object(vb, "run_backup",
+                               side_effect=RuntimeError("injected")):
+            with mock.patch("sys.stdout", io.StringIO()) as out:
+                self.assertEqual(self.run_tool("--apply", "--json"), 2)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["kind"], "CRASH")
+        self.assertFalse(payload["receipt_written"])
+        self.assertEqual(sorted(os.listdir(self.dest)), before)
+        self.assertEqual(os.listdir(receipts_path), [])
+
     def test_argparse_exit_is_not_swallowed(self):
         with mock.patch("sys.stderr", io.StringIO()):
             with self.assertRaises(SystemExit) as caught:
