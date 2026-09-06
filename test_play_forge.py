@@ -552,7 +552,8 @@ class RegisterPredicateFactoredOut(unittest.TestCase):
         self.assertFalse(pf.line_is_all_caps("123 !!!"))   # no letters
 
     def test_the_register_check_uses_it(self):
-        source = open(pf.__file__, encoding="utf-8").read()
+        with open(pf.__file__, encoding="utf-8") as fh:
+            source = fh.read()
         self.assertIn("if line_is_all_caps(line):", source)
         self.assertEqual(source.count("c.isupper() for c in letters"), 1)
 
