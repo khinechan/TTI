@@ -32,3 +32,9 @@ play_forge_receipts.jsonl
 # play_new: receipts are a machine-generated write surface. Its OUTPUT
 # (the play.json) lands in the configured out_dir, never in the repo.
 play_new_receipts.jsonl
+
+# asset_compose: real config is a local path; receipts are a
+# machine-generated write surface. Composed PIECES land under the
+# configured index_root and are NEVER committed.
+asset_compose.config.json
+asset_compose_receipts.jsonl

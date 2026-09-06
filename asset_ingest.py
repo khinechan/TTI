@@ -91,7 +91,12 @@ CF_STATUS_LICENSED = "verified"
 
 INDEX_NAME = "ASSET_INDEX.md"
 SIDECAR_NAME = "ASSET_INDEX.hashes.json"        # W8: schema lives
-SIDECAR_VERSION = 1                              # here, not in the table
+SIDECAR_VERSION = 2                              # here, not in the table
+# v2 (B5, 2026-09-06): every ENTRY names the tool that wrote it,
+# so a composed piece is distinguishable from an ingested one
+# without reading the row. v1 files stay readable — the key is
+# simply absent there.
+SIDECAR_VERSIONS_READABLE = (1, 2)
 
 LICENSE_RECORD_NAME = "license-record.md"
 CF_LICENSE_LITERAL = "CF Subscription, verified"     # D-082, verbatim
@@ -576,6 +581,12 @@ def load_sidecar(path):
             or not isinstance(data.get("entries"), dict)):
         raise ToolError("sidecar at %s was not written by %s — "
                         "refusing" % (path, TOOL_NAME))
+    if data.get("version") not in SIDECAR_VERSIONS_READABLE:
+        raise ToolError(
+            "sidecar at %s is version %r; this tool reads %s — "
+            "refusing, no guessing at an unknown shape"
+            % (path, data.get("version"),
+               ", ".join(str(v) for v in SIDECAR_VERSIONS_READABLE)))
     return data
 
 
@@ -1351,7 +1362,8 @@ def run_confirm(config, input_path, opts):
             counts["rows_appended"] += 1
             sidecar["entries"][rel] = {"sha256": hash_file(piece_path),
                                        "product_id": product_id,
-                                       "ingested_utc": today}
+                                       "ingested_utc": today,
+                                       "tool": TOOL_NAME}
             counts["sidecar_entries"] += 1
             confirmed.append({"id": piece_id, "path": rel})
         if undilated is not dilated:

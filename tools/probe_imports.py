@@ -27,7 +27,20 @@ WANT = {
                                        "find_header_lines"], "constants": []},
     "color_check":      {"callables": [],
                          "constants": ["GARMENTS", "PALETTES", "BASE_FILLS", "OUTLINES"]},
+    # B5 (asset_compose) STEP 0, 2026-09-06.
+    "play_new":         {"callables": ["infer_kind"],
+                         "constants": ["KIND_KEYWORDS",
+                                       "KIND_CLAUSE_DELIMITERS",
+                                       "STYLE_COLUMN"]},
+    "asset_ingest":     {"callables": ["label_components", "load_sidecar",
+                                       "write_sidecar"],
+                         "constants": ["SIDECAR_NAME", "SIDECAR_VERSION",
+                                       "CONVERT_TARGET_PX", "USED_IN_FMT"]},
+    "recolor":          {"callables": ["recolor"], "constants": []},
 }
+WANT["asset_index_lint"]["constants"] = ["COLUMN_COUNT", "HEADER_CELLS",
+                                         "ASSET_PATH_JOIN"]
+WANT["play_forge"]["callables"].append("measure_stroke_survival")
 report = {"modules": {}, "missing": [], "ok": True}
 for mod, want in WANT.items():
     entry = {"import": "ok", "callables": {}, "constants": {}, "all_public": []}

@@ -380,6 +380,14 @@ def fit_text_size(text, font_path, target_width):
     return best
 
 
+def stroke_kernel(min_stroke_px):
+    """W4's erosion kernel: min_stroke_px, rounded UP to odd because
+    MinFilter needs an odd size. Factored out here so asset_compose can
+    IMPORT it and erode by exactly the same rule instead of keeping a
+    second copy that drifts (B5, 2026-09-06)."""
+    return min_stroke_px if min_stroke_px % 2 else min_stroke_px + 1
+
+
 def measure_stroke_survival(text, font_path, size, min_stroke_px):
     """W4's measurement: render the fitted line's mask, erode by
     min_stroke_px, return the surviving ink FRACTION. The caller
@@ -395,8 +403,8 @@ def measure_stroke_survival(text, font_path, size, min_stroke_px):
     ink = sum(1 for v in mask.tobytes() if v)
     if ink == 0:
         return 0.0
-    kernel = min_stroke_px if min_stroke_px % 2 else min_stroke_px + 1
-    eroded = mask.filter(ImageFilter.MinFilter(kernel))
+    eroded = mask.filter(
+        ImageFilter.MinFilter(stroke_kernel(min_stroke_px)))
     survived = sum(1 for v in eroded.tobytes() if v)
     mask.close()
     eroded.close()
