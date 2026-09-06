@@ -1081,7 +1081,13 @@ def garment_tile(full_or_squint, garment, tile_size):
 
 
 def write_spec_sheets(out_dir, number, variant, placed, clusters,
-                      sizes, gates, feeling, rejected_reason):
+                      sizes, gates, feeling, rejected_reason,
+                      render_sha256=None):
+    """render_sha256 is the sha256 of the BYTES ON DISK, hashed after
+    the final write — not of the in-memory image. A spec that says
+    PASS beside a hand-edited PNG is the hole this closes: the hash
+    names which file the verdict was about. A rejected variant renders
+    nothing, so it gets None."""
     spec = {
         "variant": number,
         "named_feeling": feeling,
@@ -1098,6 +1104,7 @@ def write_spec_sheets(out_dir, number, variant, placed, clusters,
         "elements": placed,
         "gates": gates,
         "rejected": rejected_reason,
+        "render_sha256": render_sha256,
     }
     with open(os.path.join(out_dir, SPEC_JSON_FMT % number), "w",
               encoding="utf-8") as handle:
@@ -1120,6 +1127,9 @@ def write_spec_sheets(out_dir, number, variant, placed, clusters,
         lines.append("- element %s -> %s sha256=%s kind=%s"
                      % (item["asset_id"], item["path"],
                         item["sha256"], item["kind"]))
+    for key in sorted(render_sha256 or {}):
+        lines.append("- render sha256 (%s): %s"
+                     % (key, render_sha256[key]))
     for name, verdict in sorted((gates or {}).items()):
         lines.append("- gate %s: %s" % (name, verdict.get("verdict")))
     if rejected_reason:
@@ -1140,6 +1150,8 @@ def append_receipt(report):
         "rejected": report.get("rejected", []),
         "gate_fails": report.get("gate_fails", []),
         "refusals": report.get("refusals", []),
+        "renders": report.get("renders", []),
+        "play_sha256": report.get("play_sha256"),
         "out_dir": report.get("out_dir"),
         "out_dir_mode": report.get("out_dir_mode"),
         "duration_s": report.get("duration_s"),
@@ -1198,6 +1210,7 @@ def run_forge(config, play_path, overwrite=False):
     rejected = []
     gate_fails = []
     variant_reports = []
+    renders = []
     rendered = 0
     for variant in play["variants"]:
         number = variant["id"]
@@ -1223,14 +1236,27 @@ def run_forge(config, play_path, overwrite=False):
         full_path = os.path.join(out_dir, FULL_NAME_FMT % number)
         canvas.save(full_path)                              # lossless
         squint = canvas.resize((SQUINT_W, SQUINT_H), RESAMPLE)  # T5
-        squint.save(os.path.join(out_dir, SQUINT_NAME_FMT % number))
+        squint_path = os.path.join(out_dir, SQUINT_NAME_FMT % number)
+        squint.save(squint_path)
+        # The bytes on disk, hashed after the final write. This is what
+        # makes a hand-edited PNG detectable: nothing else in the fleet
+        # could tell a forge render from a file someone painted over.
+        render_sha256 = {"full": hash_file(full_path),
+                         "squint": hash_file(squint_path)}
+        renders.append({"variant": number,
+                        "file": FULL_NAME_FMT % number,
+                        "sha256": render_sha256["full"]})
+        renders.append({"variant": number,
+                        "file": SQUINT_NAME_FMT % number,
+                        "sha256": render_sha256["squint"]})
         gates = run_gates(variant, full_path, placed)       # W9
         failed = gates_failed(gates)
         if failed:
             gate_fails.append(number)
         spec = write_spec_sheets(out_dir, number, variant, placed,
                                  clusters, sizes, gates,
-                                 play["named_feeling"], None)
+                                 play["named_feeling"], None,
+                                 render_sha256)
         variant_reports.append(spec)
         full_tiles.append({
             "number": number,
@@ -1285,6 +1311,9 @@ def run_forge(config, play_path, overwrite=False):
         "gate_fails": sorted(gate_fails),
         "refusals": [],
         "variants": variant_reports,
+        "renders": sorted(renders,
+                          key=lambda r: (r["variant"], r["file"])),
+        "play_sha256": hash_file(play_path),
         "out_dir": out_dir,
         "out_dir_mode": out_dir_mode,
         "duration_s": round(time.monotonic() - started, 3),

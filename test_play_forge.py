@@ -558,6 +558,81 @@ class RegisterPredicateFactoredOut(unittest.TestCase):
         self.assertEqual(source.count("c.isupper() for c in letters"), 1)
 
 
+class RenderLedger(ForgeCase):
+    """The pack-gate item, commit 1. play_forge could not say which
+    BYTES it produced, so a hand-patched PNG sitting in forge-out/ was
+    indistinguishable from a gated render — and its spec still said
+    PASS. The hash of the file on disk is what closes that."""
+
+    def test_spec_and_receipt_hash_the_bytes_that_landed(self):
+        code, _, _ = self.run_tool(self.write_play())
+        self.assertIn(code, (0, 1))
+        receipt = self.receipts()[-1]
+        by_file = {r["file"]: r for r in receipt["renders"]}
+        for number in (1, 2):
+            full = pf.FULL_NAME_FMT % number
+            squint = pf.SQUINT_NAME_FMT % number
+            with open(os.path.join(self.play_out(),
+                                   pf.SPEC_JSON_FMT % number),
+                      encoding="utf-8") as fh:
+                spec = json.load(fh)
+            on_disk = {
+                "full": pf.hash_file(os.path.join(self.play_out(),
+                                                  full)),
+                "squint": pf.hash_file(os.path.join(self.play_out(),
+                                                    squint))}
+            self.assertEqual(spec["render_sha256"], on_disk)
+            self.assertEqual(by_file[full]["sha256"], on_disk["full"])
+            self.assertEqual(by_file[squint]["sha256"],
+                             on_disk["squint"])
+
+    def test_an_edited_png_no_longer_matches_its_own_spec(self):
+        """The whole point, stated as a mechanism: change one pixel and
+        the recorded hash stops describing the file."""
+        self.assertIn(self.run_tool(self.write_play())[0], (0, 1))
+        full = os.path.join(self.play_out(), pf.FULL_NAME_FMT % 1)
+        with open(os.path.join(self.play_out(),
+                               pf.SPEC_JSON_FMT % 1),
+                  encoding="utf-8") as fh:
+            recorded = json.load(fh)["render_sha256"]["full"]
+        image = Image.open(full)
+        edited = image.copy()
+        image.close()
+        edited.putpixel((0, 0), (1, 2, 3, 255))
+        edited.save(full)
+        edited.close()
+        self.assertNotEqual(pf.hash_file(full), recorded)
+
+    def test_a_rejected_variant_contributes_no_renders(self):
+        self.write_config(min_stroke_px=220)
+        self.assertEqual(self.run_tool(self.write_play())[0], 1)
+        receipt = self.receipts()[-1]
+        self.assertEqual(len(receipt["rejected"]), 2)
+        self.assertEqual(receipt["renders"], [])
+        with open(os.path.join(self.play_out(),
+                               pf.SPEC_JSON_FMT % 1),
+                  encoding="utf-8") as fh:
+            self.assertIsNone(json.load(fh)["render_sha256"])
+
+    def test_renders_are_sorted_and_the_play_is_hashed(self):
+        play_path = self.write_play()
+        self.assertIn(self.run_tool(play_path)[0], (0, 1))
+        receipt = self.receipts()[-1]
+        keys = [(r["variant"], r["file"]) for r in receipt["renders"]]
+        self.assertEqual(keys, sorted(keys))
+        self.assertEqual(len(keys), 4)
+        self.assertEqual(receipt["play_sha256"],
+                         pf.hash_file(play_path))
+
+    def test_the_md_sheet_carries_both_hashes(self):
+        self.assertIn(self.run_tool(self.write_play())[0], (0, 1))
+        with open(os.path.join(self.play_out(), pf.SPEC_MD_FMT % 1),
+                  encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn("- render sha256 (full): ", text)
+        self.assertIn("- render sha256 (squint): ", text)
+
+
 class CrashFloor(ForgeCase):
     """Fleet crash floor: a Python traceback exits 1, which this
     tool's contract reads as "rendered with findings". Exit 2 and a
