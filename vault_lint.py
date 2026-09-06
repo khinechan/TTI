@@ -944,7 +944,7 @@ def _ensure_utf8_console():
                 pass
 
 
-def main(argv=None):
+def _main(argv=None):
     _ensure_utf8_console()
     parser = build_parser()
     if argv is None:
@@ -1083,6 +1083,30 @@ def main(argv=None):
 
     except ToolError as exc:
         _emit_error(str(exc), args.json if hasattr(args, "json") else False)
+        return EXIT_ERROR
+
+
+def main(argv=None):
+    """CRASH FLOOR. A bare traceback exits 1, and this tool's contract
+    reads 1 as "findings" — a real result on a real STATE.md. So
+    without this guard a crash and a linted file with findings are the
+    same integer to gate_run and to any wrapper. SystemExit and
+    KeyboardInterrupt are NOT caught: argparse owns exit 2 for a bad
+    flag and must stay untouched. This tool is READ-ONLY and keeps no
+    ledger, so the CRASH line IS the record."""
+    try:
+        return _main(argv)
+    except Exception as err:
+        reason = "%s: %s" % (type(err).__name__, err)
+        source = sys.argv[1:] if argv is None else list(argv)
+        if "--json" in source:
+            print(json.dumps({"verdict": "CRASH",
+                              "exit_code": EXIT_ERROR,
+                              "error": reason},
+                             indent=2, sort_keys=True))
+        else:
+            sys.stderr.write("CRASH (%s): %s\n"
+                             % (type(err).__name__, err))
         return EXIT_ERROR
 
 

@@ -18,6 +18,7 @@ import tempfile
 import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest import mock
 
 import vault_lint as vl
 
@@ -774,6 +775,36 @@ class TestExplain(Fixture):
 
 
 # ── Windows console-encoding fix (STATE.md D-378 class, 3rd file) ──────
+
+class TestCrashFloor(Fixture):
+    """Fleet crash floor: a Python traceback exits 1, which this tool's
+    contract reads as "findings" — a real result on a real STATE.md.
+    Exit 2 is what tells a wrapper the tool broke instead."""
+
+    def test_uncaught_exception_is_exit_2_and_names_the_type(self):
+        path = self.clean_state()
+        with mock.patch.object(vl, "scan_lines",
+                               side_effect=RuntimeError("injected")):
+            code, out, err = run([path])
+        self.assertEqual(code, ERROR_EXIT)
+        self.assertIn("CRASH (RuntimeError): injected", err)
+        self.assertEqual(out, "")
+
+    def test_crash_json_parity_and_still_read_only(self):
+        path = self.clean_state()
+        before = sha(path)
+        listing = sorted(os.listdir(self.dir))
+        with mock.patch.object(vl, "scan_lines",
+                               side_effect=RuntimeError("injected")):
+            code, out, _ = run([path, "--json"])
+        self.assertEqual(code, ERROR_EXIT)
+        payload = json.loads(out)
+        self.assertEqual(payload["verdict"], "CRASH")
+        self.assertEqual(payload["exit_code"], ERROR_EXIT)
+        self.assertIn("RuntimeError: injected", payload["error"])
+        self.assertEqual(sha(path), before)
+        self.assertEqual(sorted(os.listdir(self.dir)), listing)
+
 
 class TestConsoleEncoding(Fixture):
     """vault_lint.py crashed with UnicodeEncodeError on a real Windows
