@@ -1140,6 +1140,16 @@ def write_spec_sheets(out_dir, number, variant, placed, clusters,
     return spec
 
 
+def _render_order(entry):
+    """Sort key for renders[]: numbered variants first in number
+    order, then the contact sheets, then by filename. The leading
+    boolean is what puts null LAST — sorting a None against an int
+    raises TypeError, so the order has to be stated, not inherited."""
+    variant = entry["variant"]
+    return (variant is None, 0 if variant is None else variant,
+            entry["file"])
+
+
 def append_receipt(report):
     receipt = {
         "tool": TOOL_NAME,
@@ -1271,8 +1281,8 @@ def run_forge(config, play_path, overwrite=False):
         squint.close()
         canvas.close()
         rendered += 1
-    build_contact_sheet(full_tiles,
-                        os.path.join(out_dir, CONTACT_FULLS_NAME))
+    fulls_sheet_path = os.path.join(out_dir, CONTACT_FULLS_NAME)
+    build_contact_sheet(full_tiles, fulls_sheet_path)
     squint_sheet_tiles = [
         {"number": t["number"],
          "image": (t["image"].resize((SQUINT_W, SQUINT_H), RESAMPLE)
@@ -1297,8 +1307,18 @@ def run_forge(config, play_path, overwrite=False):
         if tile.get("badge"):
             _label(draw, (x + 6, sheet_h - 42), tile["badge"],
                    FAIL_BADGE_COLOR[:3], font)
-    sheet.save(os.path.join(out_dir, CONTACT_SQUINTS_NAME))
+    squints_sheet_path = os.path.join(out_dir, CONTACT_SQUINTS_NAME)
+    sheet.save(squints_sheet_path)
     sheet.close()
+    # The contact sheets are things Khai LOOKS AT, so they are renders
+    # too (Fable ruling, 2026-09-06) — and a raw out_dir should be able
+    # to pass pack_check clean. They belong to no single variant, so
+    # their variant is null.
+    for name, sheet_path in ((CONTACT_FULLS_NAME, fulls_sheet_path),
+                             (CONTACT_SQUINTS_NAME,
+                              squints_sheet_path)):
+        renders.append({"variant": None, "file": name,
+                        "sha256": hash_file(sheet_path)})
     exit_code = (EXIT_FINDINGS if (rejected or gate_fails)
                  else EXIT_CLEAN)
     return {
@@ -1311,8 +1331,7 @@ def run_forge(config, play_path, overwrite=False):
         "gate_fails": sorted(gate_fails),
         "refusals": [],
         "variants": variant_reports,
-        "renders": sorted(renders,
-                          key=lambda r: (r["variant"], r["file"])),
+        "renders": sorted(renders, key=_render_order),
         "play_sha256": hash_file(play_path),
         "out_dir": out_dir,
         "out_dir_mode": out_dir_mode,

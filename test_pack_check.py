@@ -344,20 +344,34 @@ class EndToEnd(ForgeCase):
                 self.assertEqual(item["play_id"],
                                  "2026-09-02-test-play")
 
-    def test_the_contact_sheets_are_not_in_the_ledger(self):
-        """FLAGGED, not fixed: play_forge writes contact_fulls.png and
-        contact_squints.png into the same out_dir but does NOT list
-        them in renders[], so a raw out_dir is never exit 0. A PACK is
-        a curated folder of chosen variants; this test pins the real
-        behaviour so it cannot surprise anyone later."""
+    def test_a_raw_out_dir_passes_clean(self):
+        """RULE CHANGED 2026-09-06 (Fable): the contact sheets are in
+        the ledger now, so a WHOLE out_dir — variants, squints and both
+        sheets — is exit 0. Before the ruling this test asserted the
+        opposite, that the two sheets were always findings."""
         self.assertIn(self.run_tool(self.write_play())[0], (0, 1))
         ledger = os.path.join(self.tmp, pf.RECEIPTS_NAME)
         report = pc.run_check(self.play_out(), ledger)
-        unverified = {item["file"] for item in report["checked"]
-                      if item["verdict"] == pc.FINDING_NOT_A_RENDER}
-        self.assertEqual(unverified, {pf.CONTACT_FULLS_NAME,
-                                      pf.CONTACT_SQUINTS_NAME})
+        self.assertEqual(report["exit_code"], pc.EXIT_CLEAN)
+        self.assertEqual(report["counts"]["not_a_forge_render"], 0)
+        files = {item["file"] for item in report["checked"]}
+        self.assertIn(pf.CONTACT_FULLS_NAME, files)
+        self.assertIn(pf.CONTACT_SQUINTS_NAME, files)
+
+    def test_a_stray_png_in_a_raw_out_dir_is_the_only_finding(self):
+        """The gate must name the intruder and nothing else — a gate
+        that cries wolf about its own tool's output gets ignored."""
+        self.assertIn(self.run_tool(self.write_play())[0], (0, 1))
+        stray = os.path.join(self.play_out(), "hand_patched.png")
+        with open(stray, "wb") as handle:
+            handle.write(b"\x89PNG\r\n\x1a\npainted over")
+        ledger = os.path.join(self.tmp, pf.RECEIPTS_NAME)
+        report = pc.run_check(self.play_out(), ledger)
         self.assertEqual(report["exit_code"], pc.EXIT_FINDINGS)
+        unverified = [item["file"] for item in report["checked"]
+                      if item["verdict"] == pc.FINDING_NOT_A_RENDER]
+        self.assertEqual(unverified, ["hand_patched.png"])
+        self.assertEqual(len(report["findings"]), 1)
 
     def test_a_curated_pack_of_chosen_variants_is_exit_0(self):
         """What a pack actually is: copy the chosen renders out, run

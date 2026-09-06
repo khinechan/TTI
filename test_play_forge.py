@@ -604,25 +604,53 @@ class RenderLedger(ForgeCase):
         self.assertNotEqual(pf.hash_file(full), recorded)
 
     def test_a_rejected_variant_contributes_no_renders(self):
+        """RULE CHANGED 2026-09-06 (Fable): the contact sheets are
+        renders too, and they are written even when every variant is
+        rejected. So the assertion is now "no VARIANT renders", not
+        "no renders at all" — the sheets are still there."""
         self.write_config(min_stroke_px=220)
         self.assertEqual(self.run_tool(self.write_play())[0], 1)
         receipt = self.receipts()[-1]
         self.assertEqual(len(receipt["rejected"]), 2)
-        self.assertEqual(receipt["renders"], [])
+        self.assertEqual([r for r in receipt["renders"]
+                          if r["variant"] is not None], [])
+        self.assertEqual([r["file"] for r in receipt["renders"]],
+                         [pf.CONTACT_FULLS_NAME,
+                          pf.CONTACT_SQUINTS_NAME])
         with open(os.path.join(self.play_out(),
                                pf.SPEC_JSON_FMT % 1),
                   encoding="utf-8") as fh:
             self.assertIsNone(json.load(fh)["render_sha256"])
 
     def test_renders_are_sorted_and_the_play_is_hashed(self):
+        """Numbered variants in number order, then the contact sheets.
+        Null sorts LAST by a leading boolean in the key — sorting None
+        against an int raises TypeError, so the order is stated."""
         play_path = self.write_play()
         self.assertIn(self.run_tool(play_path)[0], (0, 1))
         receipt = self.receipts()[-1]
-        keys = [(r["variant"], r["file"]) for r in receipt["renders"]]
-        self.assertEqual(keys, sorted(keys))
-        self.assertEqual(len(keys), 4)
+        renders = receipt["renders"]
+        self.assertEqual([pf._render_order(r) for r in renders],
+                         sorted(pf._render_order(r) for r in renders))
+        self.assertEqual([r["file"] for r in renders],
+                         [pf.FULL_NAME_FMT % 1, pf.SQUINT_NAME_FMT % 1,
+                          pf.FULL_NAME_FMT % 2, pf.SQUINT_NAME_FMT % 2,
+                          pf.CONTACT_FULLS_NAME,
+                          pf.CONTACT_SQUINTS_NAME])
         self.assertEqual(receipt["play_sha256"],
                          pf.hash_file(play_path))
+
+    def test_the_contact_sheets_are_hashed_as_written(self):
+        """Fable ruling: a contact sheet is a thing Khai looks at, so
+        it is a render."""
+        self.assertIn(self.run_tool(self.write_play())[0], (0, 1))
+        by_file = {r["file"]: r for r in self.receipts()[-1]["renders"]}
+        for name in (pf.CONTACT_FULLS_NAME, pf.CONTACT_SQUINTS_NAME):
+            entry = by_file[name]
+            self.assertIsNone(entry["variant"])
+            self.assertEqual(
+                entry["sha256"],
+                pf.hash_file(os.path.join(self.play_out(), name)))
 
     def test_the_md_sheet_carries_both_hashes(self):
         self.assertIn(self.run_tool(self.write_play())[0], (0, 1))
