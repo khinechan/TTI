@@ -152,7 +152,7 @@ now — cert flow is clone-and-diff against the real branch; hand-carry
 and its stop-gates are retired for file exchange (the stop-gate habit
 stays for any future drift).
 
-Full suite baseline 2026-09-02: **400 tests, all green**
+Full suite baseline 2026-09-06: **441 tests, all green**
 (`python3 -m unittest test_color_check test_vault_lint test_vault_repair test_vault_repair_close test_thumb_check test_gate_run test_vault_backup test_asset_ingest test_play_forge test_play_new`).
 (test_play_forge renders at the real 4500×5400 — the full suite takes
 a few minutes now; that is the cost of W5, not a bug.)
