@@ -1065,13 +1065,19 @@ def _crash_receipt_path(argv):
     lives next to the target file and only a successful apply has ever
     written it: "dry-run writes nothing, ever" is a v1.0 wall, and a
     crash is not permission to breach it. A dry run therefore gets the
-    CRASH line and NO receipt, and --json says which."""
+    CRASH line and NO receipt, and --json says which.
+
+    --apply IS THE PERMISSION, and it is the whole condition.
+    --close-only is only a MODE: run_close_only returns at its own
+    "if not args.apply" before it ever reaches the receipt block, so
+    --close-only without --apply is a dry run like any other and has
+    never written this ledger (Fable bench, 2026-09-06)."""
     source = sys.argv[1:] if argv is None else list(argv)
     try:
         args = build_parser().parse_args(source)
     except SystemExit:
         return None
-    if not (args.apply or args.close_only) or not args.path:
+    if not args.apply or not args.path:
         return None
     return os.path.join(os.path.dirname(os.path.abspath(args.path)),
                         RECEIPTS_NAME)

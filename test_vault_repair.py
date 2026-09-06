@@ -618,11 +618,11 @@ class TestCrashFloor(Fixture):
         self.assertEqual(sorted(os.listdir(self.dir)), listing)
         self.assertNotIn(vr.RECEIPTS_NAME, listing)
 
-    def test_close_only_crash_leaves_a_crash_receipt(self):
+    def test_close_only_apply_crash_leaves_a_crash_receipt(self):
         path = self.standard()
         with mock.patch.object(vr, "run_close_only",
                                side_effect=RuntimeError("injected")):
-            code, out, err = run([path, "--close-only"])
+            code, out, err = run([path, "--close-only", "--apply"])
         self.assertEqual(code, ERROR)
         self.assertIn("CRASH (RuntimeError): injected", err)
         receipts = os.path.join(self.dir, vr.RECEIPTS_NAME)
@@ -631,6 +631,22 @@ class TestCrashFloor(Fixture):
         self.assertEqual(lines[-1]["kind"], "CRASH")
         self.assertEqual(lines[-1]["exit_code"], ERROR)
         self.assertIn("RuntimeError: injected", lines[-1]["reason"])
+
+    def test_close_only_without_apply_is_a_dry_run_and_writes_nothing(self):
+        """Fable bench: --close-only is a MODE, --apply is the
+        PERMISSION. run_close_only returns at its own "if not
+        args.apply" before the receipt block, so this mode has never
+        written the ledger and a crash in it must not either."""
+        path = self.standard()
+        before, listing = sha(path), sorted(os.listdir(self.dir))
+        with mock.patch.object(vr, "run_close_only",
+                               side_effect=RuntimeError("injected")):
+            code, out, err = run([path, "--close-only", "--json"])
+        self.assertEqual(code, ERROR)
+        self.assertFalse(json.loads(out)["receipt_written"])
+        self.assertEqual(sha(path), before)
+        self.assertEqual(sorted(os.listdir(self.dir)), listing)
+        self.assertNotIn(vr.RECEIPTS_NAME, os.listdir(self.dir))
 
     def test_crash_json_parity_reports_receipt_written(self):
         path = self.standard()
