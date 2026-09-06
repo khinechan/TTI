@@ -755,7 +755,7 @@ def format_report(report):
     return "\n".join(lines)
 
 
-def main(argv=None):
+def _main(argv=None):
     _ensure_utf8_console()
     parser = argparse.ArgumentParser(
         prog="vault_backup.py",
@@ -798,6 +798,68 @@ def main(argv=None):
     else:
         print(format_report(report))
     return report["exit_code"]
+
+
+def _crash_receipt_dir(argv):
+    """Where a CRASH receipt may go, or None — and None is the honest
+    answer more often than not. A crash before the config loads has no
+    destination at all. A destination this tool has never written to
+    is exactly what W0 exists to protect: dropping a receipts file
+    into the wrong folder is the mistake, not the record. Both cases
+    get the CRASH line and no receipt."""
+    source = sys.argv[1:] if argv is None else list(argv)
+    config_path = DEFAULT_CONFIG_NAME
+    for index, item in enumerate(source):
+        if item == "--config" and index + 1 < len(source):
+            config_path = source[index + 1]
+        elif item.startswith("--config="):
+            config_path = item.split("=", 1)[1]
+    try:
+        destination = load_config(config_path)["destination_dir"]
+    except Exception:
+        return None
+    for name in (MANIFEST_NAME, RECEIPTS_NAME):
+        if os.path.exists(_winpath(os.path.join(destination, name))):
+            return destination
+    return None
+
+
+def main(argv=None):
+    """CRASH FLOOR. A bare traceback exits 1, and this tool's contract
+    reads 1 as "findings" — so without this guard a crash and a real
+    run are the same integer to gate_run and to any wrapper. SystemExit
+    and KeyboardInterrupt are NOT caught: argparse owns exit 2 for a
+    bad flag and must stay untouched.
+
+    The receipt is BEST EFFORT and says so: this tool's ledger lives
+    in the destination folder, so a crash before the config loads —
+    or one aimed at a folder this tool has never written to — prints
+    the CRASH line and exits 2 with NO receipt. An honest "no
+    destination yet" beats a receipt that silently is not written."""
+    try:
+        return _main(argv)
+    except Exception as err:
+        reason = "%s: %s" % (type(err).__name__, err)
+        destination = _crash_receipt_dir(argv)
+        if destination is not None:
+            try:
+                append_receipt(destination, {"tool": TOOL_NAME,
+                                             "kind": "CRASH",
+                                             "reason": reason,
+                                             "exit_code": EXIT_ERROR})
+            except Exception:
+                pass                  # a receipt must never mask this
+        source = sys.argv[1:] if argv is None else list(argv)
+        if "--json" in source:
+            print(json.dumps({"tool": TOOL_NAME, "kind": "CRASH",
+                              "reason": reason,
+                              "receipt_written": destination is not None,
+                              "exit_code": EXIT_ERROR},
+                             sort_keys=True, ensure_ascii=False))
+        else:
+            print("CRASH (%s): %s" % (type(err).__name__, err),
+                  file=sys.stderr)
+        return EXIT_ERROR
 
 
 if __name__ == "__main__":

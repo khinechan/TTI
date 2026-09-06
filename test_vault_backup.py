@@ -12,6 +12,7 @@ against Khai's real folders.
 """
 
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -482,6 +483,62 @@ class GateRegistration(unittest.TestCase):
         stage = stages["backup_age"]
         self.assertEqual(stage["path"], "vault_backup.py")
         self.assertEqual(stage["args"], ["--check-age"])
+
+
+class CrashFloor(BackupCase):
+    """Fleet crash floor: a Python traceback exits 1, which this
+    tool's contract reads as "findings". Exit 2 is what tells a
+    wrapper the tool broke. The receipt is best effort BY DESIGN —
+    this ledger lives in the destination folder."""
+
+    def test_uncaught_exception_is_exit_2_with_a_receipt(self):
+        self.put("a.txt")
+        self.assertIn(self.run_tool("--apply"), (0, 1))
+        with mock.patch.object(vb, "run_backup",
+                               side_effect=RuntimeError("injected")):
+            with mock.patch("sys.stderr", io.StringIO()) as err:
+                code = self.run_tool("--apply")
+        self.assertEqual(code, 2)
+        self.assertIn("CRASH (RuntimeError): injected", err.getvalue())
+        receipt = self.receipts()[-1]
+        self.assertEqual(receipt["kind"], "CRASH")
+        self.assertEqual(receipt["exit_code"], 2)
+        with mock.patch.object(vb, "run_backup",
+                               side_effect=RuntimeError("injected")):
+            with mock.patch("sys.stdout", io.StringIO()) as out:
+                self.assertEqual(self.run_tool("--apply", "--json"), 2)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["kind"], "CRASH")
+        self.assertEqual(payload["exit_code"], 2)
+        self.assertTrue(payload["receipt_written"])
+
+    def test_no_destination_yet_means_no_receipt_not_a_silent_one(self):
+        """Fable's ruling: an honest "no destination" beats a receipt
+        that silently is not written. Two ways to have none — the
+        config never loaded, and a folder this tool has never written
+        to (which is what W0 protects)."""
+        with mock.patch.object(vb, "run_backup",
+                               side_effect=RuntimeError("injected")):
+            with mock.patch("sys.stderr", io.StringIO()) as err:
+                code = self.run_tool("--apply")
+        self.assertEqual(code, 2)
+        self.assertIn("CRASH (RuntimeError): injected", err.getvalue())
+        self.assertEqual(self.receipts(), [])
+        self.assertFalse(os.path.exists(self.dest))
+
+        with mock.patch.object(vb, "load_config",
+                               side_effect=RuntimeError("injected")):
+            with mock.patch("sys.stderr", io.StringIO()) as err:
+                code = self.run_tool("--apply")
+        self.assertEqual(code, 2)
+        self.assertIn("CRASH (RuntimeError): injected", err.getvalue())
+        self.assertEqual(self.receipts(), [])
+
+    def test_argparse_exit_is_not_swallowed(self):
+        with mock.patch("sys.stderr", io.StringIO()):
+            with self.assertRaises(SystemExit) as caught:
+                vb.main(["--config", self.config_path, "--bogus"])
+        self.assertEqual(caught.exception.code, 2)
 
 
 class ConfigFailClosed(BackupCase):
