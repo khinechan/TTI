@@ -67,7 +67,7 @@
   {
    "mark": "✓",
    "source": "task",
-   "claim": "A→B family count = 2",
+   "claim": "A→B family count = 2 (holds for births before 7:45 PM)",
    "measured": "2"
   },
   {
@@ -97,13 +97,13 @@
   {
    "mark": "✗",
    "source": "audit 15",
-   "claim": "A→B family: p ≈ 0.050",
+   "claim": "A→B family: p ≈ 0.050 (births before 7:45 PM)",
    "measured": "0.0207 (expected 0.0500; -8.5 SE)"
   },
   {
    "mark": "✓",
    "source": "audit 15",
-   "claim": "B→A family: p ≈ 0.125",
+   "claim": "B→A family: p ≈ 0.125 (births before 7:45 PM)",
    "measured": "0.1267 (expected 0.1250; +0.3 SE)"
   },
   {
@@ -1000,7 +1000,7 @@
   "ab_p": 0.0207,
   "clears": false,
   "one_in": 48,
-  "note": "Multiple testing (STD): 4 tests were run on the same pair (A→B, B→A, all, tight), so a Bonferroni line is 0.05/4 = 0.0125; the A→B p = 0.0207 does not clear it (the brief's p ≈ 0.05 does not). Honest wording: \"about a 1-in-48 result\" under this null (the brief's ≈ 0.05 / 1-in-20 is close to what a partner that also carries a DSC key gives: p = 0.0600 here, 0.0535–0.0600 over the 5 seeds) — and what is unusual is the attraction-family hits, not the overall contact count."
+  "note": "Holds for births before 7:45 PM: after it A's Mars–B's Venus tie passes the 1° family orb, so A→B drops to 1 and B→A to 0 (robustness/birth_time_sweep.md), and the 17 contacts also need A's noon Moon (A has no birth time). Multiple testing (STD): 4 tests were run on the same pair (A→B, B→A, all, tight), so a Bonferroni line is 0.05/4 = 0.0125; the A→B p = 0.0207 does not clear it (the brief's p ≈ 0.05 does not). Honest wording: \"about a 1-in-48 result\" under this null (the brief's ≈ 0.05 / 1-in-20 is close to what a partner that also carries a DSC key gives: p = 0.0600 here, 0.0535–0.0600 over the 5 seeds) — and what is unusual is the attraction-family hits, not the overall contact count."
  },
  "seed_sensitivity": {
   "headline_seed": 20261021,

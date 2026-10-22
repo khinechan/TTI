@@ -1,5 +1,5 @@
 """birth_time_sweep — audit item 14 + the cover's "A's birth time": which A–B facts would move if A's unknown birth
-time were known. REPORTS ONLY: no chart changes and no birth time is added to the data (A's book chart stays noon).
+time were known. REPORTS ONLY: no chart changes and no birth time is added to the data (it measures against A's noon chart; the book's default is time-free A, THE_MATH §14).
 
 Sweep: A born 1980-08-27 at hh:mm America/Indiana/Indianapolis, hh:mm = 00:00, 00:10, …, 23:50 (144 steps);
 each step is A = daily.build(dict(CH["A"], hm=(h, m))) (that also adds ASC/MC and an hour branch: "if known" extras only).
@@ -353,7 +353,7 @@ def build_report(mins, rows, ref, noon_spots, noon_luck, noon_same, cross, moon_
     js = dict(
         tool="birth_time_sweep.py", report_only=True,
         method=dict(birth="A born 1980-08-27 %s, 00:00..23:50 every %d min (144 steps); A = daily.build(dict(CH['A'], hm=(h, m)))" % (TZ, STEP_MIN),
-                    book_convention="A's bodies without Moon and without angles (the book's chart stays noon)",
+                    book_convention="A's bodies without Moon and without angles (measured on her noon chart; the book's default is time-free A)",
                     family="pair_core.attraction_family, orb %.1f°; A→B = (chart_b=A, chart_a=daily.natB); B→A = (chart_b=daily.natB, chart_a=A)" % FAM_ORB,
                     window="%s .. %s (%d days)" % (DAYS[0], DAYS[-1], NDAYS), headline=HEAD,
                     windows="runs of consecutive calendar days with P ≥ %.0f%% of the run's top (pair_core.timeline's rule)" % (WIN_FRAC * 100),
@@ -375,7 +375,7 @@ def build_report(mins, rows, ref, noon_spots, noon_luck, noon_same, cross, moon_
         steps=[{k: v for k, v in r.items() if k != "minute"} for r in rows])
     # ---------- Markdown ----------
     L = ["# A's birth time — sweep (audit item 14 + the cover's \"A's birth time\")", "",
-         "REPORT ONLY. Nothing in the book changes: A's chart stays noon and no birth time is added to the data. "
+         "REPORT ONLY. The sweep measures against A's noon chart; the book's default is time-free A (THE_MATH §14), and no birth time is added to the data. "
          "Made by `python3 birth_time_sweep.py` (deterministic: same files every run).", ""]
     if holds: L += ["**Holds for births before 7:45 PM.** (A Mars ☌ B Venus is ≤ 1° up to %s and > 1° from %s.)" %
                     (out_edges[0]["last_minute_before"], out_edges[0]["first_minute_after"]), ""]

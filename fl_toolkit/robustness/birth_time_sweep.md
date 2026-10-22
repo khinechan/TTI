@@ -1,6 +1,6 @@
 # A's birth time — sweep (audit item 14 + the cover's "A's birth time")
 
-REPORT ONLY. Nothing in the book changes: A's chart stays noon and no birth time is added to the data. Made by `python3 birth_time_sweep.py` (deterministic: same files every run).
+REPORT ONLY. The sweep measures against A's noon chart; the book's default is time-free A (THE_MATH §14), and no birth time is added to the data. Made by `python3 birth_time_sweep.py` (deterministic: same files every run).
 
 **Holds for births before 7:45 PM.** (A Mars ☌ B Venus is ≤ 1° up to 19:44 and > 1° from 19:45.)
 

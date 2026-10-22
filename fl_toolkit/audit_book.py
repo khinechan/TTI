@@ -65,10 +65,11 @@ MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")      # [text](url) → text
 MD_ESC = re.compile(r"\\([!-/:-@\[-`{-~])")         # \- \| \. … → the character
 MD_MARKS = str.maketrans({"*": None, "_": None, "`": None, "~": None, "\ufe0f": None, "\u200b": None, "\xa0": " "})
 LEAD_NOISE = re.compile(r"[\s·•/|,;:]")             # dropped before testing what precedes a lone pull for a dash
-NOTE = ("rows written before the v2 fixes can differ for reasons that are fixes, not typos (BaZi-day pull sampling, "
-        "local-noon chemistry): CHANGES.md lists which numbers moved")
+NOTE = ("rows written before v2 can differ for reasons that are not typos: A is time-free by default since v2 (the "
+        "biggest mover — rerun with --a-time noon to compare against her noon chart), and the v2 fixes (BaZi-day pull "
+        "sampling, local-noon chemistry); CHANGES.md lists which numbers moved")
 NO_TABLE = "no Daily log table: no pipe table has Date, Pillar, Chemistry, A charge, B charge and A with C headers"
-_MEMO = {}                                          # date → view(daily.main(date)), one run per date per process
+_MEMO = {}                                          # (date, A-chart mode) → view(daily.main(...)), one run each per process
 
 
 def clean(cell):
@@ -188,13 +189,13 @@ def view(res):
     return out
 
 
-def computed(day):
-    """view(daily.main(day)), once per date per process. daily is imported here, so a broken daily.py is an error
-       finding (exit 2), not a traceback."""
-    if day not in _MEMO:
+def computed(day, a_time=None):
+    """view(daily.main(day)), once per date (and A-chart mode) per process. daily is imported here, so a broken daily.py
+       is an error finding (exit 2), not a traceback. a_time None = daily's default (time-free A)."""
+    if (day, a_time) not in _MEMO:
         import daily as D
-        _MEMO[day] = view(D.main(day))
-    return _MEMO[day]
+        _MEMO[(day, a_time)] = view(D.main(day) if a_time is None else D.main(day, dict(D.DEFAULT_OPT, a_time=a_time)))
+    return _MEMO[(day, a_time)]
 
 
 def finding(date, line, col, kind, written, value):
@@ -290,8 +291,9 @@ def main(argv=None, compute=None):
     ap = argparse.ArgumentParser(description="Audit the book's Daily log (a Markdown export of the Days tab) against daily.py.")
     ap.add_argument("export", help="the Days tab exported as Markdown (.md)")
     ap.add_argument("--json", action="store_true", help="print the report as JSON")
+    ap.add_argument("--a-time", choices=("tf", "noon"), help="A's chart for the rerun (default: daily.py's, time-free)")
     a = ap.parse_args(argv)
-    try: rep = run(a.export, compute or computed)
+    try: rep = run(a.export, compute or (lambda day: computed(day, a.a_time)))
     except Exception as e:                          # crash floor: one line, exit 2, never a traceback
         rep = dict(new_report(a.export), error="CRASH (%s): %s" % (type(e).__name__, e))
     if a.json: print(json.dumps(rep, ensure_ascii=False, indent=1))

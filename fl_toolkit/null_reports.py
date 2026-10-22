@@ -119,14 +119,14 @@ def claims(h, n):
         good, z = near(meas, exp, se_share(exp, n))
         fm = "%.5f" if exp < 0.01 else "%.4f"
         cl.append((ok(good), src, text, (fm + " (expected " + fm + "; %+.1f SE)") % (meas, exp, z)))
-    cl.append((ok(REAL["ab"] == EXP["ab"]), "task", "A→B family count = 2", str(REAL["ab"])))
+    cl.append((ok(REAL["ab"] == EXP["ab"]), "task", "A→B family count = 2 (holds for births before 7:45 PM)", str(REAL["ab"])))
     cl.append((ok(REAL["all"] == EXP["all"]), "task", "all A–B contacts = 17",
                "%d with A's noon Moon in (%d with it out)" % (REAL["all"], REAL["all_no_moon"])))
     cl.append((ok(REAL["tight"] == EXP["tight"]), "task", "tight A–B contacts (≤ 1°) = 4", str(REAL["tight"])))
     cl.append((ok(REAL["ac"] == EXP["ac"]), "task", "A–C contacts, bodies only = 2", str(REAL["ac"])))
     share("audit 15", "A→B family: percentile 0.950", h["ab"]["percentile"], EXP["ab_pct"])
-    share("audit 15", "A→B family: p ≈ 0.050", h["ab"]["p"], EXP["ab_p"])
-    share("audit 15", "B→A family: p ≈ 0.125", h["ba"]["p"], EXP["ba_p"])
+    share("audit 15", "A→B family: p ≈ 0.050 (births before 7:45 PM)", h["ab"]["p"], EXP["ab_p"])
+    share("audit 15", "B→A family: p ≈ 0.125 (births before 7:45 PM)", h["ba"]["p"], EXP["ba_p"])
     share("audit 15", "all contacts 17 ≈ 62nd percentile", h["all"]["percentile"], EXP["all_pct"])
     share("audit 15", "all contacts p ≈ 0.38", h["all"]["p"], EXP["all_p"])
     share("audit 15", "tight contacts 4 ≈ 22nd percentile", h["tight"]["percentile"], EXP["tight_pct"])
@@ -153,7 +153,9 @@ def build_report(n, seed, head, same, conv, sens, seeds):
     extra = [r for r in P.synastry(A_CON, B) if r not in P.synastry(A_FAM, B)]
     rng_of = lambda k, f: (min(s[k][f] for s in sens.values()), max(s[k][f] for s in sens.values()))
     srange = {k: {f: list(rng_of(k, f)) for f in ("percentile", "p", "mean", "share_le")} for k in head}
-    note = ("Multiple testing (STD): %d tests were run on the same pair (A→B, B→A, all, tight), so a Bonferroni line is "
+    note = ("Holds for births before 7:45 PM: after it A's Mars–B's Venus tie passes the 1° family orb, so A→B drops to 1 and "
+            "B→A to 0 (robustness/birth_time_sweep.md), and the 17 contacts also need A's noon Moon (A has no birth time). "
+            "Multiple testing (STD): %d tests were run on the same pair (A→B, B→A, all, tight), so a Bonferroni line is "
             "%.2f/%d = %.4f; the A→B p = %.4f %s it (the brief's p ≈ 0.05 does not). Honest wording: "
             "\"about a 1-in-%d result\" under this null (the brief's ≈ 0.05 / 1-in-20 is close to what a partner that also "
             "carries a DSC key gives: p = %.4f here, %.4f–%.4f over the %d seeds) — and what is unusual is the attraction-family "

@@ -228,5 +228,20 @@ class Readers(unittest.TestCase):
                                                          "B Charge·Pull | A with C |"))), 6)
 
 
+class ATime(unittest.TestCase):
+    """--a-time: the rerun can use A's noon chart, so rows written before v2 are checked against what produced them."""
+
+    def test_noon_mode_reruns_with_the_noon_chart(self):
+        day = DAYS[0]
+        self.assertEqual(AB.computed(day, "noon"), AB.view(D.main(day, dict(D.DEFAULT_OPT, a_time="noon"))))
+        self.assertEqual(AB.computed(day), AB.view(D.main(day)))
+        self.assertNotEqual(AB.computed(day, "noon")["A pull"], AB.computed(day)["A pull"])   # 1.8 vs 2.1 on 2026-10-21
+
+    def test_bad_mode_exits_2(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as cm:
+            AB.main(["x.md", "--a-time", "dusk"])
+        self.assertEqual(cm.exception.code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

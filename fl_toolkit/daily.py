@@ -1,8 +1,9 @@
 """Forbidden love: one day's math for A and B (and A with C), from Khai's pure_math pack.
 Usage:  python3 daily.py YYYY-MM-DD [options]      (a local Frederick, MD date)
 Prints JSON. Same rules as the book's Chart work tab:
-  * A and C have no birth time: noon charts, Moon left out of radar, A's attraction score is PARTIAL
-    (no ASC/DSC axis term, Moon bonus = Libra only, door kept).
+  * A and C have no birth time. A is time-free by default (v2, THE_MATH §14: the mean of her 119 possible charts);
+    --a-time noon gives the v1 noon stand-in. C is a noon chart (no book number depends on his time). Moon left out of
+    A's radar; A's attraction score is PARTIAL (no ASC/DSC axis term, Moon bonus = Libra only, door kept).
   * Year and month pillars: STD (year turns at the Sun's 315 degrees, months at each jie, month stem by wu hu dun).
   * Flags, pull scale and chemistry scale are relative to a 365-day reference window that starts on
     Oct 20, 2026 (and on each Oct 20 after it).

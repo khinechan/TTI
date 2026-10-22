@@ -6,13 +6,13 @@
 
 | | source | claim | measured |
 |---|---|---|---|
-| ✓ | task | A→B family count = 2 | 2 |
+| ✓ | task | A→B family count = 2 (holds for births before 7:45 PM) | 2 |
 | ✓ | task | all A–B contacts = 17 | 17 with A's noon Moon in (16 with it out) |
 | ✓ | task | tight A–B contacts (≤ 1°) = 4 | 4 |
 | ✓ | task | A–C contacts, bodies only = 2 | 2 |
 | ✗ | audit 15 | A→B family: percentile 0.950 | 0.9795 (expected 0.9500; +8.6 SE) |
-| ✗ | audit 15 | A→B family: p ≈ 0.050 | 0.0207 (expected 0.0500; -8.5 SE) |
-| ✓ | audit 15 | B→A family: p ≈ 0.125 | 0.1267 (expected 0.1250; +0.3 SE) |
+| ✗ | audit 15 | A→B family: p ≈ 0.050 (births before 7:45 PM) | 0.0207 (expected 0.0500; -8.5 SE) |
+| ✓ | audit 15 | B→A family: p ≈ 0.125 (births before 7:45 PM) | 0.1267 (expected 0.1250; +0.3 SE) |
 | ✓ | audit 15 | all contacts 17 ≈ 62nd percentile | 0.6163 (expected 0.6200; -0.5 SE) |
 | ✓ | audit 15 | all contacts p ≈ 0.38 | 0.3839 (expected 0.3800; +0.5 SE) |
 | ✓ | audit 15 | tight contacts 4 ≈ 22nd percentile | 0.2218 (expected 0.2200; +0.3 SE) |
@@ -52,7 +52,7 @@ The convention that reproduces 17 / 4 / 2 is A's noon chart **with** its noon Mo
 | all A–B contacts | 17 | 0.6163 | 0.3839 | 15.333 | ≈ 62nd pct, p ≈ 0.38 |
 | tight A–B (≤ 1°) | 4 | 0.2218 | 0.7783 | 5.422 | ≈ 22nd pct |
 
-Multiple testing (STD): 4 tests were run on the same pair (A→B, B→A, all, tight), so a Bonferroni line is 0.05/4 = 0.0125; the A→B p = 0.0207 does not clear it (the brief's p ≈ 0.05 does not). Honest wording: "about a 1-in-48 result" under this null (the brief's ≈ 0.05 / 1-in-20 is close to what a partner that also carries a DSC key gives: p = 0.0600 here, 0.0535–0.0600 over the 5 seeds) — and what is unusual is the attraction-family hits, not the overall contact count.
+Holds for births before 7:45 PM: after it A's Mars–B's Venus tie passes the 1° family orb, so A→B drops to 1 and B→A to 0 (robustness/birth_time_sweep.md), and the 17 contacts also need A's noon Moon (A has no birth time). Multiple testing (STD): 4 tests were run on the same pair (A→B, B→A, all, tight), so a Bonferroni line is 0.05/4 = 0.0125; the A→B p = 0.0207 does not clear it (the brief's p ≈ 0.05 does not). Honest wording: "about a 1-in-48 result" under this null (the brief's ≈ 0.05 / 1-in-20 is close to what a partner that also carries a DSC key gives: p = 0.0600 here, 0.0535–0.0600 over the 5 seeds) — and what is unusual is the attraction-family hits, not the overall contact count.
 
 ### Point-set checks (diagnostic, same partners)
 
