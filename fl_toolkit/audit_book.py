@@ -23,9 +23,10 @@ compare   a number matches when daily's value, rounded half up at the WRITTEN pr
           skipped and counted, never an error.
 finding   {date, line, column, kind: mismatch · unreadable row · unreadable cell · error (daily.py raised), written,
           computed}; computed is daily's value as it prints it (a flag daily leaves empty shows as "none").
-NOTE      rows written before the v2 fixes can differ for reasons that are fixes, not typos (pull sampled over the
-          BaZi day 23:00–22:50, chemistry read at local noon New York): CHANGES.md lists which numbers moved.
-Usage: cd fl_toolkit && python3 audit_book.py EXPORT.md [--json]
+NOTE      rows written before v2 can differ for reasons that are not typos: A is time-free by default since v2 (the
+          biggest mover — rerun with --a-time noon to compare against her noon chart), and the v2 fixes (pull sampled
+          over the BaZi day 23:00–22:50, chemistry read at local noon New York): CHANGES.md lists which numbers moved.
+Usage: cd fl_toolkit && python3 audit_book.py EXPORT.md [--json] [--a-time tf|noon]
 Exit: 0 every row matches · 1 mismatches or unreadable rows/cells · 2 input or tool error (file missing or not UTF-8,
 no Daily log table, no rows, daily.py raised; an unknown flag too). Human output and --json print ONE report dict;
 findings are in date order, then column order (undated rows last, by line).

@@ -187,6 +187,23 @@ class P5Options(unittest.TestCase):
         self.assertEqual([h["charge"] for h in r["A"]["hours"]], [h["charge"] for h in run("2026-10-21", a_time="noon")["A"]["hours"]])
         self.assertEqual(r["A"]["pull"], run("2026-10-21", a_time="noon")["A"]["pull"])   # the day pull stays on the clock
 
+    def test_solar_labels_across_dst(self):                 # final review: block ends computed in UTC, not wall-clock
+        labs = [h["hours"] for h in run("2026-11-01", a_time="noon", solar=True)["B"]["hours"][:3]]
+        self.assertEqual(labs, ["23:53-01:52 (true solar time)", "01:53-02:52 (true solar time)", "02:53-04:52 (true solar time)"])
+
+    def test_solar_outfit_seen_follows_solar_blocks(self):  # final review: day pull′ boosts the solar 辰–申, not the clock's
+        d = dt.date(2026, 10, 26); outfit = [{"slot": "top", "color": "forest green"}, {"slot": "bottom", "color": "forest green"}]
+        o = D.outfit_report(d, "B", outfit, NOON, params=None)
+        s = D.outfit_report(d, "B", outfit, dict(NOON, solar=True))
+        self.assertEqual(o["viewer"]["day_pull"][0], s["viewer"]["day_pull"][0])        # before: the clock day either way
+        self.assertNotEqual(o["viewer"]["day_pull"][1], s["viewer"]["day_pull"][1])
+
+    def test_bad_luck_weight_exits_2(self):
+        import subprocess
+        for w in ("nan", "inf", "-1"):
+            p = subprocess.run([sys.executable, os.path.join(HERE, "daily.py"), "2026-10-21", "--luck-repeat-weight", w], capture_output=True)
+            self.assertEqual(p.returncode, 2, w)
+
 
 class TimeFree(unittest.TestCase):
     def test_exact_mean_of_119_charts(self):
@@ -195,6 +212,12 @@ class TimeFree(unittest.TestCase):
             t = dt.datetime(2026, 10, 20, tzinfo=D.UTC) + dt.timedelta(minutes=rng.randrange(0, 365 * 1440))
             naive = sum(D.moment_A(t, pts=c["pts"]) for c in tf["charts"]) / D.TF_N
             self.assertAlmostEqual(D.moment_A_tf(t), naive, places=12)
+
+    def test_chemistry_is_the_exact_mean(self):          # final review: v2 summed 3-dp terms; v3 sums the exact totals
+        for day in ("2027-02-26", "2027-05-13", "2026-10-21"):
+            t = D.noon(dt.date.fromisoformat(day))
+            self.assertEqual(D.chem(t, "tf")[0], sum(D.P.pair_score(sp, t)[0] for sp in D.tf()["spots"]) / D.TF_N)
+        self.assertEqual(run("2027-02-26")["chemistry"]["raw"], 1.94)
 
     def test_charts(self):
         tf = D.tf(); self.assertEqual(len(tf["charts"]), 119)

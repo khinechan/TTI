@@ -5,19 +5,19 @@ Built and checked with Python 3.11 and ephem 4.2.1; the goldens are tied to that
 
 ## The short version
 - **A default run now differs from v1 in exactly two ways:** the P1 bug fixes (below), and the last step — **A is time-free** (the mean of her 119 possible charts, 00:00–19:40; `--a-time noon` gives the old noon stand-in, with the P1 fixes).
-- Everything else is **new keys** (the old keys keep their meaning) or **flags that are off by default**.
-- Your time-free check values all reproduce **exactly** under your v1 conventions (only pair_top differs, by 0.000005) — see `robustness/time_free_check.md`.
-- Tests: 41 → **TOTAL_TESTS** (41 + NEW_TESTS new). Goldens for the five days, in both A-chart modes.
+- Everything else is **new keys** (the old keys keep their meaning) or **flags that are off by default**. Besides the keys named item by item below, every run prints `a_chart` (which A chart was used), and a run with any non-default option prints `options`.
+- Your time-free check values all reproduce **exactly** under your v1 conventions — see `robustness/time_free_check.md`.
+- Tests: 41 → **146** (41 + 105 new: 88 date-free in `pure_math/code`, 58 date-level beside daily.py). Goldens for the five days, in both A-chart modes.
 
 ## What changed in a default run, and why
 | change | item | effect on the book's numbers |
 |---|---|---|
-| Pull samples the BaZi day, 23:00 the evening before → 22:50 (was the calendar day 00:00 → 23:50); the 子 block gets all 12 samples | P1.1 | pull and block pulls move a little (mostly ±0.1); A's 子 block on 10-21: 1.0 → 1.1 |
+| Pull samples the BaZi day, 23:00 the evening before → 22:50 (was the calendar day 00:00 → 23:50); the 子 block gets all 12 samples | P1.1 | pull and block pulls move a little (mostly ±0.1); A's 子 block on 10-21: 1.0 → 1.1 with `--a-time noon` (1.4 by default, time-free) |
 | Daylight saving: a missing wall time is skipped, a repeated one is sampled at both instants, ½ weight each | P1.5 | only 2026-11-01 and 2027-03-14 type days |
 | The reference caches are rebuilt with the new sampling (else a deleted cache would rebuild to different numbers); old-format caches are never trusted | P1.1/P1.5, item 9 | every window's cut points moved (table below), so pull scales and flags move with them |
 | Saturn-station points enter A with C exactly as A with B | P1.2 | A with C moves only on A's station days: 2027-08-07 … 08-11 (+8) |
-| Chemistry scale capped at 10.0; `above_window_max`; raw always printed | P1.3 | 2026-09-08: 14.3 → 10.0 (raw 5.29, flag true) |
-| Chemistry read at local noon (was 16:00 UTC = 11:00 EST in winter); the window's pair_top likewise | P1.4 | winter days only, e.g. 2026-11-01 raw 0.31 → 0.29 |
+| Chemistry scale capped at 10.0; `above_window_max`; raw always printed | P1.3 | 2026-09-08: 14.3 → 10.0 (raw 5.29 noon A / 5.32 time-free, flag true) |
+| Chemistry read at local noon (was 16:00 UTC = 11:00 EST in winter); the window's pair_top likewise | P1.4 | winter days only, e.g. 2026-11-01 raw 0.31 → 0.29 (noon A; 0.32 time-free) |
 | Round half up for every score (`rescale`, every scale) | P1.6 | none on these days (an integer S never lands on a half); matters for weighted / color terms |
 | **A time-free** (last step): pull, block pulls, chemistry = mean over her 119 charts; charges share-weighted by luck pillar; exact transits / door / Saturn station from her averaged chart; Moon times as earliest–latest | last step | A's pull and chemistry move (10-21: A pull 1.8 → 2.1); her charge moves on 30 days of the 2026-10-20 window (v2 sampling; 33 under your v1 conventions) |
 
@@ -25,16 +25,16 @@ Built and checked with Python 3.11 and ephem 4.2.1; the goldens are tied to that
 | cache | A top · 🔥 · ✅ | B top · 🔥 · ✅ | pair_top |
 |---|---|---|---|
 | v1 `ref_2026-10-20.json` (as shipped) | 3.276371 · 1.861061 · 1.299644 | 3.450551 · 2.265253 · 1.581427 | 3.703836 |
-| v2 `ref_2026-10-20.json` (noon A) | 3.333705 · 1.835568 · 1.288482 | 3.457041 · 2.303756 · 1.572269 | 3.703836 |
-| v2 `ref_2026-10-20_tf.json` (time-free A, default) | 3.222058 · 1.874358 · 1.292993 | same | 3.695639 |
-| v2 `ref_2027-10-20.json` / `_tf` | 4.644118 · 2.205301 · 1.609454 / 4.674484 · 2.236156 · 1.616628 | 3.822733 · 2.623027 · 2.173420 | 4.088542 / 4.116143 |
-| v2 `ref_2028-10-19.json` / `_tf` | 3.589453 · 1.817595 · 1.288890 / 3.635873 · 1.790361 · 1.258486 | 4.397910 · 2.626939 · 1.671342 | 3.878901 / 3.938992 |
+| v3 `ref_2026-10-20.json` (noon A) | 3.333705 · 1.835568 · 1.288482 | 3.457041 · 2.303756 · 1.572269 | 3.703836 |
+| v3 `ref_2026-10-20_tf.json` (time-free A, default) | 3.222058 · 1.874358 · 1.292993 | same | 3.695634 |
+| v3 `ref_2027-10-20.json` / `_tf` | 4.644118 · 2.205301 · 1.609454 / 4.674484 · 2.236156 · 1.616628 | 3.822733 · 2.623027 · 2.173420 | 4.088542 / 4.116191 |
+| v3 `ref_2028-10-19.json` / `_tf` | 3.589453 · 1.817595 · 1.288890 / 3.635873 · 1.790361 · 1.258486 | 4.397910 · 2.626939 · 1.671342 | 3.878901 / 3.938989 |
 
 ## Item by item
 **P1 — fixes** (all tested in `test_daily.py`)
-1. BaZi-day sampling — A's 子 block on 2026-10-21 = 1.1 shipped; the same mean over the v1 top = 1.08 ✓.
+1. BaZi-day sampling — A's 子 block on 2026-10-21 = 1.1 with `--a-time noon` (the noon chart the audit meant; 1.4 by default); the same mean over the v1 top = 1.08 ✓.
 2. Saturn points in A with C — 2027-08-09: A and A-with-C both carry `Saturn station 8` ✓.
-3. Chemistry cap — 2026-09-08: scale 10.0, raw 5.29, `above_window_max` true ✓.
+3. Chemistry cap — 2026-09-08 with `--a-time noon`: scale 10.0, raw 5.29, `above_window_max` true ✓ (time-free: 10.0, 5.32, true).
 4. Local-noon chemistry + `day_max` {raw, scale, local time; null time when the day has no chemistry} over the BaZi day's 24 hourly instants. Golden diffs: 2026-11-01 only (an EST day).
 5. DST — 2026-11-01: 150 instants, 144 effective ✓. **2027-03-14: 138 effective, not 144** — skipping the six missing wall times (the rule asked for) leaves 138 on a 23-hour day; the audit's "144 on both days" cannot hold under its own rule. A `sampling` key reports instants / effective / skipped / repeated.
 6. Round half up — `bazi_core.round_half_up` (decimal of the printed value) in `rescale` (exact decimal arithmetic), every scale in daily.py, `attraction_core.flags` and `pair_core.timeline`.
@@ -48,7 +48,7 @@ Built and checked with Python 3.11 and ephem 4.2.1; the goldens are tied to that
 10. `friction`, `bond`, `attraction_points` on A, B, A_with_C; they sum to S − 35 − Saturn points (tested on every golden day, both modes, and on 400 random synthetic days).
 11. `--luck-repeat-weight` (default 1.0). B: 2026-10-21 raw 77 / charge 57 at both 1.0 and 0.5 (no 巳 relation on a 辰 day; only his 寅 申 巳 亥 hours drop: 81 → 67.5, 60 → 47.5, 34 → 31, 50 → 40); 2026-10-22 raw 79 → 76, charge 62 → 55 at 0.5.
 12. `STEM_BONUS` table in bazi_core + the rationale in THE_MATH §7. Values unchanged (the old shape test still passes).
-13. `love_overlay` 💗 — e.g. 2026-10-22 A: `💗 Venus ☌ Mars 2.65° applying ⚠️` (⚠️ unchanged).
+13. `love_overlay` 💗 — e.g. 2026-10-22 A: `💗 Venus ☌ Mars 2.71° applying ⚠️` (2.65° with `--a-time noon`; ⚠️ unchanged).
 
 **P4 — robustness** (scripts + reports in `robustness/`)
 14. `birth_time_sweep.py` — orb 0.47–1.11° ✓, crossing **19:44:44** (first 10-min step past: 19:50) ✓, family 2 before / 1 after ✓, 28.6 Lib drops after ✓, Venus–Moon 0.00–0.67° ✓, 12 windows + peak 2027-05-13 before the line ✓, the 7:45–11 PM band ✓ (Sep 28–30, 2027 becomes the peak), 癸酉 from 23:00 ✓, 己卯 start Apr 7 – Jul 16, 2027 (5.1 days/hour) ✓, Moon tie 07:40–10:50 ✓. **"At most 0.84" holds only under v1 with both charts on the noon chart's top (0.8356)**; under v2 it is 0.91 (0.99 with each chart on its own top). Also: B→A drops from 1 to 0 after 7:45 PM, so audit item 15's B→A claim also needs "births before 7:45 PM".
@@ -58,9 +58,9 @@ Built and checked with Python 3.11 and ephem 4.2.1; the goldens are tied to that
 
 **P5 — additions**
 18. `strength_core.py` (STD) — A S = 0.7667 strong, B S = 0.25 weak, F exactly as expected.
-19. `audit_book.py` — reads the Days tab's Daily log tables from a Markdown export (any column order; six date formats; tiers/flags compared only when written), reruns daily.py per date, prints mismatches; exit 0 / 1 / 2, `--json`. No real export was available, so the format is a guess — send one and I'll pin it. Rows written before v2 can differ for fix reasons, not typos.
+19. `audit_book.py` — reads the Days tab's Daily log tables from a Markdown export (any column order; six date formats; tiers/flags compared only when written), reruns daily.py per date, prints mismatches; exit 0 / 1 / 2, `--json`. No real export was available, so the format is a guess — send one and I'll pin it. Rows written before v2 differ mostly because A is now time-free: `--a-time noon` reruns them on her noon chart (the v2 fixes can still move a pull by 0.1).
 20. `--year-month-terms` (STD) — 流年/流月 at ½ weight in the other set, day and hours; 2026-10-21 adds `辰戌冲 (other, 流月 ×0.5)` 7.5.
-21. `--solar-time` (STD) — hour-block edges on true solar time (EoT from ephem, checked against Meeus to 0.1 min). **In daylight time the edges move about an hour** (clock − solar = 54.2 min on 2026-10-21), not "≤ 25 min": the audit's estimate left out daylight saving. Only block edges move; the day's pull, flags and charge stay on the clock.
+21. `--solar-time` (STD) — hour-block edges on true solar time (EoT from ephem, checked against Meeus to 0.1 min). **In daylight time the edges move about an hour** (clock − solar = 54.2 min on 2026-10-21), not "≤ 25 min": the audit's estimate left out daylight saving. Only block edges move (the labels give each block's clock times, DST-safe; an outfit's "seen" follows the solar blocks); the day's pull, flags and charge stay on the clock. The run prints `solar_time` {at, eot_min, mean_time_minus_clock_min, clock_minus_solar_min}, read at local noon.
 
 **§13 outfit color (second job)** — `color_core.py` + `strength_core.py`; `--outfit-A`, `--outfit-B`, `--seen`; the JSON gains `outfit` only when one is passed, and no headline key moves (tested).
 - The brief's examples 2–5 reproduce **exactly** on the inputs they were made from (v1 sampling, v1 reference, noon A): 1.919 → 1.982, 辰 2.110 → 2.274; 1.129 → 1.198, 午 0.910 → 1.069; 7.113 → 7.618, 申 7.371 → 8.661; 7.113 → 6.825; every E, W, T, V, charge and role ✓ (`test_daily_color.py`).
@@ -69,7 +69,15 @@ Built and checked with Python 3.11 and ephem 4.2.1; the goldens are tied to that
 
 **Last step: time-free A** — see THE_MATH §14 and `robustness/time_free_check.md` (your values next to ours, under your v1 conventions and under v2).
 
+## Fixed after the final review (three independent reviewers: code, spec, docs)
+- Time-free chemistry summed per-term values that pair_core had already rounded to 3 decimals; it is now the exact mean of the 119 charts' scores. This is what closed the last gap to your check values (pair_top 3.695639 → **3.695634**, yours). Over 2020–2040 the printed raw moved by 0.01 on 10 days (e.g. 2027-02-26: 1.93 → 1.94); none of the five golden days moved. Cache format bumped to **v3** so no older cache is ever reused.
+- `--solar-time`: block labels on a DST day are now computed in UTC (they used to overlap or leave a gap by an hour); with an outfit, "seen" follows the solar blocks for the day pull too.
+- `--luck-repeat-weight nan` / `inf` now exit 2 like any bad flag.
+- `audit_book.py --a-time noon`, so rows written on her noon chart can be checked against it; the family claims in the null report now say "holds for births before 7:45 PM"; several doc lines that quoted noon values as defaults are corrected.
+
 ## Noticed, not changed (your call)
+- Time-free A's **Saturn station** uses her averaged chart (as THE_MATH §14 says). On A's station days the 119 charts disagree (74 get +8, 45 get +10), so a per-chart mean would print 2 more on 2027-08-07 (5 → 7), 08-08 (9 → 11), 08-09 (55 → 57) and 08-11 (71 → 73). Your "33 charges change" matches the averaged chart (per-chart gives 37), so I kept it.
+- The 🔥 +12 bonus goes to every 🔥 day whose pull scale is ≥ 9.5 (the code's rule since v1), not only "the window's top day" as THE_MATH used to say; time-free A gets it on 2027-07-17 and 07-18. THE_MATH now states the code's rule; no number moved.
 - `window_for` drift (2028-10-19, above).
 - The pull scale is not capped: 2026-09-08 (before the first window) prints A pull 12.4 noon / 13.1 time-free. Only chemistry was asked.
 - Moon times and the door still search 24 absolute hours from local midnight, so on DST days the window is an hour off; the item list only covered pull sampling.

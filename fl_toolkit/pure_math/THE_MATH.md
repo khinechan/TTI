@@ -1,5 +1,5 @@
 # THE MATH — every formula, with no charts inside
-Pure calculation: no names, no dates, no birth data, no operating rules. Each section gives the equations first, then **↔ astrology**, which says what each piece of the math means in the tradition. The code in `code/` implements exactly these lines (TESTS_CODE tests, none of which uses a date; `daily.py`'s date-level tests sit beside it: TESTS_DAILY more).
+Pure calculation: no names, no dates, no birth data, no operating rules. Each section gives the equations first, then **↔ astrology**, which says what each piece of the math means in the tradition. The code in `code/` implements exactly these lines' date-free formulas, and `daily.py` applies them to the book's charts and days (the v2 day sampling, references, percentiles, the day's chemistry, §13's wiring and §14) (88 tests, none of which uses a date; `daily.py`'s date-level tests sit beside it: 58 more).
 
 **v2 (2026-10-22).** The audit's fixes and additions are written into the sections they touch, each marked **v2**; anything outside the original math is marked **STD**. New sections: §13 outfit color (STD) and §14 time-free A. `CHANGES.md` lists every number that moved.
 
@@ -112,7 +112,7 @@ Weights:
     | 食神, 偏財, 正財, 正官, 比肩, 劫財 | 0 | — |
 
     Why these values: the bonus scores how hard today's stem works on the day master. The combine partner binds it and 七殺 attacks it unchecked — the two strongest pulls (+10). 傷官 (output that defies the officer) and the two 印 (resource stems that feed the DM) stir it less (+5). The rest the DM deals with on its own terms (0). 印 adding charge reads as being held or fed — involvement, not conflict — which is why the split below files it under bond. These are DAILY v0.1 design choices, not a classical table.
-  - attraction points: 🔥 +10 (+12 on the window's top day) · ✅ +5 · Saturn station: +10 / +8
+  - attraction points: 🔥 +10 (+12 when the day's pull scale is ≥ 9.5 — v1's words were "the window's top day", but the code has always used this rule, so a second day near the top, or a day outside the window where the scale runs past 10, also gets +12) · ✅ +5 · Saturn station: +10 / +8
 - **Rescale:** S′ = clip(round_half_up((S − 60) · 2.2 + 20), 5, 100), computed on the decimal value (**v2**: v1 used Python's round-half-to-even; an integer S never lands on a half, so no v1 value moves — the rule matters for the non-integer S that the weights ω and §13 can make). **Tiers:** 🔴 ≥ 85 · 🟠 65–84 · 🟡 45–64 · 🟢 < 45.
 - **Split (v2):** friction = Σ 冲 刑 害 自刑 points + the 七殺 / 傷官 bonus · bond = Σ 合 and same points + 咸池 day and frame + the combine / 印 bonus · attraction_points. friction + bond + attraction_points = S − 35 − Saturn points.
 - **Percentile tiers (v2):** charge_pct = the mid-rank percentile (#less + ½·#equal)/n of today's raw S among the window's 365 days, computed with the same options; tier_pct = 🔴 ≥ 0.90 · 🟠 0.75–0.90 · 🟡 0.50–0.75 · 🟢 < 0.50. S′ and its tier are unchanged. (S′ saturates: over the 2026-10-20 window A sits at 100 on 50 days and at 5 on 72 — time-free default; 49 and 76 with `--a-time noon` — and B on 50 and 32.)
@@ -144,7 +144,7 @@ Weights:
   - bonus signs: the chart's 1st, 5th and 7th whole-sign houses + Libra
 - Day score = the mean of M over the day, sampled every 10 minutes (144 samples). **v2:** over the BaZi day of §3 (23:00 the evening before to 22:50), Σ w·M / Σ w with the daylight-saving weights; a block's pull is the same mean over its own slots.
 - Flags within a reference window: 🔥 top 7% · ✅ top 20%. Scale = day / window max × 10, rounded half up to 0.1.
-- **Reference (v2):** the window's 365 day scores are cached per window (`ref_<start>.json`, format v2: each day's score and Saturn points, the cut points, the chemistry); a cache in the old format is rebuilt, so a deleted cache rebuilds to the same numbers.
+- **Reference (v2):** the window's 365 day scores are cached per window (`ref_<start>.json`, format v3: each day's score and Saturn points, the cut points, the chemistry); a cache in the old format is rebuilt, so a deleted cache rebuilds to the same numbers.
 - **Long-run percentile (v2):** pull_pct_longrun = the mid-rank percentile of today's hourly mean (the 24 on-the-hour slots of today's grid) among the hourly means of every day 2020-01-01 … 2040-12-31. It never resets on Oct 20, so it compares across years.
 
 **↔ astrology:** "pull" days — the love planets in the sky (Venus, Mars, plus Jupiter, the Sun and the Moon) touching the chart's Venus, Mars, Sun, Jupiter and its partnership axis.
@@ -259,7 +259,7 @@ A has no birth time, and none is pinned: every A number is the mean over the hou
 - The averaged chart λ̄_b = atan2(Σ_k sin λ_b(t_k), Σ_k cos λ_b(t_k)) — the circular mean of each planet — is used for exact transits (radar hits, tone, love overlay), the door and the Saturn station.
 - Moon times: for each (aspect, point), the earliest–latest exact time over the 119 charts, with (n/119) when only n of them fall inside the day.
 - `--a-time noon` keeps the v1 noon stand-in for comparison.
-- C: none of the book's numbers depend on C's birth time. C enters only through his year, month and day branches (the *other* set of A with C); his date sits far from a jie (立春 on Feb 4, 驚蟄 on Mar 6), so any birth time before 23:00 gives the same three pillars (丁巳 · 壬寅 · 壬寅). Only a birth at 23:00 or later would flip his day pillar to 癸卯. His planets are never read.
+- C: none of the book's numbers depend on C's birth time. C enters only through his year, month and day branches (the *other* set of A with C); his date sits far from a jie (立春 on Feb 3 and 驚蟄 on Mar 5, UTC and his local time; Feb 4 / Mar 6 in Beijing time), so any birth time before 23:00 gives the same three pillars (丁巳 · 壬寅 · 壬寅). Only a birth at 23:00 or later would flip his day pillar to 癸卯. His planets are never read.
 
 **↔ astrology:** without a birth time the honest chart is a range, not a point. Averaging over her possible hours keeps every number true to what the chart can actually claim; on the days her ten-year luck pillar changes, the change arrives gradually, as a share of the possible charts.
 
@@ -271,7 +271,7 @@ A has no birth time, and none is pinned: every A number is the mean over the hou
 | `code/astro_core.py` | §1–2: longitudes, speed, obliquity, ASC/MC, separation, orbs, applying test, exact-time roots, chart points, equation of time |
 | `code/bazi_core.py` | §3–7: JDN, day/hour pillars, branch relations, ten gods, combine, peach blossom, luck pillars, STEM_BONUS, daily day/hour scores, rescale (half up), tiers, the friction/bond split |
 | `code/radar_core.py` | §8: hits, tone, flavor, love overlay, Moon times, angle crossings, door, Saturn station |
-| `code/attraction_core.py` | §9: moment score, day score, flags, daily points |
+| `code/attraction_core.py` | §9: moment score, day score (the v1 calendar-day helper; daily.py's v2 day score is in daily.py), flags, daily points |
 | `code/pair_core.py` | §10, §12: synastry, attraction family, expectation, hot spots, pair timeline, random-chart null, binomial, Wilson |
 | `code/test_pure_math.py` | 27 tests: the formulas reproduce the classical tables, the calendar formula against its own inverse at random day numbers, the Sun against an independent formula at random moments, and hand-worked synthetic cases |
 | `code/demo.py` | every formula once, on two synthetic charts (random longitudes), with transits taken when you run it |
@@ -280,6 +280,8 @@ A has no birth time, and none is pinned: every A number is the mean over the hou
 | `code/strength_core.py` | §13.3–13.4 (STD): hidden-stem element totals, strength, favorability |
 | `code/color_core.py` | §13 (STD): color table, outfit vector, taste, wearer and viewer effects, role tag |
 | `code/test_strength_core.py`, `code/test_color_core.py` | the §13 math on synthetic inputs and the pack's two pillar sets |
+| `../daily.py` | applies the formulas to A, B, C and a date: §3 v2 sampling (wall_grid, DST rule, solar_grid), §9 v2 day score and the reference caches, §7 percentile tiers and split, §10 day chemistry (noon, cap, day_max), long-run percentiles, the §13 wiring (outfit_report) and §14 time-free A (tf, PointSet, moment_A_tf, lucks, moon_times_tf) |
+| `../test_daily.py`, `../test_daily_color.py` | date-level tests: the audit's P1–P5 checks, goldens for five days in both A-chart modes, the color brief's §5 examples |
 | `code/test_v2_core.py` | v2 core additions: round half up, STEM_BONUS, weighted members, sub-scores, hour pillar, love overlay, EoT vs Meeus |
 | `tables/coefficients_v1.5.csv` | the 345-row coefficient table: id, family, signal, area, sign, w⁰, grade |
 

@@ -41,7 +41,8 @@ STEP_MIN = 10                         # pull: one sample every 10 minutes of loc
 DAY_START_MIN = -60                   # the BaZi day starts at 23:00 the evening before (§3): −60 min from midnight
 BLOCK_MIN = 120                       # an hour branch is a two-hour block (子 = 23:00–00:59 … 亥 = 21:00–22:59)
 CHEM_CAP = 10.0                       # the chemistry scale stops at 10; raw is always printed
-REF_V = 2                             # reference-cache format; a cache without it (v1, calendar-day sampling) is rebuilt
+REF_V = 3                             # reference-cache format; an older cache is rebuilt (v1: calendar-day sampling,
+                                      # v2: time-free chemistry summed 3-dp terms instead of the exact mean)
 LONGRUN = (dt.date(2020, 1, 1), dt.date(2040, 12, 31))   # fixed long-run reference: pull hourly, chemistry at noon
 PCT_TIERS = ((0.90, "🔴"), (0.75, "🟠"), (0.50, "🟡"))   # tier_pct: cut → tier; below the last cut → 🟢
 YM_WEIGHT = 0.5                       # --year-month-terms: 流年 and 流月 count half (STD)
@@ -184,15 +185,16 @@ def chem(t, a_time):
     """§10 pair score at t: (raw, why). Time-free: the mean over A's 119 charts' hot spots, and why = each
        (body, aspect, spot)'s mean contribution with its orb on the averaged chart's spots."""
     if a_time == "noon": return P.pair_score(spots, t)
-    acc = {}
+    acc = {}; tot = 0.0
     for sp in tf()["spots"]:
-        for v, b, ang, nm, o in P.pair_score(sp, t)[1]: acc[(b, ang, nm)] = acc.get((b, ang, nm), 0.0) + v
+        s, why = P.pair_score(sp, t); tot += s                     # the exact mean comes from the unrounded totals;
+        for v, b, ang, nm, o in why: acc[(b, ang, nm)] = acc.get((b, ang, nm), 0.0) + v   # why's terms are 3-dp, display only
     avg = tf()["avg"]
     sp = {"28.6 Lib (B Venus ☌ A Mars)": P.midpoint(pB["Venus"], avg["Mars"]),
           "18.7 Can (A Venus ☍ B Moon, axis)": P.midpoint(avg["Venus"], (pB["Moon"] + 180) % 360)}
     lon = {b: A.lon(b, t) for b in {k[0] for k in acc}}
     why = [(round(v / TF_N, 3), b, ang, nm, round(abs(A.distance(lon[b], sp[nm]) - ang), 2)) for (b, ang, nm), v in acc.items()]
-    return sum(acc.values()) / TF_N, sorted(why, reverse=True)
+    return tot / TF_N, sorted(why, reverse=True)
 
 
 def noon(day):
@@ -452,11 +454,16 @@ def outfit_report(day, wearer, outfit, opt=None, seen=None, params=None):
     sc2 = day_charge(day, wearer, viewer, flag, scale, stp, opt, shift=-params["K_SELF"] * we["W"])[1]
     venus = A.SIGNS[int(nat_of(viewer, at)["Venus"] // 30)]; taste = C.taste(outfit, venus)
 
-    def view(rows):
-        return C.viewer_effect(E, sv["F"], taste, [v for v, _, _ in rows], [w for _, w, _ in rows],
-                               [Z.BRANCHES[block_of(k)] for _, _, k in rows], ref[viewer]["top"], seen, params)
-    ve = view(samples(day, viewer, None, at))
-    blocks = view(samples(day, viewer, solar_grid(day), at))["blocks"] if opt["solar"] else ve["blocks"]
+    def view(rows, blocks):
+        return C.viewer_effect(E, sv["F"], taste, [v for v, _, _ in rows], [w for _, w, _ in rows], blocks,
+                               ref[viewer]["top"], seen, params)
+    grid = wall_grid(day); rows = samples(day, viewer, grid, at)
+    if opt["solar"]:            # the day pull stays on the clock grid, but "seen" follows the solar blocks
+        sg = solar_grid(day); s0 = sg[0][0]
+        ve = view(rows, [Z.BRANCHES[int((u - s0).total_seconds() // 60 // BLOCK_MIN) % 12] for u, _, _ in grid])
+        blocks = view(samples(day, viewer, sg, at), [Z.BRANCHES[block_of(k)] for _, _, k in sg])["blocks"]
+    else:
+        ve = view(rows, [Z.BRANCHES[block_of(k)] for _, _, k in rows]); blocks = ve["blocks"]
     r4, r3 = (lambda x: rhu(x, 4)), (lambda x: rhu(x, 3))
     return dict(worn_by=wearer, seen_by=viewer, outfit=outfit, E={e: r4(v) for e, v in E.items() if v},
                 wearer=dict(W=r4(we["W"]), raw=[raw, r3(we["raw_after"])], charge=[sc, sc2], tier=[Z.tier(sc), Z.tier(sc2)],
@@ -493,7 +500,8 @@ def main(day, opt=None, outfits=None, seen=None):
         hours = []
         for i, (H, hp) in enumerate(hour_points(day, who, other_key, opt)):
             if sgrid:
-                b0 = sgrid[12 * i][0].astimezone(NY); b1 = b0 + dt.timedelta(minutes=BLOCK_MIN - 1)
+                b0 = sgrid[12 * i][0].astimezone(NY)
+                b1 = (sgrid[12 * i + 11][0] + dt.timedelta(minutes=STEP_MIN - 1)).astimezone(NY)   # in UTC: DST-safe
                 lab = "%s-%s (true solar time)" % (b0.strftime("%H:%M"), b1.strftime("%H:%M"))
             else:
                 lab = "00:00-00:59 (+23:00 the night before)" if i == 0 else "%02d:00-%02d:59" % (2 * i - 1, 2 * i)
@@ -535,7 +543,8 @@ def main(day, opt=None, outfits=None, seen=None):
                       "noon stand-in (v1), kept for comparison")
     if sgrid:
         e = A.equation_of_time(t_noon); off = t_noon.astimezone(NY).utcoffset().total_seconds() / 60
-        res["solar_time"] = dict(eot_min=rhu(e, 1), mean_time_minus_clock_min=rhu(LON * 4 - off, 1),
+        res["solar_time"] = dict(at="local noon (on a DST day the early blocks differ by the hour; their labels are exact)",
+                                 eot_min=rhu(e, 1), mean_time_minus_clock_min=rhu(LON * 4 - off, 1),
                                  clock_minus_solar_min=rhu(off - LON * 4 - e, 1))
     if outfits:
         res["outfit"] = {w: outfit_report(day, w, outfits[w], opt, seen) for w in sorted(outfits)}
@@ -556,7 +565,7 @@ if __name__ == "__main__":
     ap.add_argument("--outfit-B", help='§13: B\'s outfit, JSON list of {"slot": ..., "color": ...}')
     ap.add_argument("--seen", help="§13: the blocks when the viewer sees the wearer, e.g. 辰,巳,午,未,申 (default)")
     a = ap.parse_args()
-    if a.luck_repeat_weight < 0: ap.error("--luck-repeat-weight must be ≥ 0")
+    if not (math.isfinite(a.luck_repeat_weight) and a.luck_repeat_weight >= 0): ap.error("--luck-repeat-weight must be a number ≥ 0")
     outfits = {}
     for w, txt in (("A", a.outfit_A), ("B", a.outfit_B)):
         if txt is None: continue

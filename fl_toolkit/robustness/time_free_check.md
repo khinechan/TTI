@@ -7,7 +7,7 @@ Window 2026-10-20 + 365 days. **v1 conventions** = Khai's (calendar-day pull 00:
 | time-free ref top | 3.214513 | 3.214513 | 3.222058 |
 | time-free ref fire (🔥 cut) | 1.881009 | 1.881009 | 1.874358 |
 | time-free ref ok (✅ cut) | 1.284722 | 1.284722 | 1.292993 |
-| time-free chemistry pair_top | 3.695634 | 3.695639 | 3.695639 |
+| time-free chemistry pair_top | 3.695634 | 3.695634 | 3.695634 |
 | 2026-10-21 A pull, time-free | 2.1 | 2.1 | 2.1 |
 | 2026-10-21 A pull, noon | 1.9 | 1.9 | 1.8 |
 | 2026-10-21 A charge, time-free | 90 | 90 | 90 |

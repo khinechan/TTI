@@ -11,5 +11,6 @@ Reference caches (rebuilt automatically if missing or in the old format; shipped
    ref_<window start>.json (noon A) and ref_<window start>_tf.json (time-free A) for 2026-10-20, 2027-10-20, 2028-10-19;
    ref_longrun_2020-01-01_2040-12-31[_tf].json (the fixed long-run percentiles).
 Reports (robustness/): birth_time_sweep.py, null_reports.py, time_free_check.py, color_robustness.py write them.
-Book audit: python3 audit_book.py DAYS_EXPORT.md [--json]  (exit 0 clean, 1 mismatches, 2 input error).
+Book audit: python3 audit_book.py DAYS_EXPORT.md [--json] [--a-time tf|noon]  (exit 0 clean, 1 mismatches, 2 input error;
+   rows written before v2 used A's noon chart: compare them with --a-time noon).
 CHANGES.md lists every number v2 moved. pure_math/THE_MATH.md has every formula (§13 outfit color, §14 time-free A).
