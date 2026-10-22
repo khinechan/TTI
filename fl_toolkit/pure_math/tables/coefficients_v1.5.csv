@@ -1,0 +1,346 @@
+id,family,signal,area,sign,w0,grade
+BZ-01,bazi,正官 Direct Officer,career,+,0.100,✔
+BZ-02,bazi,正官 [♀ only],relationship,+,0.100,✔
+BZ-03,bazi,正官 (children) [♂ only],home_family,+,0.050,✔
+BZ-04,bazi,七殺 Seven Killings,career,-,0.100,✔
+BZ-05,bazi,七殺,health_body,-,0.050,✔
+BZ-06,bazi,七殺 [♀ only],relationship,+,0.050,✔
+BZ-07,bazi,七殺 (children) [♂ only],home_family,+,0.050,✔
+BZ-08,bazi,正財 Direct Wealth [♂ only],relationship,+,0.100,✔
+BZ-09,bazi,正財,money_through_others,+,0.050,A
+BZ-10,bazi,偏財 Indirect Wealth,money_through_others,+,0.100,✔
+BZ-11,bazi,偏財 (father),home_family,+,0.050,✔
+BZ-12,bazi,偏財 [♂ only],relationship,+,0.050,✔
+BZ-13,bazi,食神 Eating God,health_body,+,0.050,✔
+BZ-14,bazi,食神,voice_output,+,0.050,A
+BZ-15,bazi,食神 (children) [♀ only],home_family,+,0.050,✔
+BZ-16,bazi,傷官 Hurting Officer,voice_output,+,0.050,~
+BZ-17,bazi,傷官,career,-,0.050,✔
+BZ-18,bazi,傷官 while 正官 stands in the natal stems (傷官見官),career,-,0.100,✔
+BZ-19,bazi,傷官見官 (as BZ-18) [♀ only],relationship,-,0.100,~
+BZ-20,bazi,傷官,health_body,-,0.050,✔
+BZ-21,bazi,傷官 (children) [♀ only],home_family,+,0.050,✔
+BZ-22,bazi,正印 Direct Resource,career,+,0.050,✔
+BZ-23,bazi,正印 (mother),home_family,+,0.050,~
+BZ-24,bazi,偏印 / 梟,voice_output,-,0.050,A
+BZ-25,bazi,比肩 Friend (siblings),home_family,+,0.050,✔
+BZ-26,bazi,比肩,money_through_others,-,0.050,✔
+BZ-27,bazi,劫財 Rob Wealth,loss_theft,-,0.100,✔
+BZ-28,bazi,劫財,money_through_others,-,0.050,✔
+BZ-29,bazi,劫財 [♂ only],relationship,-,0.050,~
+BZ-40,bazi,luck/annual branch = 驛馬 Travelling Horse (申子辰→寅 · 寅午戌→申 · 巳酉丑→亥 · 亥卯未→巳),travel_move,+,0.100,✔
+BZ-41,bazi,驛馬 (same),career,+,0.050,✔
+BZ-42,bazi,annual branch clashes the natal 驛馬 branch,travel_move,+,0.050,✔
+BZ-43,bazi,luck/annual branch = 咸池 Peach Blossom (申子辰→酉 · 寅午戌→卯 · 巳酉丑→午 · 亥卯未→子),relationship,+,0.050,✔
+BZ-44,bazi,咸池 (same),loss_theft,-,0.050,~
+BZ-30@day,bazi,六沖 clash: 子午 丑未 寅申 卯酉 辰戌 巳亥 — luck/annual branch × natal day branch (spouse palace 夫妻宮),relationship,-,0.100,✔
+BZ-30@hour,bazi,六沖 clash: 子午 丑未 寅申 卯酉 辰戌 巳亥 — luck/annual branch × natal hour branch (children),home_family,-,0.050,✔
+BZ-30@year,bazi,六沖 clash: 子午 丑未 寅申 卯酉 辰戌 巳亥 — luck/annual branch × natal year branch (ancestors (SMTH: father)),home_family,-,0.050,✔
+BZ-30@month,bazi,六沖 clash: 子午 丑未 寅申 卯酉 辰戌 巳亥 — luck/annual branch × natal month branch (parents (SMTH: siblings)),home_family,-,0.050,✔
+BZ-30x,bazi,六沖 clash: 子午 丑未 寅申 卯酉 辰戌 巳亥 — extra row (fires once per month),travel_move,+,0.050,✔
+BZ-31@day,bazi,六合 combine: 子丑 寅亥 卯戌 辰酉 巳申 午未 — luck/annual branch × natal day branch (spouse palace 夫妻宮),relationship,+,0.100,✔
+BZ-31@hour,bazi,六合 combine: 子丑 寅亥 卯戌 辰酉 巳申 午未 — luck/annual branch × natal hour branch (children),home_family,+,0.050,✔
+BZ-31@year,bazi,六合 combine: 子丑 寅亥 卯戌 辰酉 巳申 午未 — luck/annual branch × natal year branch (ancestors (SMTH: father)),home_family,+,0.050,✔
+BZ-31@month,bazi,六合 combine: 子丑 寅亥 卯戌 辰酉 巳申 午未 — luck/annual branch × natal month branch (parents (SMTH: siblings)),home_family,+,0.050,✔
+BZ-32@day,bazi,三合 frame completed with two natal branches: 申子辰 寅午戌 巳酉丑 亥卯未 — luck/annual branch × natal day branch (spouse palace 夫妻宮),relationship,+,0.050,✔
+BZ-32@hour,bazi,三合 frame completed with two natal branches: 申子辰 寅午戌 巳酉丑 亥卯未 — luck/annual branch × natal hour branch (children),home_family,+,0.050,✔
+BZ-32@year,bazi,三合 frame completed with two natal branches: 申子辰 寅午戌 巳酉丑 亥卯未 — luck/annual branch × natal year branch (ancestors (SMTH: father)),home_family,+,0.050,✔
+BZ-32@month,bazi,三合 frame completed with two natal branches: 申子辰 寅午戌 巳酉丑 亥卯未 — luck/annual branch × natal month branch (parents (SMTH: siblings)),home_family,+,0.050,✔
+BZ-33@day,bazi,六害 harm: 子未 丑午 寅巳 卯辰 申亥 酉戌 — luck/annual branch × natal day branch (spouse palace 夫妻宮),relationship,-,0.100,✔
+BZ-33@hour,bazi,六害 harm: 子未 丑午 寅巳 卯辰 申亥 酉戌 — luck/annual branch × natal hour branch (children),home_family,-,0.050,✔
+BZ-33@year,bazi,六害 harm: 子未 丑午 寅巳 卯辰 申亥 酉戌 — luck/annual branch × natal year branch (ancestors (SMTH: father)),home_family,-,0.050,✔
+BZ-33@month,bazi,六害 harm: 子未 丑午 寅巳 卯辰 申亥 酉戌 — luck/annual branch × natal month branch (parents (SMTH: siblings)),home_family,-,0.050,✔
+BZ-33x,bazi,六害 harm: 子未 丑午 寅巳 卯辰 申亥 酉戌 — extra row (fires once per month),home_family,-,0.050,✔
+BZ-34@day,bazi,三刑 penalty: 寅巳申 · 丑戌未 · 子卯; 自刑 (same branch twice): 辰 午 酉 亥 — luck/annual branch × natal day branch (spouse palace 夫妻宮),relationship,-,0.100,✔
+BZ-34@hour,bazi,三刑 penalty: 寅巳申 · 丑戌未 · 子卯; 自刑 (same branch twice): 辰 午 酉 亥 — luck/annual branch × natal hour branch (children),home_family,-,0.050,✔
+BZ-34@year,bazi,三刑 penalty: 寅巳申 · 丑戌未 · 子卯; 自刑 (same branch twice): 辰 午 酉 亥 — luck/annual branch × natal year branch (ancestors (SMTH: father)),home_family,-,0.050,✔
+BZ-34@month,bazi,三刑 penalty: 寅巳申 · 丑戌未 · 子卯; 自刑 (same branch twice): 辰 午 酉 亥 — luck/annual branch × natal month branch (parents (SMTH: siblings)),home_family,-,0.050,✔
+BZ-34x,bazi,三刑 penalty: 寅巳申 · 丑戌未 · 子卯; 自刑 (same branch twice): 辰 午 酉 亥 — extra row (fires once per month),health_body,-,0.050,✔
+ZW-01@命宮,zi_wei,the year's life palace falls on natal palace 命宮,health_body,+,0.050,A
+ZW-01@兄弟,zi_wei,the year's life palace falls on natal palace 兄弟,home_family,+,0.050,~
+ZW-01@夫妻,zi_wei,the year's life palace falls on natal palace 夫妻,relationship,+,0.100,~
+ZW-01@子女,zi_wei,the year's life palace falls on natal palace 子女,home_family,+,0.050,~
+ZW-01@財帛,zi_wei,the year's life palace falls on natal palace 財帛,money_through_others,+,0.050,A
+ZW-01@疾厄,zi_wei,the year's life palace falls on natal palace 疾厄,health_body,-,0.100,~
+ZW-01@遷移,zi_wei,the year's life palace falls on natal palace 遷移,travel_move,+,0.100,~
+ZW-01@奴僕,zi_wei,the year's life palace falls on natal palace 奴僕,career,+,0.050,A
+ZW-01@官祿,zi_wei,the year's life palace falls on natal palace 官祿,career,+,0.100,~
+ZW-01@田宅,zi_wei,the year's life palace falls on natal palace 田宅,home_family,+,0.100,~
+ZW-01@福德,zi_wei,the year's life palace falls on natal palace 福德,health_body,+,0.050,A
+ZW-01@父母,zi_wei,the year's life palace falls on natal palace 父母,home_family,+,0.100,~
+ZW-02@命宮,zi_wei,the year's 化祿 lands on a star in natal palace 命宮,health_body,+,0.050,A
+ZW-02@兄弟,zi_wei,the year's 化祿 lands on a star in natal palace 兄弟,home_family,+,0.100,✔
+ZW-02@夫妻,zi_wei,the year's 化祿 lands on a star in natal palace 夫妻,relationship,+,0.100,✔
+ZW-02@子女,zi_wei,the year's 化祿 lands on a star in natal palace 子女,home_family,+,0.100,✔
+ZW-02@財帛,zi_wei,the year's 化祿 lands on a star in natal palace 財帛,money_through_others,+,0.050,A
+ZW-02@疾厄,zi_wei,the year's 化祿 lands on a star in natal palace 疾厄,health_body,+,0.100,✔
+ZW-02@遷移,zi_wei,the year's 化祿 lands on a star in natal palace 遷移,travel_move,+,0.100,✔
+ZW-02@奴僕,zi_wei,the year's 化祿 lands on a star in natal palace 奴僕,career,+,0.050,A
+ZW-02@官祿,zi_wei,the year's 化祿 lands on a star in natal palace 官祿,career,+,0.100,✔
+ZW-02@田宅,zi_wei,the year's 化祿 lands on a star in natal palace 田宅,home_family,+,0.100,✔
+ZW-02@福德,zi_wei,the year's 化祿 lands on a star in natal palace 福德,health_body,+,0.050,A
+ZW-02@父母,zi_wei,the year's 化祿 lands on a star in natal palace 父母,home_family,+,0.100,✔
+ZW-03@命宮,zi_wei,the year's 化權 lands in 命宮,health_body,+,0.050,A
+ZW-03@兄弟,zi_wei,the year's 化權 lands in 兄弟,home_family,+,0.050,✔
+ZW-03@夫妻,zi_wei,the year's 化權 lands in 夫妻,relationship,+,0.050,✔
+ZW-03@子女,zi_wei,the year's 化權 lands in 子女,home_family,+,0.050,✔
+ZW-03@財帛,zi_wei,the year's 化權 lands in 財帛,money_through_others,+,0.050,A
+ZW-03@疾厄,zi_wei,the year's 化權 lands in 疾厄,health_body,+,0.050,✔
+ZW-03@遷移,zi_wei,the year's 化權 lands in 遷移,travel_move,+,0.050,✔
+ZW-03@奴僕,zi_wei,the year's 化權 lands in 奴僕,career,+,0.050,A
+ZW-03@官祿,zi_wei,the year's 化權 lands in 官祿,career,+,0.050,✔
+ZW-03@田宅,zi_wei,the year's 化權 lands in 田宅,home_family,+,0.050,✔
+ZW-03@福德,zi_wei,the year's 化權 lands in 福德,health_body,+,0.050,A
+ZW-03@父母,zi_wei,the year's 化權 lands in 父母,home_family,+,0.050,✔
+ZW-04@命宮,zi_wei,the year's 化科 lands in 命宮,health_body,+,0.050,A
+ZW-04@兄弟,zi_wei,the year's 化科 lands in 兄弟,home_family,+,0.050,✔
+ZW-04@夫妻,zi_wei,the year's 化科 lands in 夫妻,relationship,+,0.050,✔
+ZW-04@子女,zi_wei,the year's 化科 lands in 子女,home_family,+,0.050,✔
+ZW-04@財帛,zi_wei,the year's 化科 lands in 財帛,money_through_others,+,0.050,A
+ZW-04@疾厄,zi_wei,the year's 化科 lands in 疾厄,health_body,+,0.050,✔
+ZW-04@遷移,zi_wei,the year's 化科 lands in 遷移,travel_move,+,0.050,✔
+ZW-04@奴僕,zi_wei,the year's 化科 lands in 奴僕,career,+,0.050,A
+ZW-04@官祿,zi_wei,the year's 化科 lands in 官祿,career,+,0.050,✔
+ZW-04@田宅,zi_wei,the year's 化科 lands in 田宅,home_family,+,0.050,✔
+ZW-04@福德,zi_wei,the year's 化科 lands in 福德,health_body,+,0.050,A
+ZW-04@父母,zi_wei,the year's 化科 lands in 父母,home_family,+,0.050,✔
+ZW-05@命宮,zi_wei,the year's 化忌 lands in 命宮,health_body,-,0.050,A
+ZW-05@兄弟,zi_wei,the year's 化忌 lands in 兄弟,home_family,-,0.100,✔
+ZW-05@夫妻,zi_wei,the year's 化忌 lands in 夫妻,relationship,-,0.100,✔
+ZW-05@子女,zi_wei,the year's 化忌 lands in 子女,home_family,-,0.100,✔
+ZW-05@財帛,zi_wei,the year's 化忌 lands in 財帛,money_through_others,-,0.050,A
+ZW-05@疾厄,zi_wei,the year's 化忌 lands in 疾厄,health_body,-,0.100,✔
+ZW-05@遷移,zi_wei,the year's 化忌 lands in 遷移,travel_move,-,0.100,✔
+ZW-05@奴僕,zi_wei,the year's 化忌 lands in 奴僕,career,-,0.050,A
+ZW-05@官祿,zi_wei,the year's 化忌 lands in 官祿,career,-,0.100,✔
+ZW-05@田宅,zi_wei,the year's 化忌 lands in 田宅,home_family,-,0.100,✔
+ZW-05@福德,zi_wei,the year's 化忌 lands in 福德,health_body,-,0.050,A
+ZW-05@父母,zi_wei,the year's 化忌 lands in 父母,home_family,-,0.100,✔
+ZW-06@命宮,zi_wei,the minor limit (小限) sits on natal palace 命宮,health_body,+,0.025,A
+ZW-06@兄弟,zi_wei,the minor limit (小限) sits on natal palace 兄弟,home_family,+,0.025,✔
+ZW-06@夫妻,zi_wei,the minor limit (小限) sits on natal palace 夫妻,relationship,+,0.050,✔
+ZW-06@子女,zi_wei,the minor limit (小限) sits on natal palace 子女,home_family,+,0.025,✔
+ZW-06@財帛,zi_wei,the minor limit (小限) sits on natal palace 財帛,money_through_others,+,0.025,A
+ZW-06@疾厄,zi_wei,the minor limit (小限) sits on natal palace 疾厄,health_body,-,0.050,✔
+ZW-06@遷移,zi_wei,the minor limit (小限) sits on natal palace 遷移,travel_move,+,0.050,✔
+ZW-06@奴僕,zi_wei,the minor limit (小限) sits on natal palace 奴僕,career,+,0.025,A
+ZW-06@官祿,zi_wei,the minor limit (小限) sits on natal palace 官祿,career,+,0.050,✔
+ZW-06@田宅,zi_wei,the minor limit (小限) sits on natal palace 田宅,home_family,+,0.050,✔
+ZW-06@福德,zi_wei,the minor limit (小限) sits on natal palace 福德,health_body,+,0.025,A
+ZW-06@父母,zi_wei,the minor limit (小限) sits on natal palace 父母,home_family,+,0.050,✔
+ZW-07@命宮,zi_wei,the 10-year limit (大限) sits on natal palace 命宮,health_body,+,0.025,A
+ZW-07@兄弟,zi_wei,the 10-year limit (大限) sits on natal palace 兄弟,home_family,+,0.025,✔
+ZW-07@夫妻,zi_wei,the 10-year limit (大限) sits on natal palace 夫妻,relationship,+,0.050,✔
+ZW-07@子女,zi_wei,the 10-year limit (大限) sits on natal palace 子女,home_family,+,0.025,✔
+ZW-07@財帛,zi_wei,the 10-year limit (大限) sits on natal palace 財帛,money_through_others,+,0.025,A
+ZW-07@疾厄,zi_wei,the 10-year limit (大限) sits on natal palace 疾厄,health_body,-,0.050,✔
+ZW-07@遷移,zi_wei,the 10-year limit (大限) sits on natal palace 遷移,travel_move,+,0.050,✔
+ZW-07@奴僕,zi_wei,the 10-year limit (大限) sits on natal palace 奴僕,career,+,0.025,A
+ZW-07@官祿,zi_wei,the 10-year limit (大限) sits on natal palace 官祿,career,+,0.050,✔
+ZW-07@田宅,zi_wei,the 10-year limit (大限) sits on natal palace 田宅,home_family,+,0.050,✔
+ZW-07@福德,zi_wei,the 10-year limit (大限) sits on natal palace 福德,health_body,+,0.025,A
+ZW-07@父母,zi_wei,the 10-year limit (大限) sits on natal palace 父母,home_family,+,0.050,✔
+ZW-10,zi_wei,武曲,money_through_others,+,0.050,A
+ZW-11,zi_wei,天府,money_through_others,+,0.050,A
+ZW-12,zi_wei,太陰,home_family,+,0.100,✔
+ZW-13,zi_wei,天相,career,+,0.100,✔
+ZW-14,zi_wei,天同,health_body,+,0.050,A
+ZW-15,zi_wei,天梁,health_body,+,0.050,✔
+ZW-16,zi_wei,巨門,voice_output,-,0.100,✔
+ZW-17,zi_wei,貪狼,relationship,+,0.050,✔
+ZW-18,zi_wei,破軍,loss_theft,-,0.050,✔
+ZW-19,zi_wei,紫微,career,+,0.050,A
+ZW-20,zi_wei,太陽,career,+,0.050,A
+ZW-21,zi_wei,七殺,career,-,0.050,A
+ZW-30,zi_wei,地空 or 地劫 in the year's life palace,loss_theft,-,0.100,✔
+ZW-31,zi_wei,the year's 天馬 falls in natal 命宮 or 身宮,travel_move,+,0.100,✔
+ZW-32,zi_wei,文昌 or 文曲 in the year's life palace,voice_output,+,0.050,A
+ZW-33,zi_wei,紅鸞 or 天喜 in the year's life palace,relationship,+,0.100,✔
+ZW-34,zi_wei,天機 with malefic stars in the year's life palace,loss_theft,-,0.050,✔
+ZW-35,zi_wei,"擎羊, 陀羅, 火星, 鈴星, 地空, 地劫 or the year's 化忌 in natal 財帛",loss_theft,-,0.050,~
+MB-01@Binga,mahabote,"this year's age-reached planet (သက်ရောက်) sits in natal house H — natal house Binga (impermanence, upheaval)",travel_move,-,0.050,A
+MB-01@Marana,mahabote,"this year's age-reached planet (သက်ရောက်) sits in natal house H — natal house Marana (extremity, danger)",health_body,-,0.050,~
+MB-01@Atun,mahabote,"this year's age-reached planet (သက်ရောက်) sits in natal house H — natal house Atun (fame, prominence)",career,+,0.050,A
+MB-01@Thike,mahabote,"this year's age-reached planet (သက်ရောက်) sits in natal house H — natal house Thike (wealth, treasure)",money_through_others,+,0.050,A
+MB-01@Yaza,mahabote,this year's age-reached planet (သက်ရောက်) sits in natal house H — natal house Yaza (kingly position),career,+,0.050,~
+MB-01@Puti,mahabote,"this year's age-reached planet (သက်ရောက်) sits in natal house H — natal house Puti (sickly, decay)",health_body,-,0.050,~
+MB-01@Adipati,mahabote,this year's age-reached planet (သက်ရောက်) sits in natal house H — natal house Adipati (leader),career,+,0.050,~
+MB-02@Binga,mahabote,"the current planetary period planet (108-year cycle) sits in natal house H — natal house Binga (impermanence, upheaval)",travel_move,-,0.050,A
+MB-02@Marana,mahabote,"the current planetary period planet (108-year cycle) sits in natal house H — natal house Marana (extremity, danger)",health_body,-,0.050,~
+MB-02@Atun,mahabote,"the current planetary period planet (108-year cycle) sits in natal house H — natal house Atun (fame, prominence)",career,+,0.050,A
+MB-02@Thike,mahabote,"the current planetary period planet (108-year cycle) sits in natal house H — natal house Thike (wealth, treasure)",money_through_others,+,0.050,A
+MB-02@Yaza,mahabote,the current planetary period planet (108-year cycle) sits in natal house H — natal house Yaza (kingly position),career,+,0.050,~
+MB-02@Puti,mahabote,"the current planetary period planet (108-year cycle) sits in natal house H — natal house Puti (sickly, decay)",health_body,-,0.050,~
+MB-02@Adipati,mahabote,the current planetary period planet (108-year cycle) sits in natal house H — natal house Adipati (leader),career,+,0.050,~
+NU-1@PY,numbers,"personal year = 1 — Decoz ""inspired to start new projects or enterprises""",career,+,0.050,A
+NU-1@PM,numbers,"personal month = 1 — Decoz ""inspired to start new projects or enterprises""",career,+,0.025,A
+NU-2@PY,numbers,"personal year = 2 — Decoz ""You need tact and cooperation""",relationship,+,0.050,A
+NU-2@PM,numbers,"personal month = 2 — Decoz ""You need tact and cooperation""",relationship,+,0.025,A
+NU-3@PY,numbers,"personal year = 3 — Decoz ""heightened personal expression""",voice_output,+,0.050,✔
+NU-3@PM,numbers,"personal month = 3 — Decoz ""heightened personal expression""",voice_output,+,0.025,✔
+NU-4@PY,numbers,"personal year = 4 — Decoz ""Be organized and practical!""",career,+,0.050,A
+NU-4@PM,numbers,"personal month = 4 — Decoz ""Be organized and practical!""",career,+,0.025,A
+NU-5@PY,numbers,"personal year = 5 — Decoz ""a time of dynamic change!""",travel_move,+,0.050,A
+NU-5@PM,numbers,"personal month = 5 — Decoz ""a time of dynamic change!""",travel_move,+,0.025,A
+NU-6a@PY,numbers,"personal year = 6 — Decoz ""domestic responsibility and attention to the needs of family and friends""",home_family,+,0.050,✔
+NU-6a@PM,numbers,"personal month = 6 — Decoz ""domestic responsibility and attention to the needs of family and friends""",home_family,+,0.025,✔
+NU-6b@PY,numbers,"personal year = 6 — Decoz ""progress and financial advancement""",money_through_others,+,0.050,A
+NU-6b@PM,numbers,"personal month = 6 — Decoz ""progress and financial advancement""",money_through_others,+,0.025,A
+NU-8@PY,numbers,"personal year = 8 — Decoz ""your year of harvest""",money_through_others,+,0.050,A
+NU-8@PM,numbers,"personal month = 8 — Decoz ""your year of harvest""",money_through_others,+,0.025,A
+CD-1,numbers,"52-day Mercury period — Camp ""communications, short trips here and there, educational pursuits""",voice_output,+,0.050,✔
+CD-2a,numbers,"52-day Venus period — Camp ""affairs of the heart""",relationship,+,0.050,✔
+CD-2b,numbers,"52-day Venus period — Camp ""home and family matters""",home_family,+,0.050,✔
+CD-4,numbers,"52-day Jupiter period — Camp ""the biggest blessings of the year, especially along financial lines""",money_through_others,+,0.050,A
+CD-6,numbers,"52-day Uranus period — Camp ""relationships at work or in other circles""; ""Things often happen unexpectedly""",career,+,0.050,~
+CD-7,numbers,"52-day Neptune period — Camp ""one of the best times to take a vacation, especially… a foreign country""",travel_move,+,0.050,✔
+PR-10,annual_profections,profected house = 10th (whole signs from the ASC sign),career,+,0.100,✔
+PR-08,annual_profections,profected house = 8th (whole signs from the ASC sign),money_through_others,-,0.100,✔
+PR-07,annual_profections,profected house = 7th (whole signs from the ASC sign),relationship,+,0.100,✔
+PR-04,annual_profections,profected house = 4th (whole signs from the ASC sign),home_family,+,0.100,✔
+PR-01,annual_profections,profected house = 1th (whole signs from the ASC sign),health_body,+,0.100,✔
+PR-06,annual_profections,profected house = 6th (whole signs from the ASC sign),health_body,-,0.100,✔
+PR-09,annual_profections,profected house = 9th (whole signs from the ASC sign),travel_move,+,0.100,✔
+PR-03a,annual_profections,profected house = 3th (whole signs from the ASC sign),voice_output,+,0.100,✔
+PR-03b,annual_profections,profected house = 3th (whole signs from the ASC sign),travel_move,+,0.050,✔
+PR-12,annual_profections,profected house = 12th (whole signs from the ASC sign),loss_theft,-,0.100,✔
+PR-L@10,annual_profections,the lord of the year also rules natal house 10,career,+,0.050,~
+PR-L@08,annual_profections,the lord of the year also rules natal house 8,money_through_others,-,0.050,~
+PR-L@07,annual_profections,the lord of the year also rules natal house 7,relationship,+,0.050,~
+PR-L@04,annual_profections,the lord of the year also rules natal house 4,home_family,+,0.050,~
+PR-L@01,annual_profections,the lord of the year also rules natal house 1,health_body,+,0.050,~
+PR-L@06,annual_profections,the lord of the year also rules natal house 6,health_body,-,0.050,~
+PR-L@09,annual_profections,the lord of the year also rules natal house 9,travel_move,+,0.050,~
+PR-L@03a,annual_profections,the lord of the year also rules natal house 3,voice_output,+,0.050,~
+PR-L@03b,annual_profections,the lord of the year also rules natal house 3,travel_move,+,0.050,~
+PR-L@12,annual_profections,the lord of the year also rules natal house 12,loss_theft,-,0.050,~
+WT-Jupiter-H10,western_transits,transiting Jupiter in natal whole-sign house 10,career,+,0.050,A
+WT-Saturn-H10,western_transits,transiting Saturn in natal whole-sign house 10,career,+,0.050,A
+WT-Uranus-H10,western_transits,transiting Uranus in natal whole-sign house 10,career,+,0.050,A
+WT-Neptune-H10,western_transits,transiting Neptune in natal whole-sign house 10,career,+,0.050,A
+WT-Pluto-H10,western_transits,transiting Pluto in natal whole-sign house 10,career,+,0.050,A
+SP-Moon-H10,secondary_progressions,progressed Moon in natal whole-sign house 10,career,+,0.050,A
+VD-MD-H10,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 10 (from Lagna),career,+,0.050,A
+VD-AD-H10,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 10 (from Lagna),career,+,0.050,A
+WT-Jupiter-H08,western_transits,transiting Jupiter in natal whole-sign house 8,money_through_others,-,0.050,A
+WT-Saturn-H08,western_transits,transiting Saturn in natal whole-sign house 8,money_through_others,-,0.050,A
+WT-Uranus-H08,western_transits,transiting Uranus in natal whole-sign house 8,money_through_others,-,0.050,A
+WT-Neptune-H08,western_transits,transiting Neptune in natal whole-sign house 8,money_through_others,-,0.050,A
+WT-Pluto-H08,western_transits,transiting Pluto in natal whole-sign house 8,money_through_others,-,0.050,A
+SP-Moon-H08,secondary_progressions,progressed Moon in natal whole-sign house 8,money_through_others,-,0.050,A
+VD-MD-H08,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 8 (from Lagna),money_through_others,-,0.050,A
+VD-AD-H08,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 8 (from Lagna),money_through_others,-,0.050,A
+WT-Jupiter-H07,western_transits,transiting Jupiter in natal whole-sign house 7,relationship,+,0.050,A
+WT-Saturn-H07,western_transits,transiting Saturn in natal whole-sign house 7,relationship,+,0.050,A
+WT-Uranus-H07,western_transits,transiting Uranus in natal whole-sign house 7,relationship,+,0.050,A
+WT-Neptune-H07,western_transits,transiting Neptune in natal whole-sign house 7,relationship,+,0.050,A
+WT-Pluto-H07,western_transits,transiting Pluto in natal whole-sign house 7,relationship,+,0.050,A
+SP-Moon-H07,secondary_progressions,progressed Moon in natal whole-sign house 7,relationship,+,0.050,A
+VD-MD-H07,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 7 (from Lagna),relationship,+,0.050,A
+VD-AD-H07,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 7 (from Lagna),relationship,+,0.050,A
+WT-Jupiter-H04,western_transits,transiting Jupiter in natal whole-sign house 4,home_family,+,0.050,A
+WT-Saturn-H04,western_transits,transiting Saturn in natal whole-sign house 4,home_family,+,0.050,A
+WT-Uranus-H04,western_transits,transiting Uranus in natal whole-sign house 4,home_family,+,0.050,A
+WT-Neptune-H04,western_transits,transiting Neptune in natal whole-sign house 4,home_family,+,0.050,A
+WT-Pluto-H04,western_transits,transiting Pluto in natal whole-sign house 4,home_family,+,0.050,A
+SP-Moon-H04,secondary_progressions,progressed Moon in natal whole-sign house 4,home_family,+,0.050,A
+VD-MD-H04,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 4 (from Lagna),home_family,+,0.050,A
+VD-AD-H04,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 4 (from Lagna),home_family,+,0.050,A
+WT-Jupiter-H01,western_transits,transiting Jupiter in natal whole-sign house 1,health_body,+,0.050,A
+WT-Saturn-H01,western_transits,transiting Saturn in natal whole-sign house 1,health_body,+,0.050,A
+WT-Uranus-H01,western_transits,transiting Uranus in natal whole-sign house 1,health_body,+,0.050,A
+WT-Neptune-H01,western_transits,transiting Neptune in natal whole-sign house 1,health_body,+,0.050,A
+WT-Pluto-H01,western_transits,transiting Pluto in natal whole-sign house 1,health_body,+,0.050,A
+SP-Moon-H01,secondary_progressions,progressed Moon in natal whole-sign house 1,health_body,+,0.050,A
+VD-MD-H01,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 1 (from Lagna),health_body,+,0.050,A
+VD-AD-H01,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 1 (from Lagna),health_body,+,0.050,A
+WT-Jupiter-H06,western_transits,transiting Jupiter in natal whole-sign house 6,health_body,-,0.050,A
+WT-Saturn-H06,western_transits,transiting Saturn in natal whole-sign house 6,health_body,-,0.050,A
+WT-Uranus-H06,western_transits,transiting Uranus in natal whole-sign house 6,health_body,-,0.050,A
+WT-Neptune-H06,western_transits,transiting Neptune in natal whole-sign house 6,health_body,-,0.050,A
+WT-Pluto-H06,western_transits,transiting Pluto in natal whole-sign house 6,health_body,-,0.050,A
+SP-Moon-H06,secondary_progressions,progressed Moon in natal whole-sign house 6,health_body,-,0.050,A
+VD-MD-H06,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 6 (from Lagna),health_body,-,0.050,A
+VD-AD-H06,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 6 (from Lagna),health_body,-,0.050,A
+WT-Jupiter-H09,western_transits,transiting Jupiter in natal whole-sign house 9,travel_move,+,0.050,A
+WT-Saturn-H09,western_transits,transiting Saturn in natal whole-sign house 9,travel_move,+,0.050,A
+WT-Uranus-H09,western_transits,transiting Uranus in natal whole-sign house 9,travel_move,+,0.050,A
+WT-Neptune-H09,western_transits,transiting Neptune in natal whole-sign house 9,travel_move,+,0.050,A
+WT-Pluto-H09,western_transits,transiting Pluto in natal whole-sign house 9,travel_move,+,0.050,A
+SP-Moon-H09,secondary_progressions,progressed Moon in natal whole-sign house 9,travel_move,+,0.050,A
+VD-MD-H09,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 9 (from Lagna),travel_move,+,0.050,A
+VD-AD-H09,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 9 (from Lagna),travel_move,+,0.050,A
+WT-Jupiter-H03a,western_transits,transiting Jupiter in natal whole-sign house 3,voice_output,+,0.050,A
+WT-Saturn-H03a,western_transits,transiting Saturn in natal whole-sign house 3,voice_output,+,0.050,A
+WT-Uranus-H03a,western_transits,transiting Uranus in natal whole-sign house 3,voice_output,+,0.050,A
+WT-Neptune-H03a,western_transits,transiting Neptune in natal whole-sign house 3,voice_output,+,0.050,A
+WT-Pluto-H03a,western_transits,transiting Pluto in natal whole-sign house 3,voice_output,+,0.050,A
+SP-Moon-H03a,secondary_progressions,progressed Moon in natal whole-sign house 3,voice_output,+,0.050,A
+VD-MD-H03a,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 3 (from Lagna),voice_output,+,0.050,A
+VD-AD-H03a,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 3 (from Lagna),voice_output,+,0.050,A
+WT-Jupiter-H03b,western_transits,transiting Jupiter in natal whole-sign house 3,travel_move,+,0.050,A
+WT-Saturn-H03b,western_transits,transiting Saturn in natal whole-sign house 3,travel_move,+,0.050,A
+WT-Uranus-H03b,western_transits,transiting Uranus in natal whole-sign house 3,travel_move,+,0.050,A
+WT-Neptune-H03b,western_transits,transiting Neptune in natal whole-sign house 3,travel_move,+,0.050,A
+WT-Pluto-H03b,western_transits,transiting Pluto in natal whole-sign house 3,travel_move,+,0.050,A
+SP-Moon-H03b,secondary_progressions,progressed Moon in natal whole-sign house 3,travel_move,+,0.050,A
+VD-MD-H03b,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 3 (from Lagna),travel_move,+,0.050,A
+VD-AD-H03b,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 3 (from Lagna),travel_move,+,0.050,A
+WT-Jupiter-H12,western_transits,transiting Jupiter in natal whole-sign house 12,loss_theft,-,0.050,A
+WT-Saturn-H12,western_transits,transiting Saturn in natal whole-sign house 12,loss_theft,-,0.050,A
+WT-Uranus-H12,western_transits,transiting Uranus in natal whole-sign house 12,loss_theft,-,0.050,A
+WT-Neptune-H12,western_transits,transiting Neptune in natal whole-sign house 12,loss_theft,-,0.050,A
+WT-Pluto-H12,western_transits,transiting Pluto in natal whole-sign house 12,loss_theft,-,0.050,A
+SP-Moon-H12,secondary_progressions,progressed Moon in natal whole-sign house 12,loss_theft,-,0.050,A
+VD-MD-H12,vedic_dasha,mahadasha lord occupies natal sidereal whole-sign house 12 (from Lagna),loss_theft,-,0.050,A
+VD-AD-H12,vedic_dasha,antardasha lord occupies natal sidereal whole-sign house 12 (from Lagna),loss_theft,-,0.050,A
+WA-01,western_aspects,tr Jupiter ☌|△|⚹ natal Sun,career,+,0.10,✔
+WA-02,western_aspects,tr Saturn ☌|□|☍ natal Sun,career,-,0.10,✔
+WA-03,western_aspects,tr Jupiter ☌|△|⚹ natal MC,career,+,0.10,✔
+WA-04,western_aspects,tr Saturn ☌|□|☍ natal MC,career,-,0.10,✔
+WA-05,western_aspects,tr Jupiter □|☍ natal Sun|MC,career,-,0.05,~
+WA-06,western_aspects,tr Saturn △|⚹ natal Sun|MC,career,+,0.05,~
+WA-07,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal Sun|MC,career,-,0.05,~
+WA-08,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal Sun|MC,career,+,0.05,~
+WA-09,western_aspects,tr Jupiter ☌|△|⚹ natal Mercury,voice_output,+,0.10,✔
+WA-10,western_aspects,tr Saturn ☌|□|☍ natal Mercury,voice_output,-,0.10,✔
+WA-11,western_aspects,tr Jupiter □|☍ natal Mercury,voice_output,-,0.05,~
+WA-12,western_aspects,tr Saturn △|⚹ natal Mercury,voice_output,+,0.05,~
+WA-13,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal Mercury,voice_output,-,0.05,~
+WA-14,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal Mercury,voice_output,+,0.05,~
+WA-15,western_aspects,tr Jupiter ☌|△|⚹ natal Venus,relationship,+,0.10,✔
+WA-16,western_aspects,tr Saturn ☌|□|☍ natal Venus,relationship,-,0.10,✔
+WA-17,western_aspects,tr Jupiter □|☍ natal Venus,relationship,-,0.05,~
+WA-18,western_aspects,tr Saturn △|⚹ natal Venus,relationship,+,0.05,~
+WA-19,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal Venus,relationship,-,0.05,~
+WA-20,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal Venus,relationship,+,0.05,~
+WA-21,western_aspects,tr Jupiter ☌|△|⚹ natal Jupiter,money_through_others,+,0.10,✔
+WA-22,western_aspects,tr Saturn ☌|□|☍ natal Jupiter,money_through_others,-,0.10,✔
+WA-23,western_aspects,tr Jupiter □|☍ natal Jupiter,money_through_others,-,0.05,~
+WA-24,western_aspects,tr Saturn △|⚹ natal Jupiter,money_through_others,+,0.05,~
+WA-25,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal Jupiter,money_through_others,-,0.05,~
+WA-26,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal Jupiter,money_through_others,+,0.05,~
+WA-27,western_aspects,tr Jupiter ☌|△|⚹ natal ASC,health_body,+,0.10,✔
+WA-28,western_aspects,tr Saturn ☌|□|☍ natal ASC,health_body,-,0.10,✔
+WA-29,western_aspects,tr Jupiter □|☍ natal ASC,health_body,-,0.05,~
+WA-30,western_aspects,tr Saturn △|⚹ natal ASC,health_body,+,0.05,~
+WA-31,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal ASC,health_body,-,0.05,~
+WA-32,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal ASC,health_body,+,0.05,~
+WA-33,western_aspects,tr Jupiter ☌|△|⚹ natal Saturn,loss_theft,+,0.05,~
+WA-34,western_aspects,tr Saturn ☌|□|☍ natal Saturn,loss_theft,-,0.05,~
+WA-35,western_aspects,tr Jupiter □|☍ natal Saturn,loss_theft,-,0.05,~
+WA-36,western_aspects,tr Saturn △|⚹ natal Saturn,loss_theft,+,0.05,~
+WA-37,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal Saturn,loss_theft,-,0.05,~
+WA-38,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal Saturn,loss_theft,+,0.05,~
+WA-39,western_aspects,tr Jupiter ☌|△|⚹ natal Moon,home_family,+,0.10,✔
+WA-40,western_aspects,tr Saturn ☌|□|☍ natal Moon,home_family,-,0.10,✔
+WA-41,western_aspects,tr Jupiter □|☍ natal Moon,home_family,-,0.05,~
+WA-42,western_aspects,tr Saturn △|⚹ natal Moon,home_family,+,0.05,~
+WA-43,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal Moon,home_family,-,0.05,~
+WA-44,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal Moon,home_family,+,0.05,~
+WA-45,western_aspects,tr Jupiter ☌|△|⚹ natal Mars,health_body,+,0.10,✔
+WA-46,western_aspects,tr Saturn ☌|□|☍ natal Mars,health_body,-,0.10,✔
+WA-47,western_aspects,tr Jupiter □|☍ natal Mars,health_body,-,0.05,~
+WA-48,western_aspects,tr Saturn △|⚹ natal Mars,health_body,+,0.05,~
+WA-49,western_aspects,tr Uranus|Neptune|Pluto ☌|□|☍ natal Mars,health_body,-,0.05,~
+WA-50,western_aspects,tr Uranus|Neptune|Pluto △|⚹ natal Mars,health_body,+,0.05,~
