@@ -41,6 +41,8 @@ STEP_MIN = 10                         # pull: one sample every 10 minutes of loc
 DAY_START_MIN = -60                   # the BaZi day starts at 23:00 the evening before (§3): −60 min from midnight
 BLOCK_MIN = 120                       # an hour branch is a two-hour block (子 = 23:00–00:59 … 亥 = 21:00–22:59)
 CHEM_CAP = 10.0                       # the chemistry scale stops at 10; raw is always printed
+FLOAT_EPS = 1e-12                     # v2.0.1: a mean is a float sum, and sum() rounds its last bits differently by Python
+                                      # version (3.12+ compensates); a value this close to a cached value counts as equal
 REF_V = 3                             # reference-cache format; an older cache is rebuilt (v1: calendar-day sampling,
                                       # v2: time-free chemistry summed 3-dp terms instead of the exact mean)
 LONGRUN = (dt.date(2020, 1, 1), dt.date(2040, 12, 31))   # fixed long-run reference: pull hourly, chemistry at noon
@@ -308,7 +310,10 @@ def longrun(a_time="noon"):
 
 
 def pct(v, ref_sorted):
-    """Mid-rank percentile (#less + ½·#equal) / n, as in §11, to 3 decimals."""
+    """Mid-rank percentile (#less + ½·#equal) / n, as in §11, to 3 decimals. v2.0.1: a value within FLOAT_EPS of a
+       cached value is taken as that value, so last-bit drift across Python versions never breaks a tie."""
+    i = bisect_left(ref_sorted, v - FLOAT_EPS)
+    if i < len(ref_sorted) and ref_sorted[i] <= v + FLOAT_EPS: v = ref_sorted[i]
     return rhu(M.percentile_midrank(v, ref_sorted), 3)
 
 
@@ -359,7 +364,9 @@ def other_set(oth, day, opt):
 
 
 def flag_scale(mean, r):
-    return ("🔥" if mean >= r["fire"] else "✅" if mean >= r["ok"] else ""), rhu(mean / r["top"] * 10, 1)
+    """🔥 / ✅ against the window's cut points. Each cut is itself a day's cached mean; v2.0.1: FLOAT_EPS slack, so that
+       day keeps its flag when its mean is recomputed on another Python version."""
+    return ("🔥" if mean >= r["fire"] - FLOAT_EPS else "✅" if mean >= r["ok"] - FLOAT_EPS else ""), rhu(mean / r["top"] * 10, 1)
 
 
 def day_charge(day, who, other_key, flag, scale, stp, opt, shift=0):
@@ -483,7 +490,7 @@ def main(day, opt=None, outfits=None, seen=None):
     s, why = chem(t_noon, at); top = ref["pair_top"]
     res["chemistry"] = dict(scale=min(CHEM_CAP, rhu(s / top * 10, 1)), raw=rhu(s, 2),
                             lit_by=[(b, ang, nm, o) for v, b, ang, nm, o in why[:3]],
-                            above_window_max=s > top, day_max=chem_day_max(day, top, at),
+                            above_window_max=s > top + FLOAT_EPS, day_max=chem_day_max(day, top, at),
                             chem_pct_longrun=pct(s, sorted(lr["chem"])))
     grid = wall_grid(day)
     vals = {who: samples(day, who, grid, at) for who in ("A", "B")}

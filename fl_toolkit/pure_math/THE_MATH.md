@@ -1,5 +1,5 @@
 # THE MATH — every formula, with no charts inside
-Pure calculation: no names, no dates, no birth data, no operating rules. Each section gives the equations first, then **↔ astrology**, which says what each piece of the math means in the tradition. The code in `code/` implements exactly these lines' date-free formulas, and `daily.py` applies them to the book's charts and days (the v2 day sampling, references, percentiles, the day's chemistry, §13's wiring and §14) (88 tests, none of which uses a date; `daily.py`'s date-level tests sit beside it: 58 more).
+Pure calculation: no names, no dates, no birth data, no operating rules. Each section gives the equations first, then **↔ astrology**, which says what each piece of the math means in the tradition. The code in `code/` implements exactly these lines' date-free formulas, and `daily.py` applies them to the book's charts and days (the v2 day sampling, references, percentiles, the day's chemistry, §13's wiring and §14) (88 tests, none of which uses a date; `daily.py`'s date-level tests sit beside it: 60 more).
 
 **v2 (2026-10-22).** The audit's fixes and additions are written into the sections they touch, each marked **v2**; anything outside the original math is marked **STD**. New sections: §13 outfit color (STD) and §14 time-free A. `CHANGES.md` lists every number that moved.
 

@@ -197,3 +197,11 @@ Receipt — v1: `Math: 己卯 · chemistry 0.8 · A charge 68 🟠, pull 0.0 · 
 | B.hours[丑].pull | 0.7 | 0.8 | 0.8 |
 
 Receipt — v1: `Math: 壬辰 · chemistry 0.0 · A charge 68 🟠, pull 0.1 · B charge 68 🟠, pull 1.0` · v2 noon: `Math: 壬辰 · chemistry 0.0 · A charge 68 🟠, pull 0.1 · B charge 68 🟠, pull 1.0` · v2 default: `Math: 壬辰 · chemistry 0.0 · A charge 68 🟠, pull 0.1 · B charge 68 🟠, pull 1.0`
+
+## v2.0.1 — hosting patch (2026-10-22; no default number changed)
+Checked in the book chat before the nightly run was pointed at the pack. On Python 3.13.16 (the nightly's environment) with ephem 4.2.1, the 88 date-free tests passed and 3 of the 58 date-level tests failed, all from one cause: from Python 3.12, `sum()` of floats is compensated, so a mean recomputed there can differ in its last bit (≤ 2.2e-15) from the caches, which were built on 3.11.
+- **What it broke on 3.13:** outputs that hinge on an exact tie. B lost ✅ on 2026-12-19 (that day's mean is his ✅ cut point, recomputed one ulp lower); with `--a-time noon`, A lost ✅ on 2027-08-18; `pull_pct_longrun` on 2026-11-01 printed 0.023 instead of the golden 0.024.
+- **Fix (`daily.py`):** `FLOAT_EPS = 1e-12`. `flag_scale` compares against the cut points with that slack; `pct` takes a value within FLOAT_EPS of a cached value as that value before the mid-rank; `above_window_max` needs raw > top + FLOAT_EPS.
+- **Tests (`test_daily.py`):** the two exact float-equality checks (`test_caches_rebuild_to_the_same_numbers`, `test_chemistry_is_the_exact_mean`) allow FLOAT_EPS; new `FloatDrift` tests (cut days keep their flags; ties survive drift). Tests: **148** (88 date-free + 60 date-level), all passing on 3.13.16.
+- No golden, cache or default number changed: on 3.11 every comparison gives the same answer as before, and on 3.13 the flags and percentiles now match the goldens.
+- Mirror this in the repo branch (`claude/kct-color-validator-vdvaz3`) so the next version starts from it.

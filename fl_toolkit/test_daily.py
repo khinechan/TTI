@@ -122,8 +122,8 @@ class P2Calibration(unittest.TestCase):
         start = dt.date(2026, 10, 20); ref = D.reference(start, "noon")
         for i in (0, 100, 364):
             d = start + dt.timedelta(days=i)
-            self.assertEqual(D.wmean(D.samples(d, "A")), ref["A"]["mean"][i])
-            self.assertEqual(D.chem(D.noon(d), "noon")[0], ref["chem"][i])
+            self.assertAlmostEqual(D.wmean(D.samples(d, "A")), ref["A"]["mean"][i], delta=D.FLOAT_EPS)   # v2.0.1: to the
+            self.assertAlmostEqual(D.chem(D.noon(d), "noon")[0], ref["chem"][i], delta=D.FLOAT_EPS)     # last bit only on 3.11
 
     def test_stale_cache_is_rebuilt(self):                  # item 9: a v1 cache (no "v") is never trusted
         with tempfile.TemporaryDirectory() as tmp:
@@ -205,6 +205,25 @@ class P5Options(unittest.TestCase):
             self.assertEqual(p.returncode, 2, w)
 
 
+class FloatDrift(unittest.TestCase):
+    """v2.0.1: the caches were built on Python 3.11; from 3.12, sum() rounds float sums differently, so a recomputed
+       mean can sit an ulp off its cached value (seen on 3.13: B lost ✅ on 2026-12-19, the day that is his ✅ cut)."""
+
+    def test_cut_days_keep_their_flags(self):
+        for at in ("tf", "noon"):
+            ref = D.reference(dt.date(2026, 10, 20), at)
+            for who in ("A", "B"):
+                r = ref[who]
+                self.assertEqual(D.flag_scale(r["fire"] * (1 - 1e-15), r)[0], "🔥")
+                self.assertEqual(D.flag_scale(r["ok"] * (1 - 1e-15), r)[0], "✅")
+
+    def test_ties_survive_drift(self):
+        xs = sorted([0.5, 0.25, 0.25, 0.25, 1.0])
+        for v in (0.25 * (1 - 1e-15), 0.25 * (1 + 1e-15)):
+            self.assertEqual(D.pct(v, xs), D.pct(0.25, xs))
+        self.assertNotEqual(D.pct(0.3, xs), D.pct(0.25, xs))     # a real gap is still a gap
+
+
 class TimeFree(unittest.TestCase):
     def test_exact_mean_of_119_charts(self):
         rng = random.Random(3); tf = D.tf()
@@ -216,7 +235,8 @@ class TimeFree(unittest.TestCase):
     def test_chemistry_is_the_exact_mean(self):          # final review: v2 summed 3-dp terms; v3 sums the exact totals
         for day in ("2027-02-26", "2027-05-13", "2026-10-21"):
             t = D.noon(dt.date.fromisoformat(day))
-            self.assertEqual(D.chem(t, "tf")[0], sum(D.P.pair_score(sp, t)[0] for sp in D.tf()["spots"]) / D.TF_N)
+            self.assertAlmostEqual(D.chem(t, "tf")[0], sum(D.P.pair_score(sp, t)[0] for sp in D.tf()["spots"]) / D.TF_N,
+                                   delta=D.FLOAT_EPS)        # v2.0.1: sum() compensates on Python 3.12+, a plain loop does not
         self.assertEqual(run("2027-02-26")["chemistry"]["raw"], 1.94)
 
     def test_charts(self):

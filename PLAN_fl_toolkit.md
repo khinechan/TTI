@@ -65,3 +65,24 @@ Job 2 (§13)
 Close
 - [x] THE_MATH.md updates, README, CHANGES.md, deterministic zip + sha256 + sha256 of base64 text
 - [x] adversarial review pass; fleet suite before/after (untouched); commit explicit paths; push to claude/ branch
+
+## v2.0.1 — hosting patch from the book chat (2026-10-22, written BEFORE editing)
+Source: Khai's upload `fl_toolkit_v2.0.1_patch.md` (a unified diff made against 3d44089's pack).
+Cause it reports: from Python 3.12, `sum()` of floats is compensated, so a mean recomputed there can sit an ulp off the
+3.11-built caches; tie-sensitive outputs flipped on 3.13 (B lost ✅ on 2026-12-19; pull_pct_longrun 0.023 vs 0.024).
+Steps:
+- [x] Baseline BEFORE editing: date-free + date-level suites on 3.11 (expect 146 green) and on 3.12 / 3.13 (expect the
+      reported reds — prove them, don't take them on trust).
+- [x] Apply the diff exactly as sent (`git apply --check` first): daily.py (FLOAT_EPS in flag_scale, pct,
+      above_window_max), test_daily.py (2 exact-equality checks → delta FLOAT_EPS; new FloatDrift class), CHANGES.md
+      (v2.0.1 section), THE_MATH.md (58 → 60). W5 note: two existing tests change; Khai sent the change himself (the
+      exact-equality rule is false on 3.12+), so this is his rule change, recorded as such.
+- [x] Prove "no default number changed" on 3.11: goldens + saturation counts green, and a sweep of every cached
+      window day and long-run value with and without FLOAT_EPS gives identical flags and percentiles.
+- [x] AFTER: all suites on 3.11, 3.12, 3.13 (expect 148 each). Commit by explicit path; push to the claude/ branch.
+- Not in scope: rebuilding the hosted zip (the book chat hosts 0cf9b373…; the repo only mirrors the diff).
+Result: before — 3.11 146/146; 3.12.3 and 3.13.12 (ephem 4.2.1, isolated venvs) 143/146, the same 3 failures the book
+chat saw (pull_pct_longrun 0.023 vs 0.024 on 2026-11-01; two last-bit float equalities). Patch applied with git apply,
+no hand edits. Sweep on 3.11: 4,380 cached day means, 0 flags change with FLOAT_EPS, 0 values within eps of a cut, 0
+long-run neighbours closer than eps. After — 148/148 on 3.11, 3.12 and 3.13. FloatDrift red on the v2.0 code (2/2
+fail), green on v2.0.1. No cache, golden or report file changed.
