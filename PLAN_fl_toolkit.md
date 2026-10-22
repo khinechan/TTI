@@ -34,30 +34,34 @@ Dependency: ephem (Khai's own pack rule, named in both briefs). Not a fleet tool
 6. Round-half-up = Decimal(repr(x)) ROUND_HALF_UP, used by rescale and every scale/raw score in daily.py.
 7. "reports/" is gitignored repo-wide → reports go to fl_toolkit/robustness/.
 
-## Work list (status)
+## Mid-job addition (2026-10-22, cover v2): the LAST STEP — time-free A as the new default
+A = the mean of her 119 charts 00:00–19:40 (no time pinned); `--a-time noon` keeps the v1 stand-in. Done after the audit
+and color work passed in noon mode; Khai's check values reproduce exactly under his v1 conventions (time_free_check.py).
+
+## Work list (status — all built and tested; final adversarial review + zip are the last steps)
 P1 fixes (daily.py, bazi_core.py, attraction_core.py)
-- [ ] 1 BaZi-day sampling 23:00 D−1..22:50 D; 子 block 12 samples; test A 子 10-21 = 1.1 (1.08)
-- [ ] 2 Saturn-station points into A_with_C; test 2027-08-09
-- [ ] 3 chemistry cap 10.0 + above_window_max; test 09-08 → 10.0 / 5.29 / true
-- [ ] 4 chemistry at local noon + day_max (24 hourly, BaZi day) with local time
-- [ ] 5 DST fold handling + "sampling" key; tests 11-01 and 2027-03-14
-- [ ] 6 round_half_up everywhere a score is rounded
+- [x] 1 BaZi-day sampling 23:00 D−1..22:50 D; 子 block 12 samples; test A 子 10-21 = 1.1 (1.08)
+- [x] 2 Saturn-station points into A_with_C; test 2027-08-09
+- [x] 3 chemistry cap 10.0 + above_window_max; test 09-08 → 10.0 / 5.29 / true
+- [x] 4 chemistry at local noon + day_max (24 hourly, BaZi day) with local time
+- [x] 5 DST fold handling + "sampling" key; tests 11-01 and 2027-03-14
+- [x] 6 round_half_up everywhere a score is rounded
 P2 calibrate
-- [ ] 7 charge_pct / tier_pct (A, B, A_with_C) from cached per-day primitives; saturation counts in CHANGES
-- [ ] 8 hours[].points + points_pct (window's 365×12 blocks per person); keep hours[].charge
-- [ ] 9 caches: ref_2026-10-20 (v2), ref_2027-10-20, ref_2028-10-19; long-run 2020-01-01..2040-12-31 hourly
+- [x] 7 charge_pct / tier_pct (A, B, A_with_C) from cached per-day primitives; saturation counts in CHANGES
+- [x] 8 hours[].points + points_pct (window's 365×12 blocks per person); keep hours[].charge
+- [x] 9 caches: ref_2026-10-20 (v2), ref_2027-10-20, ref_2028-10-19; long-run 2020-01-01..2040-12-31 hourly
       → pull_pct_longrun (A, B), chem_pct_longrun
 P3 meaning
-- [ ] 10 friction / bond / attraction_points (sum = S − 35 − Saturn)
-- [ ] 11 --luck-repeat-weight (default 1.0); report B 10-21, 10-22 at 1.0 and 0.5
-- [ ] 12 STEM_BONUS table + §7 rationale (values unchanged)
-- [ ] 13 love_overlay 💗 (Venus–Mars either direction, radar orb)
+- [x] 10 friction / bond / attraction_points (sum = S − 35 − Saturn)
+- [x] 11 --luck-repeat-weight (default 1.0); report B 10-21, 10-22 at 1.0 and 0.5
+- [x] 12 STEM_BONUS table + §7 rationale (values unchanged)
+- [x] 13 love_overlay 💗 (Venus–Mars either direction, radar orb)
 P4 robustness (robustness/)
-- [ ] 14 birth_time_sweep.py + report   - [ ] 15 A–B null   - [ ] 16 A–C null   - [ ] 17 golden tests (5 dates)
+- [x] 14 birth_time_sweep.py + report   - [x] 15 A–B null   - [x] 16 A–C null   - [x] 17 golden tests (5 dates)
 P5 additions
-- [ ] 18 strength_core.py (STD)  - [ ] 19 audit_book.py  - [ ] 20 --year-month-terms (STD)  - [ ] 21 --solar-time
+- [x] 18 strength_core.py (STD)  - [x] 19 audit_book.py  - [x] 20 --year-month-terms (STD)  - [x] 21 --solar-time
 Job 2 (§13)
-- [ ] color_core.py + tests; daily.py --outfit-A/--outfit-B/--seen; THE_MATH §13; robustness grid script
+- [x] color_core.py + tests; daily.py --outfit-A/--outfit-B/--seen; THE_MATH §13; robustness grid script
 Close
-- [ ] THE_MATH.md updates, README, CHANGES.md, deterministic zip + sha256 + sha256 of base64 text
-- [ ] adversarial review pass; fleet suite before/after (untouched); commit explicit paths; push to claude/ branch
+- [x] THE_MATH.md updates, README, CHANGES.md, deterministic zip + sha256 + sha256 of base64 text
+- [x] adversarial review pass; fleet suite before/after (untouched); commit explicit paths; push to claude/ branch

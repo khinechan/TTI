@@ -6,6 +6,7 @@ Indexing: stems  s ∈ 0..9  (甲 0 … 癸 9)  · element e = ⌊s/2⌋ (0 wood
           branches i ∈ 0..11 (子 0 … 亥 11) · sexagenary index g ∈ 0..59 (甲子 0): stem g mod 10, branch g mod 12
 """
 import math
+from decimal import Decimal, ROUND_HALF_UP
 
 STEMS = "甲乙丙丁戊己庚辛壬癸"
 BRANCHES = "子丑寅卯辰巳午未申酉戌亥"
@@ -41,6 +42,12 @@ def pillar_name(g):
 def hour_branch(hour_local):
     """Two-hour blocks: i = ⌊(h + 1)/2⌋ mod 12 → 子 = 23:00–00:59, 丑 = 01:00–02:59, …, 亥 = 21:00–22:59."""
     return BRANCHES[int((hour_local + 1) // 2) % 12]
+
+
+def hour_pillar(day_stem, hour_br):
+    """五鼠遁 (STD): the hour stem runs on from the day stem — (2·(s_day mod 5) + i_hour) mod 10, so a 甲 or 己 day's
+       子 hour is 甲子, an 乙/庚 day's is 丙子, 丙/辛 → 戊子, 丁/壬 → 庚子, 戊/癸 → 壬子."""
+    return STEMS[(2 * (STEMS.index(day_stem) % 5) + BRANCHES.index(hour_br)) % 10] + hour_br
 
 
 # ---------- branch relations (all as arithmetic on i, j) ----------
@@ -124,29 +131,55 @@ def luck_pillar(month_g, k, forward):
 # ---------- DAILY v0.1 friction score ----------
 W_OWN = {"冲": 20, "刑": 15, "害": 12, "合": 10, "自刑": 12, "same": 6}
 W_OTHER = {"冲": 15, "刑": 12, "害": 10, "合": 10, "自刑": 10, "same": 10}
+# Stem bonus: how hard today's stem works on the day master, as (points, sub-score). Values unchanged since v0.1.
+STEM_BONUS = {
+    "combine": (10, "bond"),       # the DM's 五合 partner binds it: pull
+    "七殺": (10, "friction"),       # the stem that attacks the DM unchecked: pressure
+    "傷官": (5, "friction"),        # output that defies the officer: voice
+    "偏印": (5, "bond"),            # the two resource stems feed the DM: support (being held, not conflict)
+    "正印": (5, "bond"),
+}                                   # 食神 · 偏財 正財 · 正官 · 比肩 劫財: 0 (the DM deals with them on its own terms)
+FRICTION, BOND = {"冲", "刑", "害", "自刑"}, {"合", "same"}     # branch relations by sub-score (P3)
+
+
+def round_half_up(x, nd=0):
+    """Round half up at nd decimals, on the number as written (Decimal of its repr): 0.25 → 0.3, 2.675 → 2.68.
+       Python's round() rounds half to even and works on the binary value (round(0.25, 1) = 0.2)."""
+    q = Decimal(repr(x)).quantize(Decimal(1).scaleb(-nd), rounding=ROUND_HALF_UP)
+    return int(q) if nd == 0 else float(q)
+
+
+def stem_role(day_master, stem):
+    """'combine' for the DM's combine partner, otherwise the stem's ten-god name (the STEM_BONUS key)."""
+    return "combine" if stem == combine_partner(day_master) else ten_god(day_master, stem)
 
 
 def stem_bonus(day_master, stem):
-    """+10 for the combine partner and 七殺 · +5 for 傷官 and both resource stems (偏印, 正印) · else 0."""
-    if stem == combine_partner(day_master): return 10
-    g = ten_god(day_master, stem)
-    if g == "七殺": return 10
-    if g in ("傷官", "偏印", "正印"): return 5
-    return 0
+    """STEM_BONUS: +10 for the combine partner and 七殺 · +5 for 傷官 and both resource stems (偏印, 正印) · else 0."""
+    return STEM_BONUS.get(stem_role(day_master, stem), (0, None))[0]
 
 
 def rel_points(a, b, W):
     return [(a + b + r, W[r]) for r in relations(a, b)]
 
 
+def _weighted(a, b, W, side):
+    """Relation points of one set member. A member is a branch, or (branch, weight, tag) for a weighted term:
+       its points are multiplied by the weight and the tag is shown in the part's name."""
+    br, wt, tag = (b, 1, None) if isinstance(b, str) else b
+    lab = " (%s)" % side if tag is None else " (%s, %s)" % (side, tag)
+    return [(n + lab, v if wt == 1 else v * wt) for n, v in rel_points(a, br, W)]
+
+
 def day_score(day_stem, day_branch, own, other, day_master, year_branch, attraction_pts=0, station_pts=0):
-    """S = 35 + Σ_own W_own(day, b) + Σ_other W_other(day, b) + 20·[day = peach] + 6·[day ∈ peach frame]
+    """S = 35 + Σ_own ω·W_own(day, b) + Σ_other ω·W_other(day, b) + 20·[day = peach] + 6·[day ∈ peach frame]
            + stem bonus + attraction points + Saturn-station points.
        own   = this chart's distinct natal branches + its current luck branch (a separate term, even when it repeats a natal
-               branch); other = the other chart's distinct natal branches."""
+               branch); other = the other chart's distinct natal branches. ω = 1 unless a member is given as
+               (branch, weight, tag): the optional repeated-luck weight and the 流年/流月 terms."""
     parts = [("base", 35)]
-    for b in own: parts += [(n + " (own)", v) for n, v in rel_points(day_branch, b, W_OWN)]
-    for b in other: parts += [(n + " (other)", v) for n, v in rel_points(day_branch, b, W_OTHER)]
+    for b in own: parts += _weighted(day_branch, b, W_OWN, "own")
+    for b in other: parts += _weighted(day_branch, b, W_OTHER, "other")
     if day_branch == peach_blossom(year_branch): parts.append(("咸池 day", 20))
     if day_branch in peach_frame(year_branch): parts.append(("咸池 frame day", 6))
     sb = stem_bonus(day_master, day_stem)
@@ -158,18 +191,37 @@ def day_score(day_stem, day_branch, own, other, day_master, year_branch, attract
 
 
 def hour_score(hour_br, day_branch, own, other, year_branch):
-    """H = Σ_own W_own(hour, b) + Σ_other W_other(hour, b) + W_own(day, hour) + 8·[hour = peach]."""
+    """H = Σ_own ω·W_own(hour, b) + Σ_other ω·W_other(hour, b) + W_own(day, hour) + 8·[hour = peach] (ω as in day_score)."""
     parts = []
-    for b in own: parts += [(n + " (own)", v) for n, v in rel_points(hour_br, b, W_OWN)]
-    for b in other: parts += [(n + " (other)", v) for n, v in rel_points(hour_br, b, W_OTHER)]
+    for b in own: parts += _weighted(hour_br, b, W_OWN, "own")
+    for b in other: parts += _weighted(hour_br, b, W_OTHER, "other")
     parts += [("day " + n, v) for n, v in rel_points(day_branch, hour_br, W_OWN)]
     if hour_br == peach_blossom(year_branch): parts.append(("咸池 hour", 8))
     return sum(v for _, v in parts), parts
 
 
 def rescale(raw):
-    """S' = clip(round((S − 60) · 2.2 + 20), 5, 100)."""
-    return max(5, min(100, round((raw - 60) * 2.2 + 20)))
+    """S' = clip(round_half_up((S − 60) · 2.2 + 20), 5, 100), computed in decimal so a half is exact."""
+    s = ((Decimal(repr(raw)) - 60) * Decimal("2.2") + 20).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+    return max(5, min(100, int(s)))
+
+
+def sub_scores(parts, day_master):
+    """S split by meaning: friction = 冲 刑 害 自刑 + the 七殺 and 傷官 stem bonuses · bond = 合 and same + 咸池 day and
+       frame + the combine-partner and 印 stem bonuses · attraction points.
+       friction + bond + attraction_points = S − 35 (base) − Saturn-station points."""
+    out = {"friction": 0, "bond": 0, "attraction_points": 0}
+    for name, v in parts:
+        if name in ("base", "Saturn station"): continue
+        if name == "attraction": k = "attraction_points"
+        elif name.startswith("咸池"): k = "bond"
+        elif name.startswith("stem "): k = STEM_BONUS[stem_role(day_master, name[5:])][1]
+        else:
+            rel = name[2:].split(" ")[0]
+            if rel not in FRICTION | BOND: raise ValueError("unclassified part %r" % name)
+            k = "friction" if rel in FRICTION else "bond"
+        out[k] += v
+    return out
 
 
 def tier(score):

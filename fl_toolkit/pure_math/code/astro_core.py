@@ -52,6 +52,16 @@ def angles(t, lat, lon_east):
     return asc, mc
 
 
+def equation_of_time(t):
+    """EoT(t) = apparent − mean solar time, in minutes (STD; for the optional true-solar-time hour blocks).
+       At Greenwich: apparent solar time = GAST − α_sun + 12 h (the Sun's hour angle + 12 h), mean solar time = UT."""
+    o = ephem.Observer(); o.lat, o.lon = '0', '0'; o.date = _ed(t); o.pressure = 0
+    s = ephem.Sun(o)
+    app = (math.degrees(float(o.sidereal_time()) - float(s.g_ra)) / 15.0 + 12.0) % 24.0
+    u = t.astimezone(UTC); mean = u.hour + u.minute / 60 + (u.second + u.microsecond / 1e6) / 3600
+    return ((app - mean + 12.0) % 24.0 - 12.0) * 60.0
+
+
 def sep(a, b):
     """Signed difference a − b, wrapped to (−180, 180]."""
     return ((a - b + 180.0) % 360.0) - 180.0

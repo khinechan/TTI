@@ -1,0 +1,1558 @@
+{
+ "what": "audit items 15–16: random-partner nulls (null_reports.py)",
+ "n": 4000,
+ "seed": 20261021,
+ "seeds_sensitivity": [
+  20261021,
+  1,
+  2,
+  3,
+  4
+ ],
+ "range_utc": [
+  "1960-01-01T00:00:00+00:00",
+  "2000-01-01T00:00:00+00:00"
+ ],
+ "frederick": [
+  39.4143,
+  -77.4105
+ ],
+ "draw_check": {
+  "20261021": {
+   "same": 4000,
+   "of": 4000
+  },
+  "1": {
+   "same": 4000,
+   "of": 4000
+  },
+  "2": {
+   "same": 4000,
+   "of": 4000
+  },
+  "3": {
+   "same": 4000,
+   "of": 4000
+  },
+  "4": {
+   "same": 4000,
+   "of": 4000
+  }
+ },
+ "real": {
+  "ab": 2,
+  "ba": 1,
+  "all": 17,
+  "tight": 4,
+  "ac": 2,
+  "all_no_moon": 16,
+  "tight_no_moon": 4
+ },
+ "expected": {
+  "ab": 2,
+  "all": 17,
+  "tight": 4,
+  "ac": 2,
+  "ab_pct": 0.95,
+  "ab_p": 0.05,
+  "ba_p": 0.125,
+  "all_pct": 0.62,
+  "all_p": 0.38,
+  "tight_pct": 0.22,
+  "ac_mean": 12.6,
+  "ac_le": 0.0008,
+  "one_in": 20
+ },
+ "claims": [
+  {
+   "mark": "✓",
+   "source": "task",
+   "claim": "A→B family count = 2",
+   "measured": "2"
+  },
+  {
+   "mark": "✓",
+   "source": "task",
+   "claim": "all A–B contacts = 17",
+   "measured": "17 with A's noon Moon in (16 with it out)"
+  },
+  {
+   "mark": "✓",
+   "source": "task",
+   "claim": "tight A–B contacts (≤ 1°) = 4",
+   "measured": "4"
+  },
+  {
+   "mark": "✓",
+   "source": "task",
+   "claim": "A–C contacts, bodies only = 2",
+   "measured": "2"
+  },
+  {
+   "mark": "✗",
+   "source": "audit 15",
+   "claim": "A→B family: percentile 0.950",
+   "measured": "0.9795 (expected 0.9500; +8.6 SE)"
+  },
+  {
+   "mark": "✗",
+   "source": "audit 15",
+   "claim": "A→B family: p ≈ 0.050",
+   "measured": "0.0207 (expected 0.0500; -8.5 SE)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 15",
+   "claim": "B→A family: p ≈ 0.125",
+   "measured": "0.1267 (expected 0.1250; +0.3 SE)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 15",
+   "claim": "all contacts 17 ≈ 62nd percentile",
+   "measured": "0.6163 (expected 0.6200; -0.5 SE)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 15",
+   "claim": "all contacts p ≈ 0.38",
+   "measured": "0.3839 (expected 0.3800; +0.5 SE)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 15",
+   "claim": "tight contacts 4 ≈ 22nd percentile",
+   "measured": "0.2218 (expected 0.2200; +0.3 SE)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 15",
+   "claim": "A→B p does not clear the Bonferroni line 0.0125",
+   "measured": "p = 0.0207"
+  },
+  {
+   "mark": "✗",
+   "source": "audit 15",
+   "claim": "\"about a 1-in-20 result\"",
+   "measured": "1 in 48 (1/p = 48.2)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 15",
+   "claim": "the family hits are what is unusual, not the overall contact count",
+   "measured": "p: family 0.0207 · all 0.3839 · tight 0.7783"
+  },
+  {
+   "mark": "✗",
+   "source": "audit 16",
+   "claim": "A–C random-partner mean ≈ 12.6",
+   "measured": "12.727 (sd 3.617; +2.2 SE)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 16",
+   "claim": "A–C share of random partners ≤ 2 ≈ 0.0008",
+   "measured": "0.00025 (expected 0.00080; -1.2 SE)"
+  },
+  {
+   "mark": "✓",
+   "source": "audit 16",
+   "claim": "\"fewer ties than 99.9% of random pairs\"",
+   "measured": "share with more ties = 0.99975"
+  }
+ ],
+ "conventions_real": {
+  "ab": [
+   {
+    "A": "Moon out (natA)",
+    "B": "bodies + ASC + MC (natB)",
+    "all": 16,
+    "tight": 4,
+    "ab": 2,
+    "ba": 1
+   },
+   {
+    "A": "Moon out (natA)",
+    "B": "bodies only",
+    "all": 12,
+    "tight": 3,
+    "ab": 2,
+    "ba": 1
+   },
+   {
+    "A": "Moon out (natA)",
+    "B": "+ DSC + IC",
+    "all": 21,
+    "tight": 5,
+    "ab": 2,
+    "ba": 1
+   },
+   {
+    "A": "noon Moon in (pA)",
+    "B": "bodies + ASC + MC (natB)",
+    "all": 17,
+    "tight": 4,
+    "ab": 2,
+    "ba": 1
+   },
+   {
+    "A": "noon Moon in (pA)",
+    "B": "bodies only",
+    "all": 13,
+    "tight": 3,
+    "ab": 2,
+    "ba": 1
+   },
+   {
+    "A": "noon Moon in (pA)",
+    "B": "+ DSC + IC",
+    "all": 22,
+    "tight": 5,
+    "ab": 2,
+    "ba": 1
+   }
+  ],
+  "ac": [
+   {
+    "A": "Moon out (natA)",
+    "C": "noon, Moon in (pC)",
+    "contacts": 2
+   },
+   {
+    "A": "Moon out (natA)",
+    "C": "noon, Moon out",
+    "contacts": 2
+   },
+   {
+    "A": "noon Moon in (pA)",
+    "C": "noon, Moon in (pC)",
+    "contacts": 2
+   },
+   {
+    "A": "noon Moon in (pA)",
+    "C": "noon, Moon out",
+    "contacts": 2
+   }
+  ]
+ },
+ "ab_null": {
+  "ab": {
+   "real": 2,
+   "percentile": 0.9795,
+   "p": 0.0207,
+   "mean": 0.218,
+   "sd": 0.463,
+   "share_le": 0.99925,
+   "share_gt": 0.00075,
+   "p_low": 0.99925,
+   "hist": [
+    [
+     0,
+     3212
+    ],
+    [
+     1,
+     706
+    ],
+    [
+     2,
+     79
+    ],
+    [
+     3,
+     3
+    ]
+   ]
+  },
+  "ba": {
+   "real": 1,
+   "percentile": 0.8735,
+   "p": 0.1267,
+   "mean": 0.131,
+   "sd": 0.35,
+   "share_le": 0.99575,
+   "share_gt": 0.00425,
+   "p_low": 0.99575,
+   "hist": [
+    [
+     0,
+     3494
+    ],
+    [
+     1,
+     489
+    ],
+    [
+     2,
+     17
+    ]
+   ]
+  },
+  "all": {
+   "real": 17,
+   "percentile": 0.6163,
+   "p": 0.3839,
+   "mean": 15.333,
+   "sd": 3.939,
+   "share_le": 0.6965,
+   "share_gt": 0.3035,
+   "p_low": 0.69658,
+   "hist": [
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     12
+    ],
+    [
+     6,
+     23
+    ],
+    [
+     7,
+     44
+    ],
+    [
+     8,
+     61
+    ],
+    [
+     9,
+     122
+    ],
+    [
+     10,
+     180
+    ],
+    [
+     11,
+     248
+    ],
+    [
+     12,
+     302
+    ],
+    [
+     13,
+     310
+    ],
+    [
+     14,
+     373
+    ],
+    [
+     15,
+     381
+    ],
+    [
+     16,
+     403
+    ],
+    [
+     17,
+     321
+    ],
+    [
+     18,
+     337
+    ],
+    [
+     19,
+     285
+    ],
+    [
+     20,
+     222
+    ],
+    [
+     21,
+     134
+    ],
+    [
+     22,
+     103
+    ],
+    [
+     23,
+     67
+    ],
+    [
+     24,
+     27
+    ],
+    [
+     25,
+     26
+    ],
+    [
+     26,
+     5
+    ],
+    [
+     27,
+     4
+    ],
+    [
+     28,
+     2
+    ],
+    [
+     29,
+     2
+    ]
+   ]
+  },
+  "tight": {
+   "real": 4,
+   "percentile": 0.2218,
+   "p": 0.7783,
+   "mean": 5.422,
+   "sd": 2.382,
+   "share_le": 0.3695,
+   "share_gt": 0.6305,
+   "p_low": 0.36966,
+   "hist": [
+    [
+     0,
+     27
+    ],
+    [
+     1,
+     105
+    ],
+    [
+     2,
+     259
+    ],
+    [
+     3,
+     496
+    ],
+    [
+     4,
+     591
+    ],
+    [
+     5,
+     671
+    ],
+    [
+     6,
+     627
+    ],
+    [
+     7,
+     492
+    ],
+    [
+     8,
+     325
+    ],
+    [
+     9,
+     195
+    ],
+    [
+     10,
+     115
+    ],
+    [
+     11,
+     52
+    ],
+    [
+     12,
+     20
+    ],
+    [
+     13,
+     15
+    ],
+    [
+     14,
+     10
+    ]
+   ]
+  }
+ },
+ "ab_family_partner_points": {
+  "bodies_only": {
+   "real": 2,
+   "percentile": 0.9868,
+   "p": 0.0135,
+   "mean": 0.172,
+   "sd": 0.413,
+   "share_le": 0.9995,
+   "share_gt": 0.0005,
+   "p_low": 0.9995,
+   "hist": [
+    [
+     0,
+     3369
+    ],
+    [
+     1,
+     578
+    ],
+    [
+     2,
+     51
+    ],
+    [
+     3,
+     2
+    ]
+   ]
+  },
+  "asc_mc": {
+   "real": 2,
+   "percentile": 0.9795,
+   "p": 0.0207,
+   "mean": 0.218,
+   "sd": 0.463,
+   "share_le": 0.99925,
+   "share_gt": 0.00075,
+   "p_low": 0.99925,
+   "hist": [
+    [
+     0,
+     3212
+    ],
+    [
+     1,
+     706
+    ],
+    [
+     2,
+     79
+    ],
+    [
+     3,
+     3
+    ]
+   ]
+  },
+  "asc_mc_dsc_ic": {
+   "real": 2,
+   "percentile": 0.9403,
+   "p": 0.06,
+   "mean": 0.265,
+   "sd": 0.59,
+   "share_le": 0.992,
+   "share_gt": 0.008,
+   "p_low": 0.992,
+   "hist": [
+    [
+     0,
+     3212
+    ],
+    [
+     1,
+     549
+    ],
+    [
+     2,
+     207
+    ],
+    [
+     3,
+     31
+    ],
+    [
+     4,
+     1
+    ]
+   ]
+  }
+ },
+ "moon_in_out": {
+  "ba_moon_in": {
+   "real": 1,
+   "percentile": 0.8363,
+   "p": 0.164,
+   "mean": 0.172,
+   "sd": 0.397,
+   "share_le": 0.99225,
+   "share_gt": 0.00775,
+   "p_low": 0.99225,
+   "hist": [
+    [
+     0,
+     3345
+    ],
+    [
+     1,
+     624
+    ],
+    [
+     2,
+     31
+    ]
+   ]
+  },
+  "all_moon_out": {
+   "real": 16,
+   "percentile": 0.686,
+   "p": 0.3142,
+   "mean": 13.747,
+   "sd": 3.695,
+   "share_le": 0.7725,
+   "share_gt": 0.2275,
+   "p_low": 0.77256,
+   "hist": [
+    [
+     2,
+     1
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     13
+    ],
+    [
+     5,
+     23
+    ],
+    [
+     6,
+     48
+    ],
+    [
+     7,
+     59
+    ],
+    [
+     8,
+     151
+    ],
+    [
+     9,
+     216
+    ],
+    [
+     10,
+     280
+    ],
+    [
+     11,
+     313
+    ],
+    [
+     12,
+     407
+    ],
+    [
+     13,
+     407
+    ],
+    [
+     14,
+     428
+    ],
+    [
+     15,
+     397
+    ],
+    [
+     16,
+     346
+    ],
+    [
+     17,
+     274
+    ],
+    [
+     18,
+     238
+    ],
+    [
+     19,
+     149
+    ],
+    [
+     20,
+     94
+    ],
+    [
+     21,
+     70
+    ],
+    [
+     22,
+     48
+    ],
+    [
+     23,
+     21
+    ],
+    [
+     24,
+     8
+    ],
+    [
+     25,
+     4
+    ],
+    [
+     26,
+     1
+    ],
+    [
+     27,
+     3
+    ]
+   ]
+  },
+  "tight_moon_out": {
+   "real": 4,
+   "percentile": 0.2908,
+   "p": 0.7093,
+   "mean": 4.864,
+   "sd": 2.261,
+   "share_le": 0.4605,
+   "share_gt": 0.5395,
+   "p_low": 0.46063,
+   "hist": [
+    [
+     0,
+     42
+    ],
+    [
+     1,
+     150
+    ],
+    [
+     2,
+     399
+    ],
+    [
+     3,
+     572
+    ],
+    [
+     4,
+     679
+    ],
+    [
+     5,
+     698
+    ],
+    [
+     6,
+     582
+    ],
+    [
+     7,
+     380
+    ],
+    [
+     8,
+     268
+    ],
+    [
+     9,
+     111
+    ],
+    [
+     10,
+     57
+    ],
+    [
+     11,
+     37
+    ],
+    [
+     12,
+     13
+    ],
+    [
+     13,
+     9
+    ],
+    [
+     14,
+     3
+    ]
+   ]
+  },
+  "ac_moon_out": {
+   "real": 2,
+   "percentile": 0.0,
+   "p": 1.0,
+   "mean": 11.393,
+   "sd": 3.404,
+   "share_le": 0.00075,
+   "share_gt": 0.99925,
+   "p_low": 0.001,
+   "hist": [
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     17
+    ],
+    [
+     4,
+     47
+    ],
+    [
+     5,
+     80
+    ],
+    [
+     6,
+     138
+    ],
+    [
+     7,
+     210
+    ],
+    [
+     8,
+     317
+    ],
+    [
+     9,
+     369
+    ],
+    [
+     10,
+     478
+    ],
+    [
+     11,
+     453
+    ],
+    [
+     12,
+     427
+    ],
+    [
+     13,
+     393
+    ],
+    [
+     14,
+     318
+    ],
+    [
+     15,
+     268
+    ],
+    [
+     16,
+     200
+    ],
+    [
+     17,
+     123
+    ],
+    [
+     18,
+     71
+    ],
+    [
+     19,
+     43
+    ],
+    [
+     20,
+     33
+    ],
+    [
+     21,
+     8
+    ],
+    [
+     22,
+     2
+    ],
+    [
+     23,
+     2
+    ]
+   ]
+  }
+ },
+ "ac_null": {
+  "real": 2,
+  "percentile": 0.0,
+  "p": 1.0,
+  "mean": 12.727,
+  "sd": 3.617,
+  "share_le": 0.00025,
+  "share_gt": 0.99975,
+  "p_low": 0.0005,
+  "hist": [
+   [
+    2,
+    1
+   ],
+   [
+    3,
+    9
+   ],
+   [
+    4,
+    25
+   ],
+   [
+    5,
+    48
+   ],
+   [
+    6,
+    69
+   ],
+   [
+    7,
+    132
+   ],
+   [
+    8,
+    205
+   ],
+   [
+    9,
+    310
+   ],
+   [
+    10,
+    303
+   ],
+   [
+    11,
+    389
+   ],
+   [
+    12,
+    458
+   ],
+   [
+    13,
+    394
+   ],
+   [
+    14,
+    388
+   ],
+   [
+    15,
+    349
+   ],
+   [
+    16,
+    303
+   ],
+   [
+    17,
+    225
+   ],
+   [
+    18,
+    159
+   ],
+   [
+    19,
+    111
+   ],
+   [
+    20,
+    70
+   ],
+   [
+    21,
+    26
+   ],
+   [
+    22,
+    17
+   ],
+   [
+    23,
+    6
+   ],
+   [
+    24,
+    2
+   ],
+   [
+    25,
+    1
+   ]
+  ]
+ },
+ "multiple_testing": {
+  "tests": 4,
+  "alpha": 0.05,
+  "line": 0.0125,
+  "ab_p": 0.0207,
+  "clears": false,
+  "one_in": 48,
+  "note": "Multiple testing (STD): 4 tests were run on the same pair (A→B, B→A, all, tight), so a Bonferroni line is 0.05/4 = 0.0125; the A→B p = 0.0207 does not clear it (the brief's p ≈ 0.05 does not). Honest wording: \"about a 1-in-48 result\" under this null (the brief's ≈ 0.05 / 1-in-20 is close to what a partner that also carries a DSC key gives: p = 0.0600 here, 0.0535–0.0600 over the 5 seeds) — and what is unusual is the attraction-family hits, not the overall contact count."
+ },
+ "seed_sensitivity": {
+  "headline_seed": 20261021,
+  "per_seed": {
+   "20261021": {
+    "ab": {
+     "percentile": 0.9795,
+     "p": 0.0207,
+     "mean": 0.218,
+     "share_le": 0.99925
+    },
+    "ba": {
+     "percentile": 0.8735,
+     "p": 0.1267,
+     "mean": 0.131,
+     "share_le": 0.99575
+    },
+    "all": {
+     "percentile": 0.6163,
+     "p": 0.3839,
+     "mean": 15.333,
+     "share_le": 0.6965
+    },
+    "tight": {
+     "percentile": 0.2218,
+     "p": 0.7783,
+     "mean": 5.422,
+     "share_le": 0.3695
+    },
+    "ac": {
+     "percentile": 0.0,
+     "p": 1.0,
+     "mean": 12.727,
+     "share_le": 0.00025
+    },
+    "ab_bodies": {
+     "percentile": 0.9868,
+     "p": 0.0135,
+     "mean": 0.172,
+     "share_le": 0.9995
+    },
+    "ab_dsc": {
+     "percentile": 0.9403,
+     "p": 0.06,
+     "mean": 0.265,
+     "share_le": 0.992
+    },
+    "ba_moon": {
+     "percentile": 0.8363,
+     "p": 0.164,
+     "mean": 0.172,
+     "share_le": 0.99225
+    },
+    "all_no_moon": {
+     "percentile": 0.686,
+     "p": 0.3142,
+     "mean": 13.747,
+     "share_le": 0.7725
+    },
+    "tight_no_moon": {
+     "percentile": 0.2908,
+     "p": 0.7093,
+     "mean": 4.864,
+     "share_le": 0.4605
+    },
+    "ac_no_moon": {
+     "percentile": 0.0,
+     "p": 1.0,
+     "mean": 11.393,
+     "share_le": 0.00075
+    }
+   },
+   "1": {
+    "ab": {
+     "percentile": 0.9815,
+     "p": 0.0187,
+     "mean": 0.22,
+     "share_le": 0.99925
+    },
+    "ba": {
+     "percentile": 0.8673,
+     "p": 0.133,
+     "mean": 0.139,
+     "share_le": 0.994
+    },
+    "all": {
+     "percentile": 0.6288,
+     "p": 0.3714,
+     "mean": 15.305,
+     "share_le": 0.715
+    },
+    "tight": {
+     "percentile": 0.2165,
+     "p": 0.7836,
+     "mean": 5.397,
+     "share_le": 0.37775
+    },
+    "ac": {
+     "percentile": 0.0,
+     "p": 1.0,
+     "mean": 12.726,
+     "share_le": 0.00075
+    },
+    "ab_bodies": {
+     "percentile": 0.99,
+     "p": 0.0102,
+     "mean": 0.176,
+     "share_le": 0.99975
+    },
+    "ab_dsc": {
+     "percentile": 0.9468,
+     "p": 0.0535,
+     "mean": 0.263,
+     "share_le": 0.99075
+    },
+    "ba_moon": {
+     "percentile": 0.828,
+     "p": 0.1722,
+     "mean": 0.182,
+     "share_le": 0.99025
+    },
+    "all_no_moon": {
+     "percentile": 0.6975,
+     "p": 0.3027,
+     "mean": 13.688,
+     "share_le": 0.7725
+    },
+    "tight_no_moon": {
+     "percentile": 0.2863,
+     "p": 0.7138,
+     "mean": 4.825,
+     "share_le": 0.47825
+    },
+    "ac_no_moon": {
+     "percentile": 0.0003,
+     "p": 0.9998,
+     "mean": 11.392,
+     "share_le": 0.0015
+    }
+   },
+   "2": {
+    "ab": {
+     "percentile": 0.981,
+     "p": 0.0192,
+     "mean": 0.23,
+     "share_le": 0.99925
+    },
+    "ba": {
+     "percentile": 0.8533,
+     "p": 0.147,
+     "mean": 0.152,
+     "share_le": 0.9945
+    },
+    "all": {
+     "percentile": 0.6345,
+     "p": 0.3657,
+     "mean": 15.219,
+     "share_le": 0.7185
+    },
+    "tight": {
+     "percentile": 0.2195,
+     "p": 0.7806,
+     "mean": 5.415,
+     "share_le": 0.37975
+    },
+    "ac": {
+     "percentile": 0.0,
+     "p": 1.0,
+     "mean": 12.667,
+     "share_le": 0.0005
+    },
+    "ab_bodies": {
+     "percentile": 0.9885,
+     "p": 0.0117,
+     "mean": 0.187,
+     "share_le": 0.9995
+    },
+    "ab_dsc": {
+     "percentile": 0.9458,
+     "p": 0.0545,
+     "mean": 0.273,
+     "share_le": 0.99175
+    },
+    "ba_moon": {
+     "percentile": 0.8138,
+     "p": 0.1865,
+     "mean": 0.195,
+     "share_le": 0.991
+    },
+    "all_no_moon": {
+     "percentile": 0.7015,
+     "p": 0.2987,
+     "mean": 13.645,
+     "share_le": 0.783
+    },
+    "tight_no_moon": {
+     "percentile": 0.2915,
+     "p": 0.7086,
+     "mean": 4.846,
+     "share_le": 0.477
+    },
+    "ac_no_moon": {
+     "percentile": 0.0,
+     "p": 1.0,
+     "mean": 11.359,
+     "share_le": 0.0015
+    }
+   },
+   "3": {
+    "ab": {
+     "percentile": 0.9835,
+     "p": 0.0167,
+     "mean": 0.22,
+     "share_le": 0.99925
+    },
+    "ba": {
+     "percentile": 0.8745,
+     "p": 0.1257,
+     "mean": 0.129,
+     "share_le": 0.99675
+    },
+    "all": {
+     "percentile": 0.6138,
+     "p": 0.3864,
+     "mean": 15.328,
+     "share_le": 0.70375
+    },
+    "tight": {
+     "percentile": 0.223,
+     "p": 0.7771,
+     "mean": 5.431,
+     "share_le": 0.3705
+    },
+    "ac": {
+     "percentile": 0.0003,
+     "p": 0.9998,
+     "mean": 12.713,
+     "share_le": 0.00075
+    },
+    "ab_bodies": {
+     "percentile": 0.9908,
+     "p": 0.0095,
+     "mean": 0.174,
+     "share_le": 0.99925
+    },
+    "ab_dsc": {
+     "percentile": 0.9453,
+     "p": 0.055,
+     "mean": 0.265,
+     "share_le": 0.992
+    },
+    "ba_moon": {
+     "percentile": 0.836,
+     "p": 0.1642,
+     "mean": 0.171,
+     "share_le": 0.99325
+    },
+    "all_no_moon": {
+     "percentile": 0.6885,
+     "p": 0.3117,
+     "mean": 13.708,
+     "share_le": 0.7685
+    },
+    "tight_no_moon": {
+     "percentile": 0.2905,
+     "p": 0.7096,
+     "mean": 4.858,
+     "share_le": 0.468
+    },
+    "ac_no_moon": {
+     "percentile": 0.0003,
+     "p": 0.9998,
+     "mean": 11.385,
+     "share_le": 0.00225
+    }
+   },
+   "4": {
+    "ab": {
+     "percentile": 0.9813,
+     "p": 0.019,
+     "mean": 0.225,
+     "share_le": 1.0
+    },
+    "ba": {
+     "percentile": 0.8675,
+     "p": 0.1327,
+     "mean": 0.136,
+     "share_le": 0.9965
+    },
+    "all": {
+     "percentile": 0.622,
+     "p": 0.3782,
+     "mean": 15.319,
+     "share_le": 0.71325
+    },
+    "tight": {
+     "percentile": 0.212,
+     "p": 0.7881,
+     "mean": 5.456,
+     "share_le": 0.3605
+    },
+    "ac": {
+     "percentile": 0.0,
+     "p": 1.0,
+     "mean": 12.762,
+     "share_le": 0.00025
+    },
+    "ab_bodies": {
+     "percentile": 0.9883,
+     "p": 0.012,
+     "mean": 0.183,
+     "share_le": 1.0
+    },
+    "ab_dsc": {
+     "percentile": 0.9465,
+     "p": 0.0537,
+     "mean": 0.266,
+     "share_le": 0.993
+    },
+    "ba_moon": {
+     "percentile": 0.8228,
+     "p": 0.1775,
+     "mean": 0.186,
+     "share_le": 0.9915
+    },
+    "all_no_moon": {
+     "percentile": 0.692,
+     "p": 0.3082,
+     "mean": 13.756,
+     "share_le": 0.77125
+    },
+    "tight_no_moon": {
+     "percentile": 0.2843,
+     "p": 0.7158,
+     "mean": 4.901,
+     "share_le": 0.448
+    },
+    "ac_no_moon": {
+     "percentile": 0.0,
+     "p": 1.0,
+     "mean": 11.456,
+     "share_le": 0.00125
+    }
+   }
+  },
+  "range": {
+   "ab": {
+    "percentile": [
+     0.9795,
+     0.9835
+    ],
+    "p": [
+     0.0167,
+     0.0207
+    ],
+    "mean": [
+     0.218,
+     0.23
+    ],
+    "share_le": [
+     0.99925,
+     1.0
+    ]
+   },
+   "ba": {
+    "percentile": [
+     0.8533,
+     0.8745
+    ],
+    "p": [
+     0.1257,
+     0.147
+    ],
+    "mean": [
+     0.129,
+     0.152
+    ],
+    "share_le": [
+     0.994,
+     0.99675
+    ]
+   },
+   "all": {
+    "percentile": [
+     0.6138,
+     0.6345
+    ],
+    "p": [
+     0.3657,
+     0.3864
+    ],
+    "mean": [
+     15.219,
+     15.333
+    ],
+    "share_le": [
+     0.6965,
+     0.7185
+    ]
+   },
+   "tight": {
+    "percentile": [
+     0.212,
+     0.223
+    ],
+    "p": [
+     0.7771,
+     0.7881
+    ],
+    "mean": [
+     5.397,
+     5.456
+    ],
+    "share_le": [
+     0.3605,
+     0.37975
+    ]
+   },
+   "ac": {
+    "percentile": [
+     0.0,
+     0.0003
+    ],
+    "p": [
+     0.9998,
+     1.0
+    ],
+    "mean": [
+     12.667,
+     12.762
+    ],
+    "share_le": [
+     0.00025,
+     0.00075
+    ]
+   },
+   "ab_bodies": {
+    "percentile": [
+     0.9868,
+     0.9908
+    ],
+    "p": [
+     0.0095,
+     0.0135
+    ],
+    "mean": [
+     0.172,
+     0.187
+    ],
+    "share_le": [
+     0.99925,
+     1.0
+    ]
+   },
+   "ab_dsc": {
+    "percentile": [
+     0.9403,
+     0.9468
+    ],
+    "p": [
+     0.0535,
+     0.06
+    ],
+    "mean": [
+     0.263,
+     0.273
+    ],
+    "share_le": [
+     0.99075,
+     0.993
+    ]
+   },
+   "ba_moon": {
+    "percentile": [
+     0.8138,
+     0.8363
+    ],
+    "p": [
+     0.164,
+     0.1865
+    ],
+    "mean": [
+     0.171,
+     0.195
+    ],
+    "share_le": [
+     0.99025,
+     0.99325
+    ]
+   },
+   "all_no_moon": {
+    "percentile": [
+     0.686,
+     0.7015
+    ],
+    "p": [
+     0.2987,
+     0.3142
+    ],
+    "mean": [
+     13.645,
+     13.756
+    ],
+    "share_le": [
+     0.7685,
+     0.783
+    ]
+   },
+   "tight_no_moon": {
+    "percentile": [
+     0.2843,
+     0.2915
+    ],
+    "p": [
+     0.7086,
+     0.7158
+    ],
+    "mean": [
+     4.825,
+     4.901
+    ],
+    "share_le": [
+     0.448,
+     0.47825
+    ]
+   },
+   "ac_no_moon": {
+    "percentile": [
+     0.0,
+     0.0003
+    ],
+    "p": [
+     0.9998,
+     1.0
+    ],
+    "mean": [
+     11.359,
+     11.456
+    ],
+    "share_le": [
+     0.00075,
+     0.00225
+    ]
+   }
+  }
+ },
+ "method": [
+  "Partners: N = 4000 moments uniform in [1960-01-01, 2000-01-01) UTC, t = T0 + u·(T1 − T0), u = random.Random(20261021).random() — pair_core.random_chart's draw; draw check: at every seed (20261021, 1, 2, 3, 4), 20000 of 5 × 4000 partners identical to random_chart's own bodies.",
+  "A–B partner = 10 bodies + ASC + MC at Frederick (39.4143, -77.4105; astro_core.angles), as B has; no DSC key (B has none).",
+  "A–C partner = pair_core.random_chart (10 bodies, no angles: C has no birth time).",
+  "Family uses A = natA (noon bodies, Moon left out: the book's rule); contact counts use A = pA (the noon chart WITH its noon Moon), the point set that reproduces 17/4/2. A has no birth time, so the Moon part is a noon convention: the extra contact it adds is A Moon ☍ B Mars 1.71°.",
+  "percentile = share strictly below (pair_core.null_percentile) · p = (1 + #≥ real)/(N + 1) · STD p_low = (1 + #≤ real)/(N + 1) · ✓ = within 2 Monte-Carlo SE of the brief's number at N.",
+  "Files carry no timestamp and no runtime, so a rerun is byte-identical; the runtime is printed on the console."
+ ]
+}

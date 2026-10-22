@@ -66,6 +66,12 @@ def tone(H):
     return None, None
 
 
+def love_overlay(H):
+    """💗 overlay: every Venus–Mars contact among the hits (transiting Venus to natal Mars, or transiting Mars to natal
+       Venus), any aspect and phase within the radar orb. It sits beside the ✅/⚠️ flavor and never changes it."""
+    return [h for h in H if {h['body'], h['point']} == {'Venus', 'Mars'}]
+
+
 def moon_times(natal, t0, t1):
     """Exact Moon aspects to natal points in [t0, t1) — the Moon times hours, it never sets the tone."""
     out = []

@@ -1,0 +1,77 @@
+{
+ "khai": {
+  "0512": "庚辰 0.647 · 己卯 0.353; charge 79 → 74",
+  "1021_charge_tf": 90,
+  "1021_chem_tf": 2.4,
+  "1021_pull_noon": 1.9,
+  "1021_pull_tf": 2.1,
+  "charges_changed": "33 (first 2026-12-09: 88 → 99)",
+  "chem_max_move": "≤ 0.2",
+  "chem_peak": "2027-05-13",
+  "chem_windows": "12, same as noon",
+  "flags_flipped": "12 (first 2026-12-01: ✅ → 🔥)",
+  "pull_max_move": "≤ 0.6",
+  "share_60": "60/119 on 2027-05-27",
+  "share_all": "119/119 from 2027-07-16",
+  "share_first": "1/119 on 2027-04-07 (0 through 04-06)",
+  "tf_fire": 1.881009,
+  "tf_ok": 1.284722,
+  "tf_pair_top": 3.695634,
+  "tf_top": 3.214513,
+  "top_pull": "2027-07-18 (noon) → 2027-07-17 (10.0); 07-18 is 9.8"
+ },
+ "shares": {
+  "0512_shares": "庚辰 0.647 · 己卯 0.353",
+  "share_60": "60/119 on 2027-05-27 (first day ≥ 60)",
+  "share_all": "119/119 from 2027-07-16",
+  "share_first": "1/119 on 2027-04-07 (0 through 2027-04-06)"
+ },
+ "v1": {
+  "0512_charge": "79 → 74",
+  "1021_charge_tf": 90,
+  "1021_chem_tf": 2.4,
+  "1021_pull_noon": 1.9,
+  "1021_pull_tf": 2.1,
+  "charges_changed": "33 (first 2026-12-09: 88 → 99)",
+  "chem_max_move": 0.2,
+  "chem_peak": "2027-05-13 tf · 2027-05-13 noon",
+  "chem_windows": "12 tf vs 12 noon, same dates",
+  "flags_flipped": "12 (first 2026-12-01: ✅ → 🔥)",
+  "noon_cuts": {
+   "fire": 1.861061,
+   "ok": 1.299644,
+   "top": 3.276371
+  },
+  "noon_pair_top": 3.703836,
+  "pull_max_move": 0.6,
+  "tf_fire": 1.881009,
+  "tf_ok": 1.284722,
+  "tf_pair_top": 3.695639,
+  "tf_top": 3.214513,
+  "top_pull": "2027-07-18 (noon) → 2027-07-17 (10.0); 07-18 is 9.8"
+ },
+ "v2": {
+  "0512_charge": "79 → 74",
+  "1021_charge_tf": 90,
+  "1021_chem_tf": 2.4,
+  "1021_pull_noon": 1.8,
+  "1021_pull_tf": 2.1,
+  "charges_changed": "30 (first 2026-12-10: 9 → 5)",
+  "chem_max_move": 0.3,
+  "chem_peak": "2027-05-13 tf · 2027-05-13 noon",
+  "chem_windows": "12 tf vs 12 noon, same dates",
+  "flags_flipped": "8 (first 2026-12-10: 🔥 → ✅)",
+  "noon_cuts": {
+   "fire": 1.835568,
+   "ok": 1.288482,
+   "top": 3.333705
+  },
+  "noon_pair_top": 3.703836,
+  "pull_max_move": 0.8,
+  "tf_fire": 1.874358,
+  "tf_ok": 1.292993,
+  "tf_pair_top": 3.695639,
+  "tf_top": 3.222058,
+  "top_pull": "2027-07-18 (noon) → 2027-07-18 (10.0); 07-18 is 10.0"
+ }
+}

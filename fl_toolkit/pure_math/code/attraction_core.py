@@ -9,6 +9,7 @@ flags     = 🔥 top 7% / ✅ top 20% of days in a reference window · scale = d
 import datetime as dt
 import math
 import astro_core as A
+from bazi_core import round_half_up
 
 PARAMS = {
     'body_w':   {'Venus': 3.0, 'Mars': 2.0, 'Jupiter': 2.0, 'Sun': 1.0, 'Moon': 0.5},
@@ -68,7 +69,7 @@ def flags(cal):
     """cal = {day: score}. 🔥 = top 7% · ✅ = top 20% · scale = score / max × 10."""
     vals = sorted(cal.values(), reverse=True); n = len(vals)
     fire = vals[max(0, math.ceil(0.07 * n) - 1)]; ok = vals[max(0, math.ceil(0.20 * n) - 1)]; top = vals[0] or 1.0
-    return {d: ('🔥' if v >= fire else '✅' if v >= ok else '', round(v / top * 10, 1)) for d, v in cal.items()}
+    return {d: ('🔥' if v >= fire else '✅' if v >= ok else '', round_half_up(v / top * 10, 1)) for d, v in cal.items()}
 
 
 def daily_points(flag, scale):

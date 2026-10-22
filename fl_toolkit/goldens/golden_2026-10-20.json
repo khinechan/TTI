@@ -1,0 +1,529 @@
+{
+ "date": "2026-10-20",
+ "weekday": "Tuesday",
+ "pillar": "丁卯",
+ "window_start": "2026-10-20",
+ "chemistry": {
+  "scale": 1.5,
+  "raw": 0.57,
+  "lit_by": [
+   [
+    "Sun",
+    0,
+    "28.6 Lib (B Venus ☌ A Mars)",
+    1.3
+   ]
+  ],
+  "above_window_max": false,
+  "day_max": {
+   "raw": 0.7,
+   "scale": 1.9,
+   "time": "22:00"
+  },
+  "chem_pct_longrun": 0.546
+ },
+ "A": {
+  "charge": 90,
+  "tier": "🔴",
+  "raw": 92,
+  "parts": [
+   [
+    "base",
+    35
+   ],
+   [
+    "卯辰害 (own)",
+    12
+   ],
+   [
+    "卯卯same (other)",
+    10
+   ],
+   [
+    "卯戌合 (other)",
+    10
+   ],
+   [
+    "卯酉冲 (other)",
+    15
+   ],
+   [
+    "stem 丁",
+    10
+   ]
+  ],
+  "luck": "庚辰",
+  "pull": 1.1,
+  "flag": "",
+  "tone": [
+   {
+    "body": "Uranus",
+    "aspect": "□",
+    "point": "Mercury",
+    "orb": 0.52,
+    "phase": "exact",
+    "weight": 3.287,
+    "tag": "work",
+    "flavor": "⚠️"
+   },
+   "exact"
+  ],
+  "exact": [
+   "Uranus □ Mercury 0.52° ⚠️ work",
+   "Uranus □ Sun 0.59° ⚠️ work",
+   "Jupiter □ Uranus 0.96° ⚠️ work"
+  ],
+  "hours": [
+   {
+    "block": "子",
+    "hours": "00:00-00:59 (+23:00 the night before)",
+    "charge": 27,
+    "pull": 1.3,
+    "terms": [
+     "子卯刑 (other)",
+     "day 卯子刑"
+    ],
+    "points": 27,
+    "points_pct": 0.313
+   },
+   {
+    "block": "丑",
+    "hours": "01:00-02:59",
+    "charge": 12,
+    "pull": 1.1,
+    "terms": [
+     "丑戌刑 (other)"
+    ],
+    "points": 12,
+    "points_pct": 0.13
+   },
+   {
+    "block": "寅",
+    "hours": "03:00-04:59",
+    "charge": 57,
+    "pull": 1.1,
+    "terms": [
+     "寅申冲 (own)",
+     "寅申刑 (own)",
+     "寅巳害 (other)",
+     "寅巳刑 (other)"
+    ],
+    "points": 57,
+    "points_pct": 0.806
+   },
+   {
+    "block": "卯",
+    "hours": "05:00-06:59",
+    "charge": 53,
+    "pull": 1.0,
+    "terms": [
+     "卯辰害 (own)",
+     "卯卯same (other)",
+     "卯戌合 (other)",
+     "卯酉冲 (other)",
+     "day 卯卯same"
+    ],
+    "points": 53,
+    "points_pct": 0.727
+   },
+   {
+    "block": "辰",
+    "hours": "07:00-08:59",
+    "charge": 59,
+    "pull": 1.0,
+    "terms": [
+     "辰辰自刑 (own)",
+     "辰卯害 (other)",
+     "辰戌冲 (other)",
+     "辰酉合 (other)",
+     "day 卯辰害"
+    ],
+    "points": 59,
+    "points_pct": 0.854
+   },
+   {
+    "block": "巳",
+    "hours": "09:00-10:59",
+    "charge": 35,
+    "pull": 1.0,
+    "terms": [
+     "巳申合 (own)",
+     "巳申刑 (own)",
+     "巳巳same (other)"
+    ],
+    "points": 35,
+    "points_pct": 0.455
+   },
+   {
+    "block": "午",
+    "hours": "11:00-12:59",
+    "charge": 0,
+    "pull": 1.1,
+    "terms": [],
+    "points": 0,
+    "points_pct": 0.028
+   },
+   {
+    "block": "未",
+    "hours": "13:00-14:59",
+    "charge": 12,
+    "pull": 1.1,
+    "terms": [
+     "未戌刑 (other)"
+    ],
+    "points": 12,
+    "points_pct": 0.13
+   },
+   {
+    "block": "申",
+    "hours": "15:00-16:59",
+    "charge": 28,
+    "pull": 1.1,
+    "terms": [
+     "申申same (own)",
+     "申巳合 (other)",
+     "申巳刑 (other)"
+    ],
+    "points": 28,
+    "points_pct": 0.384
+   },
+   {
+    "block": "酉",
+    "hours": "17:00-18:59",
+    "charge": 73,
+    "pull": 1.1,
+    "terms": [
+     "酉辰合 (own)",
+     "酉卯冲 (other)",
+     "酉戌害 (other)",
+     "酉酉自刑 (other)",
+     "day 卯酉冲",
+     "咸池 hour"
+    ],
+    "points": 73,
+    "points_pct": 0.975
+   },
+   {
+    "block": "戌",
+    "hours": "19:00-20:59",
+    "charge": 60,
+    "pull": 1.2,
+    "terms": [
+     "戌辰冲 (own)",
+     "戌卯合 (other)",
+     "戌戌same (other)",
+     "戌酉害 (other)",
+     "day 卯戌合"
+    ],
+    "points": 60,
+    "points_pct": 0.871
+   },
+   {
+    "block": "亥",
+    "hours": "21:00-22:59",
+    "charge": 27,
+    "pull": 1.2,
+    "terms": [
+     "亥申害 (own)",
+     "亥巳冲 (other)"
+    ],
+    "points": 27,
+    "points_pct": 0.313
+   }
+  ],
+  "moon_times": [
+   [
+    "13:06",
+    "⚹",
+    "Neptune",
+    "✅",
+    "loss"
+   ],
+   [
+    "13:07-13:10",
+    "△",
+    "Pluto",
+    "✅",
+    "loss"
+   ],
+   [
+    "16:51-16:53",
+    "□",
+    "Uranus",
+    "⚠️",
+    "work"
+   ]
+  ],
+  "door": [
+   "23:14"
+  ],
+  "charge_pct": 0.814,
+  "tier_pct": "🟠",
+  "friction": 27,
+  "bond": 30,
+  "attraction_points": 0,
+  "pull_pct_longrun": 0.364,
+  "love_overlay": [],
+  "luck_shares": {
+   "庚辰": [
+    119,
+    1.0
+   ]
+  }
+ },
+ "B": {
+  "charge": 55,
+  "tier": "🟡",
+  "raw": 76,
+  "parts": [
+   [
+    "base",
+    35
+   ],
+   [
+    "卯卯same (own)",
+    6
+   ],
+   [
+    "卯戌合 (own)",
+    10
+   ],
+   [
+    "卯酉冲 (own)",
+    20
+   ],
+   [
+    "stem 丁",
+    5
+   ]
+  ],
+  "luck": "己巳",
+  "pull": 1.5,
+  "flag": "",
+  "tone": [
+   {
+    "body": "Saturn",
+    "aspect": "□",
+    "point": "Neptune",
+    "orb": 0.42,
+    "phase": "exact",
+    "weight": 4.182,
+    "tag": "loss",
+    "flavor": "⚠️"
+   },
+   "exact"
+  ],
+  "exact": [
+   "Saturn □ Neptune 0.42° ⚠️ loss",
+   "Saturn ☍ Mercury 0.46° ⚠️ work",
+   "Jupiter ⚹ MC 0.93° ✅ work",
+   "Mars □ Pluto 0.34° ⚠️ loss",
+   "Sun ☌ Venus 0.93° ✅ love"
+  ],
+  "hours": [
+   {
+    "block": "子",
+    "hours": "00:00-00:59 (+23:00 the night before)",
+    "charge": 30,
+    "pull": 0.8,
+    "terms": [
+     "子卯刑 (own)",
+     "day 卯子刑"
+    ],
+    "points": 30,
+    "points_pct": 0.343
+   },
+   {
+    "block": "丑",
+    "hours": "01:00-02:59",
+    "charge": 15,
+    "pull": 0.9,
+    "terms": [
+     "丑戌刑 (own)"
+    ],
+    "points": 15,
+    "points_pct": 0.128
+   },
+   {
+    "block": "寅",
+    "hours": "03:00-04:59",
+    "charge": 81,
+    "pull": 1.1,
+    "terms": [
+     "寅巳害 (own)",
+     "寅巳刑 (own)",
+     "寅巳害 (own)",
+     "寅巳刑 (own)",
+     "寅申冲 (other)",
+     "寅申刑 (other)"
+    ],
+    "points": 81,
+    "points_pct": 0.931
+   },
+   {
+    "block": "卯",
+    "hours": "05:00-06:59",
+    "charge": 42,
+    "pull": 1.2,
+    "terms": [
+     "卯卯same (own)",
+     "卯戌合 (own)",
+     "卯酉冲 (own)",
+     "day 卯卯same"
+    ],
+    "points": 42,
+    "points_pct": 0.524
+   },
+   {
+    "block": "辰",
+    "hours": "07:00-08:59",
+    "charge": 54,
+    "pull": 1.4,
+    "terms": [
+     "辰卯害 (own)",
+     "辰戌冲 (own)",
+     "辰酉合 (own)",
+     "day 卯辰害"
+    ],
+    "points": 54,
+    "points_pct": 0.743
+   },
+   {
+    "block": "巳",
+    "hours": "09:00-10:59",
+    "charge": 34,
+    "pull": 1.4,
+    "terms": [
+     "巳巳same (own)",
+     "巳巳same (own)",
+     "巳申合 (other)",
+     "巳申刑 (other)"
+    ],
+    "points": 34,
+    "points_pct": 0.385
+   },
+   {
+    "block": "午",
+    "hours": "11:00-12:59",
+    "charge": 8,
+    "pull": 1.5,
+    "terms": [
+     "咸池 hour"
+    ],
+    "points": 8,
+    "points_pct": 0.028
+   },
+   {
+    "block": "未",
+    "hours": "13:00-14:59",
+    "charge": 15,
+    "pull": 1.7,
+    "terms": [
+     "未戌刑 (own)"
+    ],
+    "points": 15,
+    "points_pct": 0.128
+   },
+   {
+    "block": "申",
+    "hours": "15:00-16:59",
+    "charge": 60,
+    "pull": 1.8,
+    "terms": [
+     "申巳合 (own)",
+     "申巳刑 (own)",
+     "申巳合 (own)",
+     "申巳刑 (own)",
+     "申申same (other)"
+    ],
+    "points": 60,
+    "points_pct": 0.816
+   },
+   {
+    "block": "酉",
+    "hours": "17:00-18:59",
+    "charge": 64,
+    "pull": 1.9,
+    "terms": [
+     "酉卯冲 (own)",
+     "酉戌害 (own)",
+     "酉酉自刑 (own)",
+     "day 卯酉冲"
+    ],
+    "points": 64,
+    "points_pct": 0.878
+   },
+   {
+    "block": "戌",
+    "hours": "19:00-20:59",
+    "charge": 38,
+    "pull": 2.0,
+    "terms": [
+     "戌卯合 (own)",
+     "戌戌same (own)",
+     "戌酉害 (own)",
+     "day 卯戌合"
+    ],
+    "points": 38,
+    "points_pct": 0.476
+   },
+   {
+    "block": "亥",
+    "hours": "21:00-22:59",
+    "charge": 50,
+    "pull": 2.1,
+    "terms": [
+     "亥巳冲 (own)",
+     "亥巳冲 (own)",
+     "亥申害 (other)"
+    ],
+    "points": 50,
+    "points_pct": 0.681
+   }
+  ],
+  "moon_times": [],
+  "door": [
+   "07:34"
+  ],
+  "charge_pct": 0.481,
+  "tier_pct": "🟢",
+  "friction": 25,
+  "bond": 16,
+  "attraction_points": 0,
+  "pull_pct_longrun": 0.224,
+  "love_overlay": []
+ },
+ "A_with_C": {
+  "charge": 13,
+  "tier": "🟢",
+  "parts": [
+   [
+    "base",
+    35
+   ],
+   [
+    "卯辰害 (own)",
+    12
+   ],
+   [
+    "stem 丁",
+    10
+   ]
+  ],
+  "charge_pct": 0.526,
+  "tier_pct": "🟡",
+  "friction": 12,
+  "bond": 10,
+  "attraction_points": 0
+ },
+ "receipt": "Math: 丁卯 · chemistry 1.5 · A charge 90 🔴, pull 1.1 · B charge 55 🟡, pull 1.5",
+ "sampling": {
+  "grid": "BaZi day: 23:00 the evening before to 22:50, every 10 min of local wall-clock time",
+  "slots": 144,
+  "instants": 144,
+  "effective": 144.0,
+  "skipped": 0,
+  "repeated": 0
+ },
+ "a_chart": "time-free: the mean of A's 119 charts 00:00-19:40 local (no birth time pinned); exact transits, the door and the Saturn station use their averaged chart"
+}

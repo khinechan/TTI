@@ -4,6 +4,7 @@ import datetime as dt
 import math
 import random
 import astro_core as A
+from bazi_core import round_half_up
 
 SYN_ORBS = {'☌': 3.0, '☍': 3.0, '□': 3.0, '△': 3.0, '⚹': 2.5}
 
@@ -116,7 +117,7 @@ def timeline(spots, t0, days, hour_utc=16):
         t = (t0 + dt.timedelta(days=i)).replace(hour=hour_utc, minute=0)
         rows.append((t, pair_score(spots, t)[0]))
     top = max(s for _, s in rows) or 1.0
-    scaled = [(t, s, round(s / top * 10, 1)) for t, s in rows]
+    scaled = [(t, s, round_half_up(s / top * 10, 1)) for t, s in rows]
     windows, cur = [], None
     for t, s, sc in scaled:
         if s >= 0.5 * top:
