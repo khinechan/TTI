@@ -1,11 +1,14 @@
 """Tests for daily.py v2: the audit's P1 fixes, P2/P3 keys, the options, time-free A, and the golden days.
 These tests use dates (the pure_math tests do not). Run from this folder: python3 -m unittest test_daily -v
-The goldens in goldens/ are tied to the ephem build that wrote them (4.2.1); see CHANGES.md."""
+The goldens in goldens/ are tied to the ephem build that wrote them (4.2.1); see CHANGES.md.
+v3: these are the v2 tests, so they run the v2 engine (--no-seasons; seasons became the default by Khai's call) and
+read the goldens through v2_view, which drops only what v3 adds. v3's own tests are in test_daily_v3.py."""
 import copy
 import datetime as dt
 import json
 import os
 import random
+import re
 import sys
 import tempfile
 import unittest
@@ -15,8 +18,10 @@ sys.path.insert(0, HERE)
 import daily as D
 
 GOLDEN_DAYS = ("2026-09-08", "2026-10-20", "2026-10-21", "2026-11-01", "2027-03-14")
-NOON = dict(D.DEFAULT_OPT, a_time="noon")
-TF = dict(D.DEFAULT_OPT, a_time="tf")
+V2 = dict(D.DEFAULT_OPT, seasons=False)   # the v2 engine: everything v2.0.1 printed, seasons off
+NOON = dict(V2, a_time="noon")
+TF = dict(V2, a_time="tf")
+V2_DEFAULT_OPT = dict(luck_w=1.0, ym=False, solar=False, a_time="tf")   # v2.0.1's DEFAULT_OPT, verbatim
 V1_TOP_A = 3.276370515630749          # the v1 ref_2026-10-20.json (calendar-day sampling), verbatim
 _RUNS = {}
 
@@ -24,8 +29,21 @@ _RUNS = {}
 def run(day, **opt):
     """D.main through a JSON round trip (as printed), memoised so each (day, options) runs once."""
     key = (day, tuple(sorted(opt.items())))
-    if key not in _RUNS: _RUNS[key] = json.loads(json.dumps(D.main(dt.date.fromisoformat(day), dict(D.DEFAULT_OPT, **opt)), ensure_ascii=False))
+    if key not in _RUNS: _RUNS[key] = json.loads(json.dumps(D.main(dt.date.fromisoformat(day), dict(V2, **opt)), ensure_ascii=False))
     return _RUNS[key]
+
+
+def v2_view(res):
+    """A v3 run as v2.0.1 printed it: drop the keys v3 adds (charge_pct_tier, engine, seasons, options.seasons), take
+       the receipt's added " [p%]" / " (p%)" back out, and print it the way daily.py does."""
+    r = json.loads(json.dumps(res, ensure_ascii=False))
+    for k in ("A", "B", "A_with_C"): r[k].pop("charge_pct_tier")
+    r["receipt"] = re.sub(r" \[\d+%\]| \(\d+%\)", "", r["receipt"])
+    r.pop("engine"); r.pop("seasons", None)
+    if "options" in r:
+        r["options"].pop("seasons")
+        if r["options"] == V2_DEFAULT_OPT: r.pop("options")
+    return json.dumps(r, ensure_ascii=False, indent=1) + "\n"
 
 
 def jload(path):
@@ -37,18 +55,20 @@ def golden_path(day, a_time):
 
 
 class Goldens(unittest.TestCase):
-    """P4 item 17: the five book days, default output and the noon comparison, byte for byte."""
+    """P4 item 17: the five book days, default output and the noon comparison, byte for byte. v3 (its test (a)): with
+       --no-seasons, every v2.0.1 golden comes back byte for byte through v2_view."""
 
     def test_golden_days(self):
         for day in GOLDEN_DAYS:
             for at in ("tf", "noon"):
                 with self.subTest(day=day, a_time=at):
-                    self.assertEqual(run(day, a_time=at), jload(golden_path(day, at)))
+                    with open(golden_path(day, at), encoding="utf-8") as fh: want = fh.read()
+                    self.assertEqual(v2_view(run(day, a_time=at)), want)
 
     def test_cli_prints_the_golden(self):
         import subprocess
-        out = subprocess.run([sys.executable, os.path.join(HERE, "daily.py"), "2026-10-21"], capture_output=True, text=True, check=True).stdout
-        self.assertEqual(json.loads(out), jload(golden_path("2026-10-21", D.DEFAULT_OPT["a_time"])))
+        out = subprocess.run([sys.executable, os.path.join(HERE, "daily.py"), "2026-10-21", "--no-seasons"], capture_output=True, text=True, check=True).stdout
+        with open(golden_path("2026-10-21", D.DEFAULT_OPT["a_time"]), encoding="utf-8") as fh: self.assertEqual(v2_view(json.loads(out)), fh.read())
         self.assertNotIn("outfit", json.loads(out))          # §13: no outfit, no key
 
 
@@ -163,7 +183,7 @@ class P3Meaning(unittest.TestCase):
         self.assertEqual(got, {("2026-10-21", 1.0): (77, 57), ("2026-10-21", 0.5): (77, 57),
                                ("2026-10-22", 1.0): (79, 62), ("2026-10-22", 0.5): (76.0, 55)})
         self.assertIn(["巳巳same (own, luck ×0.5)", 3.0], run("2026-10-22", a_time="noon", luck_w=0.5)["B"]["parts"])
-        self.assertNotIn("options", run("2026-10-22"))
+        self.assertNotIn("options", json.loads(v2_view(run("2026-10-22"))))
 
     def test_love_overlay(self):                            # item 13: transiting Venus ☌ A's natal Mars, ⚠️ unchanged
         A = run("2026-10-22", a_time="noon")["A"]

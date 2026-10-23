@@ -171,12 +171,13 @@ def _weighted(a, b, W, side):
     return [(n + lab, v if wt == 1 else v * wt) for n, v in rel_points(a, br, W)]
 
 
-def day_score(day_stem, day_branch, own, other, day_master, year_branch, attraction_pts=0, station_pts=0):
+def day_score(day_stem, day_branch, own, other, day_master, year_branch, attraction_pts=0, station_pts=0, extra_stems=()):
     """S = 35 + Σ_own ω·W_own(day, b) + Σ_other ω·W_other(day, b) + 20·[day = peach] + 6·[day ∈ peach frame]
-           + stem bonus + attraction points + Saturn-station points.
+           + stem bonus + Σ_extra ω·stem bonus + attraction points + Saturn-station points.
        own   = this chart's distinct natal branches + its current luck branch (a separate term, even when it repeats a natal
                branch); other = the other chart's distinct natal branches. ω = 1 unless a member is given as
-               (branch, weight, tag): the optional repeated-luck weight and the 流年/流月 terms."""
+               (branch, weight, tag): the optional repeated-luck weight and the 流年/流月 and season terms.
+       extra_stems = [(stem, weight, tag)]: more stems scored by STEM_BONUS against the day master (v3 seasons)."""
     parts = [("base", 35)]
     for b in own: parts += _weighted(day_branch, b, W_OWN, "own")
     for b in other: parts += _weighted(day_branch, b, W_OTHER, "other")
@@ -184,6 +185,9 @@ def day_score(day_stem, day_branch, own, other, day_master, year_branch, attract
     if day_branch in peach_frame(year_branch): parts.append(("咸池 frame day", 6))
     sb = stem_bonus(day_master, day_stem)
     if sb: parts.append(("stem " + day_stem, sb))
+    for st, wt, tag in extra_stems:
+        sb = stem_bonus(day_master, st)
+        if sb: parts.append(("stem %s (%s)" % (st, tag), sb * wt))
     if attraction_pts: parts.append(("attraction", attraction_pts))
     if station_pts: parts.append(("Saturn station", station_pts))
     raw = sum(v for _, v in parts)
@@ -215,7 +219,7 @@ def sub_scores(parts, day_master):
         if name in ("base", "Saturn station"): continue
         if name == "attraction": k = "attraction_points"
         elif name.startswith("咸池"): k = "bond"
-        elif name.startswith("stem "): k = STEM_BONUS[stem_role(day_master, name[5:])][1]
+        elif name.startswith("stem "): k = STEM_BONUS[stem_role(day_master, name[5])][1]
         else:
             rel = name[2:].split(" ")[0]
             if rel not in FRICTION | BOND: raise ValueError("unclassified part %r" % name)

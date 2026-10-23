@@ -86,3 +86,28 @@ chat saw (pull_pct_longrun 0.023 vs 0.024 on 2026-11-01; two last-bit float equa
 no hand edits. Sweep on 3.11: 4,380 cached day means, 0 flags change with FLOAT_EPS, 0 values within eps of a cut, 0
 long-run neighbours closer than eps. After — 148/148 on 3.11, 3.12 and 3.13. FloatDrift red on the v2.0 code (2/2
 fail), green on v2.0.1. No cache, golden or report file changed.
+
+## v3.0 — percentile headline, seasons, cross-year pull (2026-10-23, written BEFORE editing)
+Source: Khai's v3 spec (chat, 2026-10-22/23). Khai's calls: **seasons default ON**; numbers already in the doc stay;
+an engine note on the first v3 day. Baseline: 66a6c97 = 148/148 on 3.11, 3.12, 3.13 (run this session, tree clean since).
+1. Headline: `charge_pct_tier` (= the §7 tier_pct rule) right after `tier` on A, B, A_with_C. Receipt gains
+   "[p%]" after each charge's tier and "(p%)" (pull_pct_longrun) after each pull + flag. Nothing else moves.
+2. `--seasons` / `--no-seasons` (default on, STD): §7 other += 流年, 流月 and the OTHER chart's decade branch at ω = ½
+   (time-free A's decade shared by chart count); stem bonus += ½·STEM_BONUS(DM, 流年 stem) + ½·STEM_BONUS(DM, own
+   decade stem). Same members in H. Seasons ⊇ --year-month-terms.
+   DESIGN CALL (flag to Khai): the draft says "both charts' decade branches join other". A chart's own decade is already
+   in own at full weight (§7), so adding it again double-counts it (the audit's item 11 worry). Default: other chart's
+   decade only; rule-data switch SEASON_OWN_DECADE = False gives the literal reading in one edit.
+   Time-free A split days: any charge her decade enters (hers, B's via other, A with C) takes S′ = share-weighted mean
+   of per-pillar S′ and H = round-half-up of the share-weighted H (the §14 rule, extended).
+   Seasons block (only when on): each season pillar, its ten-god for A, B, C, the raw points it added to each charge.
+3. `engine` key: "fl_toolkit v3.0 · seasons on|off · A time-free|noon" so the nightly can see the engine change and
+   write the engine note on the first v3 day; the note text goes in CHANGES.md.
+Tests (new file test_daily_v3.py): (a) --no-seasons output projected to v2 keys == every v2.0.1 golden byte for byte
+(both A modes); (b) 60-day loop, same day pillar, different month → B's 流月 points / raw differ; (c) two days at 100
+→ different charge_pct; (d) A's split-day decade shares sum to 1; plus receipt format, block, ym ⊂ seasons, v3 goldens.
+v2 tests keep testing v2: their option dicts pin seasons=False (Khai changed the default; that is his rule change, not
+a test bent to pass). Run 3.11/3.12/3.13. Then an adversarial review, docs (THE_MATH §7/§14, CHANGES v3 + engine
+note, README), deterministic zip + base64 + both hashes.
+Not in v3: §7 weights, the day-pillar method, the chemistry cap. Not touched: chemistry, Moon times, doors, outfits'
+mechanics, time-free sampling, caches (charges are not cached).

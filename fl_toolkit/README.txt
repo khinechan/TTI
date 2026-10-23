@@ -1,10 +1,12 @@
-Forbidden love toolkit (Khai's pure_math pack + daily.py), v2. Fiction: characters A, B, C; no real person in the data.
+Forbidden love toolkit (Khai's pure_math pack + daily.py), v3. Fiction: characters A, B, C; no real person in the data.
 1. python3 -m pip install --break-system-packages ephem
 2. cd pure_math/code && python3 -m unittest test_pure_math test_monthly_core test_strength_core test_color_core test_v2_core
    (the 41 original tests + the v2 core tests; none uses a date)
-3. cd ../.. && python3 -m unittest test_daily test_daily_color test_audit_book      (date-level tests, a few minutes)
+3. cd ../.. && python3 -m unittest test_daily test_daily_color test_audit_book test_daily_v3   (date-level tests, a few minutes)
 4. python3 daily.py YYYY-MM-DD   (local Frederick date) -> JSON for that day
-   Options (all off by default): --a-time noon (A's v1 noon stand-in; default is time-free A) · --luck-repeat-weight W
+   v3 default: time-free A and SEASONS ON (--no-seasons = the v2.0.1 numbers). The receipt shows [charge percentile]
+   and (pull long-run percentile); "engine" names the engine that made the day.
+   Other options (off by default): --a-time noon (A's v1 noon stand-in) · --luck-repeat-weight W
    · --year-month-terms (STD) · --solar-time (STD) · --outfit-A JSON / --outfit-B JSON / --seen 辰,巳,午,未,申 (§13, STD)
    Example: python3 daily.py 2026-10-21 --outfit-B '[{"slot":"top","color":"green"},{"slot":"bottom","color":"silver"}]'
 Reference caches (rebuilt automatically if missing or in the old format; shipped so a day runs in seconds):

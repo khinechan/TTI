@@ -16,7 +16,7 @@ import color_core as C
 
 V1_REF = {"A": {"top": 3.276370515630749, "fire": 1.8610606950505333, "ok": 1.2996442183606707},
           "B": {"top": 3.4505511082601554, "fire": 2.2652526728213394, "ok": 1.581426523312876}}   # v1 ref_2026-10-20.json
-NOON = dict(D.DEFAULT_OPT, a_time="noon")
+NOON = dict(D.DEFAULT_OPT, a_time="noon", seasons=False)   # v3: these are the v2 color tests (seasons off)
 EX = {   # the brief's §5 examples 2–5: day, B's outfit
     2: ("2026-10-21", [{"slot": "top", "color": "green"}, {"slot": "bottom", "color": "silver"}]),
     3: ("2026-10-23", [{"slot": "top", "color": "dark brown"}, {"slot": "bottom", "color": "dark brown"}, {"slot": "peek", "color": "red"}]),
@@ -87,10 +87,10 @@ class V2(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.r = {(n, at): json.loads(json.dumps(D.main(dt.date.fromisoformat(EX[n][0]), dict(D.DEFAULT_OPT, a_time=at),
+        cls.r = {(n, at): json.loads(json.dumps(D.main(dt.date.fromisoformat(EX[n][0]), dict(D.DEFAULT_OPT, a_time=at, seasons=False),
                                                        {"B": EX[n][1]}), ensure_ascii=False))
                  for n in EX for at in ("tf", "noon")}
-        cls.plain = {(n, at): json.loads(json.dumps(D.main(dt.date.fromisoformat(EX[n][0]), dict(D.DEFAULT_OPT, a_time=at)), ensure_ascii=False))
+        cls.plain = {(n, at): json.loads(json.dumps(D.main(dt.date.fromisoformat(EX[n][0]), dict(D.DEFAULT_OPT, a_time=at, seasons=False)), ensure_ascii=False))
                      for n in EX for at in ("tf", "noon")}
 
     def test_outfit_never_moves_the_headline_keys(self):

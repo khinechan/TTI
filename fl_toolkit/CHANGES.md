@@ -205,3 +205,35 @@ Checked in the book chat before the nightly run was pointed at the pack. On Pyth
 - **Tests (`test_daily.py`):** the two exact float-equality checks (`test_caches_rebuild_to_the_same_numbers`, `test_chemistry_is_the_exact_mean`) allow FLOAT_EPS; new `FloatDrift` tests (cut days keep their flags; ties survive drift). Tests: **148** (88 date-free + 60 date-level), all passing on 3.13.16.
 - No golden, cache or default number changed: on 3.11 every comparison gives the same answer as before, and on 3.13 the flags and percentiles now match the goldens.
 - Mirror this in the repo branch (`claude/kct-color-validator-vdvaz3`) so the next version starts from it.
+
+## v3.0 — percentile headline, seasons, cross-year pull (2026-10-23)
+Khai's calls: **seasons ON by default**; numbers already in the doc stay; an engine note on the first v3 day.
+
+**What a default run changes**
+- New keys: `charge_pct_tier` (the §7 tier_pct rule, printed right after `charge` and `tier` on A, B, A_with_C — the headline), `engine` (every run: `fl_toolkit v3.0 · seasons on|off · A time-free|noon`), `seasons` (when on). With `--no-seasons`, `options` gains `"seasons": false`.
+- The receipt gains each charge's percentile and each pull's long-run percentile: `A charge 100 🔴 [77%], pull 2.1 (54%)`.
+- **Seasons (on):** today's 流年 and 流月 and the other chart's decade (大運) join §7's *other* set at half weight; the 流年 stem and the chart's own decade stem add half a STEM_BONUS. Day and hour scores both see them. Charges, hour charges and their percentiles move from the first v3 day; nothing else does (pull, flags, chemistry, Moon times, doors, the outfit mechanics, time-free sampling and every cache are untouched).
+- Example, 2026-10-21. v2.0.1: `A charge 90 🔴, pull 2.1 · B charge 57 🟡, pull 3.3`. v3: `A charge 100 🔴 [77%], pull 2.1 (54%) · B charge 96 🔴 [59%], pull 3.3 (53%)` — B's +17.5 raw is the 戊戌 month's 辰戌冲 (7.5), A's decade 庚辰 on a 辰 day (自刑, 5) and B's own decade stem 己 binding his 甲 (5).
+
+**How big (2026-10-20 window, time-free A)**
+| charge | days that change | at 100: v2 → v3 | at 5: v2 → v3 | seasons raw added | mean S′ v2 → v3 |
+|---|---|---|---|---|---|
+| A (with B) | 296 / 365 | 50 → 105 | 72 → 19 | 2.5 – 32.2 (mean 12.9) | 50.8 → 70.7 |
+| B (with A) | 315 / 365 | 50 → 136 | 32 → 0 | 5.0 – 34.5 (mean 13.8) | 53.4 → 77.7 |
+| A with C | 248 / 365 | 71 → 87 | 166 → 46 | 2.5 – 32.2 (mean 11.9) | 38.1 → 52.4 |
+
+The 0–100 charge now sits at 100 on a third of B's days, so read the percentile (`charge_pct_tier`, the receipt's `[p%]`). B never goes below +5: his own decade stem 己 is his day master's combine partner for the whole decade (to 2030).
+
+**Design calls in the seasons rule (Khai, check these)**
+1. The draft says "both charts' current decade branches join the other set". A chart's own decade branch is already in §7's *own* set at full weight, so adding it again would count it twice (the audit's item 11 worry). v3 adds only the OTHER chart's decade to *other*; each chart's own decade still counts once, in *own*. One edit (`SEASON_OWN_DECADE = True` in daily.py) gives the literal reading; a test covers both.
+2. "The decade's stem bonus" is read as the chart's own decade stem. No 流月 stem (the spec names only the year's and the decade's).
+3. Time-free A on a split day (2027-04-07 … 07-15): her decade enters B's charge as well as hers, so B's charge there is also the share-weighted mean over her 119 charts (checked by brute force), and the shares sum to 1.
+4. C's decade (丁酉) enters A with C. It stays 丁酉 for any birth time until at least 2030-07-18, so no book date before then depends on his time.
+
+**Tests:** 148 → **163** (88 date-free + 75 date-level), green on Python 3.11.15, 3.12.3 and 3.13.12 (ephem 4.2.1).
+- New `test_daily_v3.py` (15): the spec's (b) 60-day loop, (c) saturation, (d) split-day shares, the receipt and headline, the seasons block against the parts and the formula, `--year-month-terms` ⊂ seasons, the own-decade switch, the outfit block, C's decade, and v3 goldens (`goldens/v3/`: the five book days + 2027-05-12, both A-chart modes).
+- The spec's (a) is `test_daily.Goldens`: with `--no-seasons`, every v2.0.1 golden comes back **byte for byte** once the v3 additions are dropped and the receipt's `[p%]` / `(p%)` are taken out (`v2_view`).
+- Changed v2 tests (Khai's default change, not a test bent to pass): `test_daily.py` and `test_daily_color.py` now run the v2 engine explicitly (`seasons=False`), the golden comparison reads through `v2_view`, and the "no options on a default run" check reads the v2 view.
+
+**Engine note for the book (paste on the first v3 day; the nightly can spot it because `engine` changes):**
+> Engine note (v3, from [date]): the daily math now also counts the seasons — the year's pillar, the month's pillar and each person's ten-year chapter, at half weight. From this day on, charges read higher than the days above (B averages about 78 where he averaged 53) and are not comparable with them; earlier days keep their numbers. The headline is now the bracketed percentile — where today ranks in the year — and each pull shows its cross-year percentile in parentheses.
