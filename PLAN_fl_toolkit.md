@@ -111,3 +111,7 @@ a test bent to pass). Run 3.11/3.12/3.13. Then an adversarial review, docs (THE_
 note, README), deterministic zip + base64 + both hashes.
 Not in v3: §7 weights, the day-pillar method, the chemistry cap. Not touched: chemistry, Moon times, doors, outfits'
 mechanics, time-free sampling, caches (charges are not cached).
+v3 status: built, reviewed twice (code + spec), fixed (split-day raw identical on 3.11/3.12/3.13 via fsum + 9 dp;
+percentile tie bands; audit_book --no-seasons; v2-era check scripts pin seasons off; ym refused under seasons; engine
+follows the switch; A_with_C raw). Khai 2026-10-23: partner's decade only; receipt shows "[p% tier]".
+Tests 167 (88 + 79) on 3.11, 3.12, 3.13; whole-window outputs hash the same on all three.

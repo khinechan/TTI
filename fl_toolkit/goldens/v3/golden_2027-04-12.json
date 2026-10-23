@@ -1,0 +1,797 @@
+{
+ "date": "2027-04-12",
+ "weekday": "Monday",
+ "pillar": "辛酉",
+ "window_start": "2026-10-20",
+ "chemistry": {
+  "scale": 1.0,
+  "raw": 0.36,
+  "lit_by": [
+   [
+    "Venus",
+    120,
+    "18.7 Can (A Venus ☍ B Moon, axis)",
+    2.27
+   ]
+  ],
+  "above_window_max": false,
+  "day_max": {
+   "raw": 0.69,
+   "scale": 1.9,
+   "time": "23:00 (the evening before)"
+  },
+  "chem_pct_longrun": 0.461
+ },
+ "A": {
+  "charge": 100,
+  "tier": "🔴",
+  "charge_pct_tier": "🔴",
+  "raw": 117.941176471,
+  "parts": [
+   [
+    "base",
+    35
+   ],
+   [
+    "酉辰合 (own, luck 庚辰 112/119)",
+    9.411764705882353
+   ],
+   [
+    "酉卯冲 (own, luck 己卯 7/119)",
+    1.1764705882352942
+   ],
+   [
+    "酉卯冲 (other)",
+    15
+   ],
+   [
+    "酉戌害 (other)",
+    10
+   ],
+   [
+    "酉酉自刑 (other)",
+    10
+   ],
+   [
+    "酉辰合 (other, 流月 甲辰 ×0.5)",
+    5.0
+   ],
+   [
+    "咸池 day",
+    20
+   ],
+   [
+    "stem 辛",
+    5
+   ],
+   [
+    "stem 丁 (流年 丁未 ×0.5)",
+    5.0
+   ],
+   [
+    "stem 庚 (大運 A 庚辰 112/119 ×0.5)",
+    2.3529411764705883
+   ]
+  ],
+  "luck": "庚辰",
+  "pull": 0.7,
+  "flag": "",
+  "tone": [
+   {
+    "body": "Saturn",
+    "aspect": "□",
+    "point": "Venus",
+    "orb": 0.41,
+    "phase": "exact",
+    "weight": 4.196,
+    "tag": "love",
+    "flavor": "⚠️"
+   },
+   "exact"
+  ],
+  "exact": [
+   "Saturn □ Venus 0.41° ⚠️ love",
+   "Mars □ Uranus 0.19° ⚠️ work",
+   "Venus △ Uranus 0.92° ✅ work"
+  ],
+  "hours": [
+   {
+    "block": "子",
+    "hours": "00:00-00:59 (+23:00 the night before)",
+    "charge": 18,
+    "pull": 2.3,
+    "terms": [
+     "子卯刑 (own, luck 己卯 7/119)",
+     "子卯刑 (other)",
+     "子未害 (other, 流年 丁未 ×0.5)"
+    ],
+    "points": 18,
+    "points_pct": 0.107
+   },
+   {
+    "block": "丑",
+    "hours": "01:00-02:59",
+    "charge": 26,
+    "pull": 1.9,
+    "terms": [
+     "丑戌刑 (other)",
+     "丑未冲 (other, 流年 丁未 ×0.5)",
+     "丑未刑 (other, 流年 丁未 ×0.5)"
+    ],
+    "points": 26,
+    "points_pct": 0.197
+   },
+   {
+    "block": "寅",
+    "hours": "03:00-04:59",
+    "charge": 68,
+    "pull": 1.2,
+    "terms": [
+     "寅申冲 (own)",
+     "寅申刑 (own)",
+     "寅巳害 (other)",
+     "寅巳刑 (other)",
+     "寅巳害 (other, 大運 B 己巳 ×0.5)",
+     "寅巳刑 (other, 大運 B 己巳 ×0.5)"
+    ],
+    "points": 68,
+    "points_pct": 0.877
+   },
+   {
+    "block": "卯",
+    "hours": "05:00-06:59",
+    "charge": 72,
+    "pull": 0.7,
+    "terms": [
+     "卯辰害 (own, luck 庚辰 112/119)",
+     "卯卯same (own, luck 己卯 7/119)",
+     "卯卯same (other)",
+     "卯戌合 (other)",
+     "卯酉冲 (other)",
+     "卯辰害 (other, 流月 甲辰 ×0.5)",
+     "day 酉卯冲"
+    ],
+    "points": 72,
+    "points_pct": 0.917
+   },
+   {
+    "block": "辰",
+    "hours": "07:00-08:59",
+    "charge": 62,
+    "pull": 0.7,
+    "terms": [
+     "辰辰自刑 (own, luck 庚辰 112/119)",
+     "辰卯害 (own, luck 己卯 7/119)",
+     "辰卯害 (other)",
+     "辰戌冲 (other)",
+     "辰酉合 (other)",
+     "辰辰自刑 (other, 流月 甲辰 ×0.5)",
+     "day 酉辰合"
+    ],
+    "points": 62,
+    "points_pct": 0.783
+   },
+   {
+    "block": "巳",
+    "hours": "09:00-10:59",
+    "charge": 40,
+    "pull": 0.7,
+    "terms": [
+     "巳申合 (own)",
+     "巳申刑 (own)",
+     "巳巳same (other)",
+     "巳巳same (other, 大運 B 己巳 ×0.5)"
+    ],
+    "points": 40,
+    "points_pct": 0.401
+   },
+   {
+    "block": "午",
+    "hours": "11:00-12:59",
+    "charge": 5,
+    "pull": 0.6,
+    "terms": [
+     "午未合 (other, 流年 丁未 ×0.5)"
+    ],
+    "points": 5,
+    "points_pct": 0.018
+   },
+   {
+    "block": "未",
+    "hours": "13:00-14:59",
+    "charge": 17,
+    "pull": 0.2,
+    "terms": [
+     "未戌刑 (other)",
+     "未未same (other, 流年 丁未 ×0.5)"
+    ],
+    "points": 17,
+    "points_pct": 0.083
+   },
+   {
+    "block": "申",
+    "hours": "15:00-16:59",
+    "charge": 39,
+    "pull": 0.0,
+    "terms": [
+     "申申same (own)",
+     "申巳合 (other)",
+     "申巳刑 (other)",
+     "申巳合 (other, 大運 B 己巳 ×0.5)",
+     "申巳刑 (other, 大運 B 己巳 ×0.5)"
+    ],
+    "points": 39,
+    "points_pct": 0.346
+   },
+   {
+    "block": "酉",
+    "hours": "17:00-18:59",
+    "charge": 71,
+    "pull": 0.0,
+    "terms": [
+     "酉辰合 (own, luck 庚辰 112/119)",
+     "酉卯冲 (own, luck 己卯 7/119)",
+     "酉卯冲 (other)",
+     "酉戌害 (other)",
+     "酉酉自刑 (other)",
+     "酉辰合 (other, 流月 甲辰 ×0.5)",
+     "day 酉酉自刑",
+     "咸池 hour"
+    ],
+    "points": 71,
+    "points_pct": 0.911
+   },
+   {
+    "block": "戌",
+    "hours": "19:00-20:59",
+    "charge": 75,
+    "pull": 0.0,
+    "terms": [
+     "戌辰冲 (own, luck 庚辰 112/119)",
+     "戌卯合 (own, luck 己卯 7/119)",
+     "戌卯合 (other)",
+     "戌戌same (other)",
+     "戌酉害 (other)",
+     "戌未刑 (other, 流年 丁未 ×0.5)",
+     "戌辰冲 (other, 流月 甲辰 ×0.5)",
+     "day 酉戌害"
+    ],
+    "points": 75,
+    "points_pct": 0.948
+   },
+   {
+    "block": "亥",
+    "hours": "21:00-22:59",
+    "charge": 35,
+    "pull": 0.0,
+    "terms": [
+     "亥申害 (own)",
+     "亥巳冲 (other)",
+     "亥巳冲 (other, 大運 B 己巳 ×0.5)"
+    ],
+    "points": 35,
+    "points_pct": 0.296
+   }
+  ],
+  "moon_times": [
+   [
+    "00:17-01:11",
+    "△",
+    "Mars",
+    "✅",
+    "body"
+   ],
+   [
+    "09:26-10:47",
+    "⚹",
+    "Sun",
+    "✅",
+    "work"
+   ],
+   [
+    "10:38-13:21",
+    "⚹",
+    "Mercury",
+    "✅",
+    "work"
+   ]
+  ],
+  "door": [
+   "11:50"
+  ],
+  "charge_pct": 0.944,
+  "tier_pct": "🔴",
+  "friction": 36.17647058823529,
+  "bond": 46.76470588235294,
+  "attraction_points": 0,
+  "pull_pct_longrun": 0.271,
+  "love_overlay": [],
+  "luck_shares": {
+   "庚辰": [
+    112,
+    0.941
+   ],
+   "己卯": [
+    7,
+    0.059
+   ]
+  }
+ },
+ "B": {
+  "charge": 100,
+  "tier": "🔴",
+  "charge_pct_tier": "🟡",
+  "raw": 101.647058824,
+  "parts": [
+   [
+    "base",
+    35
+   ],
+   [
+    "酉卯冲 (own)",
+    20
+   ],
+   [
+    "酉戌害 (own)",
+    12
+   ],
+   [
+    "酉酉自刑 (own)",
+    12
+   ],
+   [
+    "酉辰合 (other, 流月 甲辰 ×0.5)",
+    5.0
+   ],
+   [
+    "酉辰合 (other, 大運 A 庚辰 112/119 ×0.5)",
+    4.705882352941177
+   ],
+   [
+    "酉卯冲 (other, 大運 A 己卯 7/119 ×0.5)",
+    0.4411764705882353
+   ],
+   [
+    "stem 丁 (流年 丁未 ×0.5)",
+    2.5
+   ],
+   [
+    "stem 己 (大運 B 己巳 ×0.5)",
+    5.0
+   ],
+   [
+    "attraction",
+    5
+   ]
+  ],
+  "luck": "己巳",
+  "pull": 6.3,
+  "flag": "✅",
+  "tone": [
+   {
+    "body": "Saturn",
+    "aspect": "□",
+    "point": "Moon",
+    "orb": 0.31,
+    "phase": "exact",
+    "weight": 4.267,
+    "tag": "body",
+    "flavor": "⚠️"
+   },
+   "exact"
+  ],
+  "exact": [
+   "Saturn □ Moon 0.31° ⚠️ body",
+   "Mars ⚹ MC 0.23° ✅ work",
+   "Venus ☌ DSC 0.56° ✅ love",
+   "Sun ⚹ MC 0.65° ✅ work",
+   "Mercury □ Saturn 0.93° ⚠️ loss",
+   "Venus □ MC 0.95° ⚠️ work",
+   "Mercury □ Jupiter 0.97° ⚠️ money"
+  ],
+  "hours": [
+   {
+    "block": "子",
+    "hours": "00:00-00:59 (+23:00 the night before)",
+    "charge": 20,
+    "pull": 4.6,
+    "terms": [
+     "子卯刑 (own)",
+     "子未害 (other, 流年 丁未 ×0.5)",
+     "子卯刑 (other, 大運 A 己卯 7/119 ×0.5)"
+    ],
+    "points": 20,
+    "points_pct": 0.07
+   },
+   {
+    "block": "丑",
+    "hours": "01:00-02:59",
+    "charge": 29,
+    "pull": 4.6,
+    "terms": [
+     "丑戌刑 (own)",
+     "丑未冲 (other, 流年 丁未 ×0.5)",
+     "丑未刑 (other, 流年 丁未 ×0.5)"
+    ],
+    "points": 29,
+    "points_pct": 0.197
+   },
+   {
+    "block": "寅",
+    "hours": "03:00-04:59",
+    "charge": 81,
+    "pull": 4.6,
+    "terms": [
+     "寅巳害 (own)",
+     "寅巳刑 (own)",
+     "寅巳害 (own)",
+     "寅巳刑 (own)",
+     "寅申冲 (other)",
+     "寅申刑 (other)"
+    ],
+    "points": 81,
+    "points_pct": 0.92
+   },
+   {
+    "block": "卯",
+    "hours": "05:00-06:59",
+    "charge": 66,
+    "pull": 4.9,
+    "terms": [
+     "卯卯same (own)",
+     "卯戌合 (own)",
+     "卯酉冲 (own)",
+     "卯辰害 (other, 流月 甲辰 ×0.5)",
+     "卯辰害 (other, 大運 A 庚辰 112/119 ×0.5)",
+     "卯卯same (other, 大運 A 己卯 7/119 ×0.5)",
+     "day 酉卯冲"
+    ],
+    "points": 66,
+    "points_pct": 0.841
+   },
+   {
+    "block": "辰",
+    "hours": "07:00-08:59",
+    "charge": 62,
+    "pull": 5.3,
+    "terms": [
+     "辰卯害 (own)",
+     "辰戌冲 (own)",
+     "辰酉合 (own)",
+     "辰辰自刑 (other, 流月 甲辰 ×0.5)",
+     "辰辰自刑 (other, 大運 A 庚辰 112/119 ×0.5)",
+     "辰卯害 (other, 大運 A 己卯 7/119 ×0.5)",
+     "day 酉辰合"
+    ],
+    "points": 62,
+    "points_pct": 0.802
+   },
+   {
+    "block": "巳",
+    "hours": "09:00-10:59",
+    "charge": 34,
+    "pull": 5.8,
+    "terms": [
+     "巳巳same (own)",
+     "巳巳same (own)",
+     "巳申合 (other)",
+     "巳申刑 (other)"
+    ],
+    "points": 34,
+    "points_pct": 0.265
+   },
+   {
+    "block": "午",
+    "hours": "11:00-12:59",
+    "charge": 13,
+    "pull": 6.6,
+    "terms": [
+     "午未合 (other, 流年 丁未 ×0.5)",
+     "咸池 hour"
+    ],
+    "points": 13,
+    "points_pct": 0.018
+   },
+   {
+    "block": "未",
+    "hours": "13:00-14:59",
+    "charge": 20,
+    "pull": 7.3,
+    "terms": [
+     "未戌刑 (own)",
+     "未未same (other, 流年 丁未 ×0.5)"
+    ],
+    "points": 20,
+    "points_pct": 0.07
+   },
+   {
+    "block": "申",
+    "hours": "15:00-16:59",
+    "charge": 60,
+    "pull": 7.8,
+    "terms": [
+     "申巳合 (own)",
+     "申巳刑 (own)",
+     "申巳合 (own)",
+     "申巳刑 (own)",
+     "申申same (other)"
+    ],
+    "points": 60,
+    "points_pct": 0.75
+   },
+   {
+    "block": "酉",
+    "hours": "17:00-18:59",
+    "charge": 66,
+    "pull": 7.9,
+    "terms": [
+     "酉卯冲 (own)",
+     "酉戌害 (own)",
+     "酉酉自刑 (own)",
+     "酉辰合 (other, 流月 甲辰 ×0.5)",
+     "酉辰合 (other, 大運 A 庚辰 112/119 ×0.5)",
+     "酉卯冲 (other, 大運 A 己卯 7/119 ×0.5)",
+     "day 酉酉自刑"
+    ],
+    "points": 66,
+    "points_pct": 0.841
+   },
+   {
+    "block": "戌",
+    "hours": "19:00-20:59",
+    "charge": 61,
+    "pull": 8.1,
+    "terms": [
+     "戌卯合 (own)",
+     "戌戌same (own)",
+     "戌酉害 (own)",
+     "戌未刑 (other, 流年 丁未 ×0.5)",
+     "戌辰冲 (other, 流月 甲辰 ×0.5)",
+     "戌辰冲 (other, 大運 A 庚辰 112/119 ×0.5)",
+     "戌卯合 (other, 大運 A 己卯 7/119 ×0.5)",
+     "day 酉戌害"
+    ],
+    "points": 61,
+    "points_pct": 0.783
+   },
+   {
+    "block": "亥",
+    "hours": "21:00-22:59",
+    "charge": 50,
+    "pull": 8.4,
+    "terms": [
+     "亥巳冲 (own)",
+     "亥巳冲 (own)",
+     "亥申害 (other)"
+    ],
+    "points": 50,
+    "points_pct": 0.556
+   }
+  ],
+  "moon_times": [
+   [
+    "04:48",
+    "☍",
+    "Uranus",
+    "⚠️",
+    "work"
+   ],
+   [
+    "14:56",
+    "☍",
+    "Saturn",
+    "⚠️",
+    "loss"
+   ],
+   [
+    "15:00",
+    "☌",
+    "Jupiter",
+    "✅",
+    "money"
+   ],
+   [
+    "18:54",
+    "☍",
+    "Neptune",
+    "⚠️",
+    "loss"
+   ],
+   [
+    "20:23",
+    "□",
+    "Mercury",
+    "⚠️",
+    "work"
+   ]
+  ],
+  "door": [
+   "20:06"
+  ],
+  "charge_pct": 0.747,
+  "tier_pct": "🟡",
+  "friction": 46.94117647058823,
+  "bond": 14.705882352941178,
+  "attraction_points": 5,
+  "pull_pct_longrun": 0.861,
+  "love_overlay": []
+ },
+ "A_with_C": {
+  "charge": 82,
+  "tier": "🟠",
+  "charge_pct_tier": "🟡",
+  "raw": 87.941176471,
+  "parts": [
+   [
+    "base",
+    35
+   ],
+   [
+    "酉辰合 (own, luck 庚辰 112/119)",
+    9.411764705882353
+   ],
+   [
+    "酉卯冲 (own, luck 己卯 7/119)",
+    1.1764705882352942
+   ],
+   [
+    "酉辰合 (other, 流月 甲辰 ×0.5)",
+    5.0
+   ],
+   [
+    "酉酉自刑 (other, 大運 C 丁酉 ×0.5)",
+    5.0
+   ],
+   [
+    "咸池 day",
+    20
+   ],
+   [
+    "stem 辛",
+    5
+   ],
+   [
+    "stem 丁 (流年 丁未 ×0.5)",
+    5.0
+   ],
+   [
+    "stem 庚 (大運 A 庚辰 112/119 ×0.5)",
+    2.3529411764705883
+   ]
+  ],
+  "charge_pct": 0.686,
+  "tier_pct": "🟡",
+  "friction": 6.176470588235294,
+  "bond": 46.76470588235294,
+  "attraction_points": 0
+ },
+ "receipt": "Math: 辛酉 · chemistry 1.0 · A charge 100 🔴 [94% 🔴], pull 0.7 (27%) · B charge 100 🔴 [75% 🟡], pull 6.3✅ (86%)",
+ "sampling": {
+  "grid": "BaZi day: 23:00 the evening before to 22:50, every 10 min of local wall-clock time",
+  "slots": 144,
+  "instants": 144,
+  "effective": 144.0,
+  "skipped": 0,
+  "repeated": 0
+ },
+ "a_chart": "time-free: the mean of A's 119 charts 00:00-19:40 local (no birth time pinned); exact transits, the door and the Saturn station use their averaged chart",
+ "seasons": {
+  "rule": "STD (v3): 流年, 流月 and the other chart's decade join §7 'other' at ×0.5; the 流年 stem and the chart's own decade stem add ×0.5 of STEM_BONUS (stem_scored_for); points are raw S",
+  "pillars": [
+   {
+    "season": "流年",
+    "pillar": "丁未",
+    "share": 1.0,
+    "ten_god": {
+     "A": "正財",
+     "B": "傷官",
+     "C": "正財"
+    },
+    "stem_scored_for": [
+     "A",
+     "B",
+     "A_with_C"
+    ],
+    "points": {
+     "A": 5.0,
+     "B": 2.5,
+     "A_with_C": 5.0
+    }
+   },
+   {
+    "season": "流月",
+    "pillar": "甲辰",
+    "share": 1.0,
+    "ten_god": {
+     "A": "食神",
+     "B": "比肩",
+     "C": "食神"
+    },
+    "stem_scored_for": [],
+    "points": {
+     "A": 5.0,
+     "B": 5.0,
+     "A_with_C": 5.0
+    }
+   },
+   {
+    "season": "大運 A",
+    "pillar": "庚辰",
+    "share": 0.941,
+    "ten_god": {
+     "A": "偏印",
+     "B": "七殺",
+     "C": "偏印"
+    },
+    "stem_scored_for": [
+     "A",
+     "A_with_C"
+    ],
+    "points": {
+     "A": 2.353,
+     "B": 4.706,
+     "A_with_C": 2.353
+    }
+   },
+   {
+    "season": "大運 A",
+    "pillar": "己卯",
+    "share": 0.059,
+    "ten_god": {
+     "A": "正官",
+     "B": "正財",
+     "C": "正官"
+    },
+    "stem_scored_for": [
+     "A",
+     "A_with_C"
+    ],
+    "points": {
+     "A": 0.0,
+     "B": 0.441,
+     "A_with_C": 0.0
+    }
+   },
+   {
+    "season": "大運 B",
+    "pillar": "己巳",
+    "share": 1.0,
+    "ten_god": {
+     "A": "正官",
+     "B": "正財",
+     "C": "正官"
+    },
+    "stem_scored_for": [
+     "B"
+    ],
+    "points": {
+     "A": 0.0,
+     "B": 5.0,
+     "A_with_C": 0.0
+    }
+   },
+   {
+    "season": "大運 C",
+    "pillar": "丁酉",
+    "share": 1.0,
+    "ten_god": {
+     "A": "正財",
+     "B": "傷官",
+     "C": "正財"
+    },
+    "stem_scored_for": [],
+    "points": {
+     "A": 0.0,
+     "B": 0.0,
+     "A_with_C": 5.0
+    }
+   }
+  ],
+  "total": {
+   "A": 12.353,
+   "B": 17.647,
+   "A_with_C": 17.353
+  }
+ },
+ "engine": "fl_toolkit v3.0 · seasons on · A time-free"
+}

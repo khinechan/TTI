@@ -16,7 +16,8 @@ import daily as D
 
 V3 = dict(D.DEFAULT_OPT)                      # the v3 default: time-free A, seasons on
 V2 = dict(D.DEFAULT_OPT, seasons=False)
-GOLDEN_DAYS = ("2026-09-08", "2026-10-20", "2026-10-21", "2026-11-01", "2027-03-14", "2027-05-12")
+GOLDEN_DAYS = ("2026-09-08", "2026-10-20", "2026-10-21", "2026-11-01", "2027-03-14", "2027-04-12", "2027-05-12")
+# 2027-04-12 is a split day whose raw printed differently on 3.11 and 3.12+ before RAW_DP (final review)
 START = dt.date(2026, 10, 20)
 _RUNS = {}
 
@@ -57,6 +58,10 @@ class GoldensV3(unittest.TestCase):
                                         capture_output=True, text=True, check=True).stdout)
         self.assertNotIn("seasons", off); self.assertEqual(off["options"]["seasons"], False)
         self.assertEqual(off["engine"], "fl_toolkit v3.0 · seasons off · A time-free")
+        p = subprocess.run([sys.executable, os.path.join(HERE, "daily.py"), "2026-10-21", "--year-month-terms"], capture_output=True)
+        self.assertEqual(p.returncode, 2)                                  # it is inside --seasons: never a silent no-op
+        p = subprocess.run([sys.executable, os.path.join(HERE, "daily.py"), "2026-10-21", "--year-month-terms", "--no-seasons"], capture_output=True)
+        self.assertEqual(p.returncode, 0)
 
 
 class Headline(unittest.TestCase):
@@ -70,14 +75,14 @@ class Headline(unittest.TestCase):
     def test_receipt_carries_both_percentages(self):
         for day, opt in (("2026-10-21", {}), ("2026-09-08", {}), ("2026-10-21", dict(seasons=False)), ("2026-10-21", dict(a_time="noon"))):
             r = run(day, **opt)
-            m = re.fullmatch(r"Math: (\S+) · chemistry (\S+) · A charge (\d+) (\S+) \[(\d+)%\], pull (\S+?)(🔥|✅)? \((\d+)%\)"
-                             r" · B charge (\d+) (\S+) \[(\d+)%\], pull (\S+?)(🔥|✅)? \((\d+)%\)", r["receipt"])
+            m = re.fullmatch(r"Math: (\S+) · chemistry (\S+) · A charge (\d+) (\S+) \[(\d+)% (\S+)\], pull (\S+?)(🔥|✅)? \((\d+)%\)"
+                             r" · B charge (\d+) (\S+) \[(\d+)% (\S+)\], pull (\S+?)(🔥|✅)? \((\d+)%\)", r["receipt"])
             self.assertIsNotNone(m, r["receipt"])
-            for off, w in ((2, "A"), (8, "B")):
-                g = m.groups()[off:off + 6]
-                self.assertEqual((int(g[0]), g[1], int(g[2]), float(g[3]), g[4] or "", int(g[5])),
-                                 (r[w]["charge"], r[w]["tier"], D.pct100(r[w]["charge_pct"]), r[w]["pull"], r[w]["flag"],
-                                  D.pct100(r[w]["pull_pct_longrun"])))
+            for off, w in ((2, "A"), (9, "B")):
+                g = m.groups()[off:off + 7]
+                self.assertEqual((int(g[0]), g[1], int(g[2]), g[3], float(g[4]), g[5] or "", int(g[6])),
+                                 (r[w]["charge"], r[w]["tier"], D.pct100(r[w]["charge_pct"]), r[w]["charge_pct_tier"], r[w]["pull"],
+                                  r[w]["flag"], D.pct100(r[w]["pull_pct_longrun"])))
 
     def test_pct100_rounds_the_printed_value_half_up(self):
         self.assertEqual([D.pct100(p) for p in (0.285, 0.284, 0.0, 1.0, 0.515)], [29, 28, 0, 100, 52])
@@ -99,6 +104,27 @@ class Saturation(unittest.TestCase):
         self.assertEqual((a["A"]["charge"], b["A"]["charge"]), (100, 100))
         self.assertNotEqual(a["A"]["charge_pct"], b["A"]["charge_pct"]); self.assertNotEqual(a["A"]["raw"], b["A"]["raw"])
 
+    def test_days_at_5_separate(self):
+        for opt in (dict(V2), dict(V3)):
+            days = [window_day(i, "A", opt) for i in range(365)]
+            low = sorted({raw for d, raw, sc, _ in days if sc == 5})
+            dist = D.window_dists(START, D.reference(START, opt["a_time"]), opt)["A"]
+            self.assertGreater(len(low), 1)
+            self.assertLess(D.pct(low[0], dist, opt["seasons"]), D.pct(low[-1], dist, opt["seasons"]))
+
+    def test_a_tie_is_one_tie(self):                                      # final review: 2026-12-09 is in a 5-way tie at 103.5
+        r = run("2026-12-09")["A"]; dist = D.window_dists(START, D.reference(START, "tf"), dict(V3))["A"]
+        lo, hi = sum(1 for x in dist if x < 103.5), sum(1 for x in dist if x <= 103.5)
+        self.assertEqual((r["raw"], hi - lo), (103.5, 5))
+        self.assertEqual(r["charge_pct"], D.rhu((lo + (hi - lo) / 2) / len(dist), 3))
+
+    def test_split_day_raw_is_exact_and_version_proof(self):
+        import math
+        for day in ("2027-04-12", "2027-04-24", "2027-05-12"):
+            for k in ("A", "B", "A_with_C"):
+                r = run(day)[k]
+                self.assertEqual(r["raw"], D.rhu(math.fsum(v for _, v in r["parts"]), D.RAW_DP))
+
 
 class Seasons(unittest.TestCase):
     def test_block_matches_the_parts_and_the_formula(self):
@@ -115,6 +141,9 @@ class Seasons(unittest.TestCase):
         self.assertEqual([blk[("流月", "戊戌")]["points"][k] for k in ("A", "B", "A_with_C")], [7.5, 7.5, 7.5])
         # B's own decade 己巳: 己 is 甲's combine partner, ½ · 10; A's decade 庚辰 in B's other: 辰辰自刑 ½ · 10
         self.assertEqual((blk[("大運 B", "己巳")]["points"]["B"], blk[("大運 A", "庚辰")]["points"]["B"]), (5.0, 5.0))
+        # a ten-god is printed for every chart, but a stem is scored only where stem_scored_for says
+        self.assertEqual({p["season"]: p["stem_scored_for"] for p in r["seasons"]["pillars"]},
+                         {"流年": ["A", "B", "A_with_C"], "流月": [], "大運 A": ["A", "A_with_C"], "大運 B": ["B"], "大運 C": []})
 
     def test_seasons_off_is_v2_and_on_adds_exactly_the_block(self):
         for day in ("2026-10-21", "2027-05-12"):
@@ -129,11 +158,13 @@ class Seasons(unittest.TestCase):
 
     def test_own_decade_switch(self):
         d = dt.date(2026, 10, 21)
+        self.assertEqual(D.engine_name(dict(V3)), "fl_toolkit v3.0 · seasons on · A time-free")
         tags = lambda: [m[2] for m in D.members(d, "A", "B", dict(V3))[1] if not isinstance(m, str)]
         self.assertEqual(tags(), ["流年 丙午 ×0.5", "流月 戊戌 ×0.5", "大運 B 己巳 ×0.5"])     # her own decade stays in own only
         old = D.SEASON_OWN_DECADE; D.SEASON_OWN_DECADE = True
         try:
             self.assertEqual(tags()[-1], "大運 A 庚辰 ×0.5")                                    # the literal draft: counted twice
+            self.assertEqual(D.engine_name(dict(V3)), "fl_toolkit v3.0 · seasons on, own decade too · A time-free")
             parts = D.day_charge(d, "A", "B", "", 1.0, 0, dict(V3))[2]
             self.assertIn(["辰辰自刑 (other, 大運 A 庚辰 ×0.5)", 5.0], [list(p) for p in parts])
         finally:
@@ -153,7 +184,11 @@ class Seasons(unittest.TestCase):
 
 
 class SixtyDayLoop(unittest.TestCase):
-    """(b) Same day pillar 60 days apart, different month: B's 流月 points follow the month branch, and so does B's charge."""
+    """(b) Same day pillar 60 days apart, different month. The spec's wording ("B's charge differs when the month branch
+       differs") cannot hold for every pair: a month branch moves B's charge only when its relation to the day branch
+       differs (巳 and 子 relate to neither 戌 nor 子 days the same way, …), and the 0–100 clip hides more (both days at
+       100). So this tests the true property: B's 流月 points are ½ · W_other(day, month branch) on every day; whenever
+       those points differ (same year), B's seasons raw differs; and the move reaches the printed charge."""
 
     def test_same_pillar_different_month(self):
         moved = raw_moved = charge_moved = 0

@@ -34,11 +34,12 @@ def run(day, **opt):
 
 
 def v2_view(res):
-    """A v3 run as v2.0.1 printed it: drop the keys v3 adds (charge_pct_tier, engine, seasons, options.seasons), take
-       the receipt's added " [p%]" / " (p%)" back out, and print it the way daily.py does."""
+    """A v3 run as v2.0.1 printed it: drop the keys v3 adds (charge_pct_tier, A_with_C raw, engine, seasons,
+       options.seasons), take the receipt's added " [p% tier]" / " (p%)" back out, and print it the way daily.py does."""
     r = json.loads(json.dumps(res, ensure_ascii=False))
     for k in ("A", "B", "A_with_C"): r[k].pop("charge_pct_tier")
-    r["receipt"] = re.sub(r" \[\d+%\]| \(\d+%\)", "", r["receipt"])
+    r["A_with_C"].pop("raw")
+    r["receipt"] = re.sub(r" \[\d+% \S+\]| \(\d+%\)", "", r["receipt"])
     r.pop("engine"); r.pop("seasons", None)
     if "options" in r:
         r["options"].pop("seasons")

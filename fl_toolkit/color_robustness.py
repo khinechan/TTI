@@ -26,7 +26,7 @@ def sign(before, after):
 
 
 if __name__ == "__main__":
-    at = a.a_time or D.DEFAULT_OPT["a_time"]; opt = dict(D.DEFAULT_OPT, a_time=at)
+    at = a.a_time or D.DEFAULT_OPT["a_time"]; opt = dict(D.DEFAULT_OPT, a_time=at, seasons=False)   # the brief's v2-era table
     md = ["# §13 outfit color — robustness grid (A-chart mode: %s)" % at, "",
           "Each cell: (A's day-pull change, B's charge change) when B wears the outfit; charge = the 0–100 S′ (rounded half up), "
           "pull = the unrounded 0–10 day pull. 27 cells per example. Robust = the same sign in every cell.", ""]

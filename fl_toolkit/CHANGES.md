@@ -210,10 +210,10 @@ Checked in the book chat before the nightly run was pointed at the pack. On Pyth
 Khai's calls: **seasons ON by default**; numbers already in the doc stay; an engine note on the first v3 day.
 
 **What a default run changes**
-- New keys: `charge_pct_tier` (the §7 tier_pct rule, printed right after `charge` and `tier` on A, B, A_with_C — the headline), `engine` (every run: `fl_toolkit v3.0 · seasons on|off · A time-free|noon`), `seasons` (when on). With `--no-seasons`, `options` gains `"seasons": false`.
-- The receipt gains each charge's percentile and each pull's long-run percentile: `A charge 100 🔴 [77%], pull 2.1 (54%)`.
+- New keys: `charge_pct_tier` (the §7 tier_pct rule, printed right after `charge` and `tier` on A, B, A_with_C — the headline), `raw` on A_with_C (so its days at 100 or 5 separate too), `engine` (every run: `fl_toolkit v3.0 · seasons on|off · A time-free|noon`), `seasons` (when on). With `--no-seasons`, `options` gains `"seasons": false`.
+- The receipt gains each charge's percentile **and percentile tier** (Khai, 2026-10-23) and each pull's long-run percentile: `A charge 100 🔴 [77% 🟠], pull 2.1 (54%)`.
 - **Seasons (on):** today's 流年 and 流月 and the other chart's decade (大運) join §7's *other* set at half weight; the 流年 stem and the chart's own decade stem add half a STEM_BONUS. Day and hour scores both see them. Charges, hour charges and their percentiles move from the first v3 day; nothing else does (pull, flags, chemistry, Moon times, doors, the outfit mechanics, time-free sampling and every cache are untouched).
-- Example, 2026-10-21. v2.0.1: `A charge 90 🔴, pull 2.1 · B charge 57 🟡, pull 3.3`. v3: `A charge 100 🔴 [77%], pull 2.1 (54%) · B charge 96 🔴 [59%], pull 3.3 (53%)` — B's +17.5 raw is the 戊戌 month's 辰戌冲 (7.5), A's decade 庚辰 on a 辰 day (自刑, 5) and B's own decade stem 己 binding his 甲 (5).
+- Example, 2026-10-21. v2.0.1: `A charge 90 🔴, pull 2.1 · B charge 57 🟡, pull 3.3`. v3: `A charge 100 🔴 [77% 🟠], pull 2.1 (54%) · B charge 96 🔴 [59% 🟡], pull 3.3 (53%)` — B's +17.5 raw is the 戊戌 month's 辰戌冲 (7.5), A's decade 庚辰 on a 辰 day (自刑, 5) and B's own decade stem 己 binding his 甲 (5).
 
 **How big (2026-10-20 window, time-free A)**
 | charge | days that change | at 100: v2 → v3 | at 5: v2 → v3 | seasons raw added | mean S′ v2 → v3 |
@@ -224,16 +224,23 @@ Khai's calls: **seasons ON by default**; numbers already in the doc stay; an eng
 
 The 0–100 charge now sits at 100 on a third of B's days, so read the percentile (`charge_pct_tier`, the receipt's `[p%]`). B never goes below +5: his own decade stem 己 is his day master's combine partner for the whole decade (to 2030).
 
-**Design calls in the seasons rule (Khai, check these)**
-1. The draft says "both charts' current decade branches join the other set". A chart's own decade branch is already in §7's *own* set at full weight, so adding it again would count it twice (the audit's item 11 worry). v3 adds only the OTHER chart's decade to *other*; each chart's own decade still counts once, in *own*. One edit (`SEASON_OWN_DECADE = True` in daily.py) gives the literal reading; a test covers both.
+**Design calls in the seasons rule**
+1. **Decided (Khai, 2026-10-23): partner's decade only.** The draft said "both charts' current decade branches join the other set"; a chart's own decade branch is already in §7's *own* set at full weight, so v3 adds only the OTHER chart's decade to *other* (no double count). `SEASON_OWN_DECADE = True` would give the literal reading — it moves A's charge on 75 days, B's on 35, A with C's on 134 — and `engine` would then say "own decade too".
 2. "The decade's stem bonus" is read as the chart's own decade stem. No 流月 stem (the spec names only the year's and the decade's).
 3. Time-free A on a split day (2027-04-07 … 07-15): her decade enters B's charge as well as hers, so B's charge there is also the share-weighted mean over her 119 charts (checked by brute force), and the shares sum to 1.
 4. C's decade (丁酉) enters A with C. It stays 丁酉 for any birth time until at least 2030-07-18, so no book date before then depends on his time.
 
-**Tests:** 148 → **163** (88 date-free + 75 date-level), green on Python 3.11.15, 3.12.3 and 3.13.12 (ephem 4.2.1).
-- New `test_daily_v3.py` (15): the spec's (b) 60-day loop, (c) saturation, (d) split-day shares, the receipt and headline, the seasons block against the parts and the formula, `--year-month-terms` ⊂ seasons, the own-decade switch, the outfit block, C's decade, and v3 goldens (`goldens/v3/`: the five book days + 2027-05-12, both A-chart modes).
-- The spec's (a) is `test_daily.Goldens`: with `--no-seasons`, every v2.0.1 golden comes back **byte for byte** once the v3 additions are dropped and the receipt's `[p%]` / `(p%)` are taken out (`v2_view`).
+**Fixed after the v3 review (two independent reviewers)**
+- Printed raw on A's split days differed in its last digit between Python 3.11 and 3.12+ (sum() of floats is compensated from 3.12). With seasons on, raw is now `math.fsum` of the parts cut to 9 decimals: the whole 2026-10-20 window (raw, S′, percentile, hours; both A modes; seasons on and off) now hashes the same on 3.11, 3.12 and 3.13.
+- A tie whose members differed in the last bit was counted as smaller than it is (e.g. 2026-12-09: a 5-way tie at raw 103.5 printed 0.788, true 0.793). With seasons on, percentiles count everything within 1e-12 as one tie. `--no-seasons` keeps v2.0.1's counting so its bytes do not move (that old undercount touches A with C's percentile on 16 days of the window — left as is, by the "numbers in the doc stay" rule).
+- `audit_book.py --no-seasons` checks rows written before v3 against the engine that wrote them; `time_free_check.py` and `color_robustness.py` pin seasons off (they check v2-era numbers; their reports are unchanged).
+- `--year-month-terms` with seasons on is refused (exit 2) instead of silently doing nothing; `engine` and the block's rule text follow `SEASON_OWN_DECADE`; the block marks which stems are scored (`stem_scored_for`).
+
+**Tests:** 148 → **167** (88 date-free + 79 date-level), green on Python 3.11.15, 3.12.3 and 3.13.12 (ephem 4.2.1).
+- New `test_daily_v3.py` (19): the spec's (b) 60-day loop, (c) saturation at both ends and a 5-way tie, (d) split-day shares, the receipt and headline, the seasons block against the parts and the formula, `--year-month-terms` ⊂ seasons and refused on the CLI, the own-decade switch and the engine string, split-day raw = the exact sum, the outfit block, C's decade, and v3 goldens (`goldens/v3/`: the five book days + split days 2027-04-12 and 2027-05-12, both A-chart modes). `test_audit_book.py` +1 (`--no-seasons`).
+- The spec's (b) as worded ("B's charge differs when the month branch differs") cannot hold on every pair: a different month branch moves B's charge only when its relation to the day branch differs, and the 0–100 clip hides more. The test checks the true property (see its docstring).
+- The spec's (a) is `test_daily.Goldens`: with `--no-seasons`, every v2.0.1 golden comes back **byte for byte** once the v3 additions are dropped and the receipt's `[p% tier]` / `(p%)` are taken out (`v2_view`). Plainly: it is a projection — anything that parses the receipt string or the `options` key sees the new text from the first v3 day, even with `--no-seasons`.
 - Changed v2 tests (Khai's default change, not a test bent to pass): `test_daily.py` and `test_daily_color.py` now run the v2 engine explicitly (`seasons=False`), the golden comparison reads through `v2_view`, and the "no options on a default run" check reads the v2 view.
 
 **Engine note for the book (paste on the first v3 day; the nightly can spot it because `engine` changes):**
-> Engine note (v3, from [date]): the daily math now also counts the seasons — the year's pillar, the month's pillar and each person's ten-year chapter, at half weight. From this day on, charges read higher than the days above (B averages about 78 where he averaged 53) and are not comparable with them; earlier days keep their numbers. The headline is now the bracketed percentile — where today ranks in the year — and each pull shows its cross-year percentile in parentheses.
+> Engine note (v3, from [date]): the daily math now also counts the seasons — the year's pillar, the month's pillar and each person's ten-year chapter, at half weight. From this day on, charges read higher than the days above (B averages about 78 where he averaged 53) and are not comparable with them; earlier days keep their numbers. The headline is now the bracketed percentile and its tier — where today ranks in the year — and each pull shows its cross-year percentile in parentheses.

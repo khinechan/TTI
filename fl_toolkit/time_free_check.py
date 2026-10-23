@@ -23,7 +23,7 @@ KHAI = {                                            # the cover note's check val
     "share_first": "1/119 on 2027-04-07 (0 through 04-06)", "share_60": "60/119 on 2027-05-27", "share_all": "119/119 from 2027-07-16",
     "0512": "庚辰 0.647 · 己卯 0.353; charge 79 → 74", "top_pull": "2027-07-18 (noon) → 2027-07-17 (10.0); 07-18 is 9.8",
 }
-OPT = {at: dict(D.DEFAULT_OPT, a_time=at) for at in ("noon", "tf")}
+OPT = {at: dict(D.DEFAULT_OPT, a_time=at, seasons=False) for at in ("noon", "tf")}   # Khai's checks are v2-era: seasons off
 
 
 def v1_grid(day):

@@ -599,6 +599,7 @@
   "charge": 29,
   "tier": "🟢",
   "charge_pct_tier": "🟢",
+  "raw": 64.0,
   "parts": [
    [
     "base",
@@ -635,7 +636,7 @@
   "bond": 13.735294117647058,
   "attraction_points": 0
  },
- "receipt": "Math: 辛卯 · chemistry 7.2 · A charge 89 🔴 [61%], pull 3.3 (71%) · B charge 83 🟠 [46%], pull 6.4✅ (87%)",
+ "receipt": "Math: 辛卯 · chemistry 7.2 · A charge 89 🔴 [61% 🟡], pull 3.3 (71%) · B charge 83 🟠 [46% 🟢], pull 6.4✅ (87%)",
  "sampling": {
   "grid": "BaZi day: 23:00 the evening before to 22:50, every 10 min of local wall-clock time",
   "slots": 144,
@@ -646,7 +647,7 @@
  },
  "a_chart": "time-free: the mean of A's 119 charts 00:00-19:40 local (no birth time pinned); exact transits, the door and the Saturn station use their averaged chart",
  "seasons": {
-  "rule": "STD (v3): 流年, 流月 and the other chart's decade join §7 'other' at ×0.5; the 流年 stem and the chart's own decade stem add ×0.5 of STEM_BONUS; points are raw S",
+  "rule": "STD (v3): 流年, 流月 and the other chart's decade join §7 'other' at ×0.5; the 流年 stem and the chart's own decade stem add ×0.5 of STEM_BONUS (stem_scored_for); points are raw S",
   "pillars": [
    {
     "season": "流年",
@@ -657,6 +658,11 @@
      "B": "傷官",
      "C": "正財"
     },
+    "stem_scored_for": [
+     "A",
+     "B",
+     "A_with_C"
+    ],
     "points": {
      "A": 5.0,
      "B": 2.5,
@@ -672,6 +678,7 @@
      "B": "劫財",
      "C": "傷官"
     },
+    "stem_scored_for": [],
     "points": {
      "A": 0.0,
      "B": 0.0,
@@ -687,6 +694,10 @@
      "B": "七殺",
      "C": "偏印"
     },
+    "stem_scored_for": [
+     "A",
+     "A_with_C"
+    ],
     "points": {
      "A": 1.618,
      "B": 3.235,
@@ -702,6 +713,10 @@
      "B": "正財",
      "C": "正官"
     },
+    "stem_scored_for": [
+     "A",
+     "A_with_C"
+    ],
     "points": {
      "A": 0.0,
      "B": 1.765,
@@ -717,6 +732,9 @@
      "B": "正財",
      "C": "正官"
     },
+    "stem_scored_for": [
+     "B"
+    ],
     "points": {
      "A": 0.0,
      "B": 5.0,
@@ -732,6 +750,7 @@
      "B": "傷官",
      "C": "正財"
     },
+    "stem_scored_for": [],
     "points": {
      "A": 0.0,
      "B": 0.0,

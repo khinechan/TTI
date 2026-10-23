@@ -568,6 +568,7 @@
   "charge": 96,
   "tier": "🔴",
   "charge_pct_tier": "🟡",
+  "raw": 94.5,
   "parts": [
    [
     "base",
@@ -608,7 +609,7 @@
   "bond": 32.5,
   "attraction_points": 12
  },
- "receipt": "Math: 乙酉 · chemistry 10.0 · A charge 100 🔴 [97%], pull 12.4🔥 (100%) · B charge 100 🔴 [81%], pull 7.9🔥 (95%)",
+ "receipt": "Math: 乙酉 · chemistry 10.0 · A charge 100 🔴 [97% 🔴], pull 12.4🔥 (100%) · B charge 100 🔴 [81% 🟠], pull 7.9🔥 (95%)",
  "sampling": {
   "grid": "BaZi day: 23:00 the evening before to 22:50, every 10 min of local wall-clock time",
   "slots": 144,
@@ -619,7 +620,7 @@
  },
  "a_chart": "noon stand-in (v1), kept for comparison",
  "seasons": {
-  "rule": "STD (v3): 流年, 流月 and the other chart's decade join §7 'other' at ×0.5; the 流年 stem and the chart's own decade stem add ×0.5 of STEM_BONUS; points are raw S",
+  "rule": "STD (v3): 流年, 流月 and the other chart's decade join §7 'other' at ×0.5; the 流年 stem and the chart's own decade stem add ×0.5 of STEM_BONUS (stem_scored_for); points are raw S",
   "pillars": [
    {
     "season": "流年",
@@ -630,6 +631,11 @@
      "B": "食神",
      "C": "偏財"
     },
+    "stem_scored_for": [
+     "A",
+     "B",
+     "A_with_C"
+    ],
     "points": {
      "A": 0.0,
      "B": 0.0,
@@ -645,6 +651,7 @@
      "B": "傷官",
      "C": "正財"
     },
+    "stem_scored_for": [],
     "points": {
      "A": 5.0,
      "B": 5.0,
@@ -660,6 +667,10 @@
      "B": "七殺",
      "C": "偏印"
     },
+    "stem_scored_for": [
+     "A",
+     "A_with_C"
+    ],
     "points": {
      "A": 2.5,
      "B": 5.0,
@@ -675,6 +686,9 @@
      "B": "正財",
      "C": "正官"
     },
+    "stem_scored_for": [
+     "B"
+    ],
     "points": {
      "A": 0.0,
      "B": 5.0,
@@ -690,6 +704,7 @@
      "B": "傷官",
      "C": "正財"
     },
+    "stem_scored_for": [],
     "points": {
      "A": 0.0,
      "B": 0.0,

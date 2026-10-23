@@ -10,7 +10,7 @@ Prints JSON. Same rules as the book's Chart work tab:
   * v2 (CHANGES.md): pull samples the BaZi day, 23:00 the evening before to 22:50, on local wall-clock time (a DST gap
     is skipped, a repeated hour is sampled at both instants, ½ weight each); chemistry is read at local noon and capped
     at 10; every score rounds half up. New keys only add; the old keys keep their meaning.
-Options (all off by default; with none of them the output is the v2 default):
+Options (off by default except --seasons; with none of them the output is the v3 default):
   --luck-repeat-weight W   a luck branch that repeats a natal branch counts W (default 1.0, as in DAILY v0.1)
   --year-month-terms       STD: today's 流年 / 流月 branches join the §7 "other" set at half weight
   --solar-time             STD: hour-block edges on true solar time at Frederick (block pulls and labels only)
@@ -18,8 +18,8 @@ Options (all off by default; with none of them the output is the v2 default):
                            born before 7:45 PM); noon = the v1 noon stand-in, kept for comparison
   --seasons / --no-seasons  v3, STD, ON by default (Khai's call): 流年, 流月 and the other chart's decade join the §7
                            "other" set at half weight, and the 流年 / own-decade stems add half a stem bonus;
-                           --no-seasons gives the v2.0.1 numbers (every v2.0.1 key, byte for byte, except the receipt's
-                           added percentages)
+                           --no-seasons gives the v2.0.1 numbers: every v2.0.1 value is unchanged, v3 only adds keys
+                           (charge_pct_tier, engine, A_with_C raw, options.seasons) and the receipt's percentages
   --outfit-A JSON, --outfit-B JSON, --seen 辰,巳,午,未,申
                            §13 outfit color (STD): an outfit acts on its wearer's charge and on the other person's
                            pull in the seen blocks; the JSON gains an "outfit" key only when an outfit is passed
@@ -58,7 +58,9 @@ SEASON_W = 0.5                        # --seasons (STD, v3): 流年, 流月 and 
                                       # at this weight; the 流年 stem and the chart's own decade stem add this × STEM_BONUS
 SEASON_OWN_DECADE = False             # a chart's own decade branch is already in "own" at full weight (§7); True would put
                                       # it in "other" too (the v3 draft's literal "both charts' decades" — counted twice)
-ENGINE = "fl_toolkit v3.0"            # every run prints it in "engine", so a reader can see the day the engine changed
+RAW_DP = 9                            # v3 seasons: raw S is printed and ranked at this many decimals (see day_charge)
+ENGINE = "fl_toolkit v3.0"            # every run prints it in "engine" (+ the seasons rule in force), so a reader can see
+                                      # the day the engine changed
 DEFAULT_OPT = dict(luck_w=1.0, ym=False, solar=False, a_time="tf", seasons=True)
 rhu = Z.round_half_up
 
@@ -319,9 +321,14 @@ def longrun(a_time="noon"):
     return _cached("ref_longrun_%s_%s" % (first.isoformat(), last.isoformat()), a_time, build_lr)
 
 
-def pct(v, ref_sorted):
+def pct(v, ref_sorted, band=False):
     """Mid-rank percentile (#less + ½·#equal) / n, as in §11, to 3 decimals. v2.0.1: a value within FLOAT_EPS of a
-       cached value is taken as that value, so last-bit drift across Python versions never breaks a tie."""
+       cached value is taken as that value, so last-bit drift across Python versions never breaks a tie. v3 (band, with
+       seasons on): every value within FLOAT_EPS counts as equal — a tie whose members differ in the last bit is still
+       one tie (v2.0.1 counted only exact copies of the lowest member; --no-seasons keeps that, byte for byte)."""
+    if band:
+        lo, hi = bisect_left(ref_sorted, v - FLOAT_EPS), bisect_right(ref_sorted, v + FLOAT_EPS)
+        return rhu((lo + 0.5 * (hi - lo)) / len(ref_sorted), 3)
     i = bisect_left(ref_sorted, v - FLOAT_EPS)
     if i < len(ref_sorted) and ref_sorted[i] <= v + FLOAT_EPS: v = ref_sorted[i]
     return rhu(M.percentile_midrank(v, ref_sorted), 3)
@@ -447,12 +454,15 @@ def day_charge(day, who, other_key, flag, scale, stp, opt, shift=0):
         own, other, st = members(day, who, other_key, opt, fix)
         return Z.day_score(Z.STEMS[g % 10], Z.BRANCHES[g % 12], own, other, o["dm"], o["year_branch"],
                            T.daily_points(flag, scale), stp, st)
-    raw, sc, parts = run()
+    # v3: with seasons on, raw is the exactly rounded sum (math.fsum) cut to RAW_DP decimals, so share-weighted float
+    # parts print the same on every Python and equal raws tie exactly; --no-seasons keeps v2.0.1's sum() (its bytes)
+    total = (lambda r: rhu(math.fsum(v for _, v in r[2]), RAW_DP)) if opt["seasons"] else (lambda r: r[0])
+    res = run(); raw, parts = total(res), res[2]; sc = Z.rescale(raw) if opt["seasons"] else res[1]
     if shift: raw = raw + shift; sc = Z.rescale(raw)
     sp = a_split(day, who, other_key, opt)
     if sp:
         tot = sum(n for _, n in sp)
-        sc = rhu(sum(n * Z.rescale(run(name)[0] + shift) for name, n in sp) / tot)
+        sc = rhu(sum(n * Z.rescale(total(run(name)) + shift) for name, n in sp) / tot)
     return raw, sc, parts
 
 
@@ -461,7 +471,8 @@ def hour_points(day, who, other_key, opt):
        share-weighted H, rounded half up)."""
     g = Z.day_index(day.year, day.month, day.day); o = ch[who]; own, other, _ = members(day, who, other_key, opt)
     out = [Z.hour_score(hb, Z.BRANCHES[g % 12], own, other, o["year_branch"]) for hb in Z.BRANCHES]
-    return [(rhu(H), hp) for H, hp in out] if a_split(day, who, other_key, opt) else out
+    if not a_split(day, who, other_key, opt): return out
+    return [(rhu(math.fsum(v for _, v in hp) if opt["seasons"] else H), hp) for H, hp in out]
 
 
 def window_dists(start, ref, opt):
@@ -577,18 +588,26 @@ def seasons_block(day, res, opt):
     for who in ("A", "B", "C"):
         lk = lucks(who, day, opt); tot = sum(n for _, n in lk)
         rows += [("大運 " + who, name, n, tot) for name, n in lk]
+    scored = {"流年": ["A", "B", "A_with_C"], "流月": [], "大運 A": ["A", "A_with_C"], "大運 B": ["B"], "大運 C": []}
     out = [dict(season=s_, pillar=p_, share=(rhu(n / tot, 3) if n < tot else 1.0),
-                ten_god={w: Z.ten_god(ch[w]["dm"], p_[0]) for w in ("A", "B", "C")},
+                ten_god={w: Z.ten_god(ch[w]["dm"], p_[0]) for w in ("A", "B", "C")}, stem_scored_for=scored[s_],
                 points={k: rhu(v, 3) for k, v in pts.get((s_, p_), {k: 0 for k in SEASON_KEYS}).items()})
            for s_, p_, n, tot in rows]
     total = {k: rhu(sum(d[k] for d in pts.values()), 3) for k in SEASON_KEYS}
-    return dict(rule="STD (v3): 流年, 流月 and the other chart's decade join §7 'other' at ×%g; the 流年 stem and the "
-                     "chart's own decade stem add ×%g of STEM_BONUS; points are raw S" % (SEASON_W, SEASON_W),
-                pillars=out, total=total)
+    return dict(rule="STD (v3): 流年, 流月 and %s join §7 'other' at ×%g; the 流年 stem and the chart's own decade stem "
+                     "add ×%g of STEM_BONUS (stem_scored_for); points are raw S"
+                     % ("both charts' decades (the own decade counted twice)" if SEASON_OWN_DECADE else "the other chart's decade",
+                        SEASON_W, SEASON_W), pillars=out, total=total)
+
+
+def engine_name(opt):
+    """The engine that made the day: version, the seasons rule in force, A's chart."""
+    se = ("on" + (", own decade too" if SEASON_OWN_DECADE else "")) if opt["seasons"] else "off"
+    return "%s · seasons %s · A %s" % (ENGINE, se, "time-free" if opt["a_time"] == "tf" else "noon")
 
 
 def main(day, opt=None, outfits=None, seen=None):
-    opt = dict(DEFAULT_OPT, **(opt or {})); at = opt["a_time"]
+    opt = dict(DEFAULT_OPT, **(opt or {})); at = opt["a_time"]; bd = opt["seasons"]       # bd: v3 tie bands (pct)
     start = window_for(day); ref = reference(start, at); lr = longrun(at); dists = window_dists(start, ref, opt)
     g = Z.day_index(day.year, day.month, day.day); ds, db = Z.STEMS[g % 10], Z.BRANCHES[g % 12]
     res = dict(date=day.isoformat(), weekday=day.strftime("%A"), pillar=Z.pillar_name(g), window_start=start.isoformat())
@@ -597,7 +616,7 @@ def main(day, opt=None, outfits=None, seen=None):
     res["chemistry"] = dict(scale=min(CHEM_CAP, rhu(s / top * 10, 1)), raw=rhu(s, 2),
                             lit_by=[(b, ang, nm, o) for v, b, ang, nm, o in why[:3]],
                             above_window_max=s > top + FLOAT_EPS, day_max=chem_day_max(day, top, at),
-                            chem_pct_longrun=pct(s, sorted(lr["chem"])))
+                            chem_pct_longrun=pct(s, sorted(lr["chem"]), bd))
     grid = wall_grid(day)
     vals = {who: samples(day, who, grid, at) for who in ("A", "B")}
     sgrid = solar_grid(day) if opt["solar"] else None
@@ -620,10 +639,10 @@ def main(day, opt=None, outfits=None, seen=None):
                 lab = "00:00-00:59 (+23:00 the night before)" if i == 0 else "%02d:00-%02d:59" % (2 * i - 1, 2 * i)
             bp = wmean(bvals[who], keep=lambda k, i=i: block_of(k) == i)
             hours.append(dict(block=Z.BRANCHES[i], hours=lab, charge=H, pull=rhu(bp / r["top"] * 10, 1),
-                              terms=[n for n, _ in hp], points=H, points_pct=pct(H, dists["hours_" + who])))
+                              terms=[n for n, _ in hp], points=H, points_pct=pct(H, dists["hours_" + who], bd)))
         d0 = loc(day.year, day.month, day.day).astimezone(UTC); d1 = d0 + dt.timedelta(days=1)
         H = R.hits(nat, t_noon); tone, how = R.tone(H)
-        cp = pct(raw, dists[who])
+        cp = pct(raw, dists[who], bd)
         mt = (moon_times_tf(d0, d1) if who == "A" and at == "tf" else
               [(x.astimezone(NY).strftime("%H:%M"), a, p, f, tg) for x, a, p, f, tg in
                R.moon_times({k: v for k, v in nat.items() if k != "MC"}, d0, d1)])
@@ -634,19 +653,19 @@ def main(day, opt=None, outfits=None, seen=None):
                         door=[x.astimezone(NY).strftime("%H:%M") for x, p, ang, dr in
                               R.angle_crossings({"Venus": nat["Venus"]}, d0, d1, LAT, LON) if dr],
                         charge_pct=cp, tier_pct=tier_pct(cp), **Z.sub_scores(parts, o["dm"]),
-                        pull_pct_longrun=pct(wmean(vals[who], keep=lambda k: k % 6 == 0), sorted(lr["pull_" + who])),
+                        pull_pct_longrun=pct(wmean(vals[who], keep=lambda k: k % 6 == 0), sorted(lr["pull_" + who]), bd),
                         love_overlay=[f"💗 {h['body']} {h['aspect']} {h['point']} {h['orb']}° {h['phase']} {h['flavor']}"
                                       for h in R.love_overlay(H)])
         if who == "A" and at == "tf":
             tot = sum(n for _, n in lk)
             res[who]["luck_shares"] = {name: [n, rhu(n / tot, 3)] for name, n in lk}
     rawc, scc, partsc = day_charge(day, "A", "C", res["A"]["flag"], res["A"]["pull"], stp["A"], opt)
-    cpc = pct(rawc, dists["A_with_C"])
-    res["A_with_C"] = dict(charge=scc, tier=Z.tier(scc), charge_pct_tier=tier_pct(cpc), parts=partsc, charge_pct=cpc, tier_pct=tier_pct(cpc),
+    cpc = pct(rawc, dists["A_with_C"], bd)
+    res["A_with_C"] = dict(charge=scc, tier=Z.tier(scc), charge_pct_tier=tier_pct(cpc), raw=rawc, parts=partsc, charge_pct=cpc, tier_pct=tier_pct(cpc),
                            **Z.sub_scores(partsc, ch["A"]["dm"]))
-    rc = lambda w: (res[w]["charge"], res[w]["tier"], pct100(res[w]["charge_pct"]), res[w]["pull"], res[w]["flag"],
-                    pct100(res[w]["pull_pct_longrun"]))
-    res["receipt"] = ("Math: %s · chemistry %s · A charge %s %s [%d%%], pull %s%s (%d%%) · B charge %s %s [%d%%], pull %s%s (%d%%)" %
+    rc = lambda w: (res[w]["charge"], res[w]["tier"], pct100(res[w]["charge_pct"]), res[w]["charge_pct_tier"], res[w]["pull"],
+                    res[w]["flag"], pct100(res[w]["pull_pct_longrun"]))
+    res["receipt"] = ("Math: %s · chemistry %s · A charge %s %s [%d%% %s], pull %s%s (%d%%) · B charge %s %s [%d%% %s], pull %s%s (%d%%)" %
                       ((res["pillar"], res["chemistry"]["scale"]) + rc("A") + rc("B")))
     slots = {k for _, _, k in grid}
     res["sampling"] = dict(grid="BaZi day: 23:00 the evening before to 22:50, every 10 min of local wall-clock time",
@@ -661,7 +680,7 @@ def main(day, opt=None, outfits=None, seen=None):
                                  eot_min=rhu(e, 1), mean_time_minus_clock_min=rhu(LON * 4 - off, 1),
                                  clock_minus_solar_min=rhu(off - LON * 4 - e, 1))
     if opt["seasons"]: res["seasons"] = seasons_block(day, res, opt)
-    res["engine"] = "%s · seasons %s · A %s" % (ENGINE, "on" if opt["seasons"] else "off", "time-free" if at == "tf" else "noon")
+    res["engine"] = engine_name(opt)
     if outfits:
         res["outfit"] = {w: outfit_report(day, w, outfits[w], opt, seen) for w in sorted(outfits)}
         res["outfit"]["params"] = dict(C.COLOR_PARAMS, SEEN=C.COLOR_PARAMS["SEEN"] if seen is None else seen)
@@ -684,6 +703,7 @@ if __name__ == "__main__":
     ap.add_argument("--seen", help="§13: the blocks when the viewer sees the wearer, e.g. 辰,巳,午,未,申 (default)")
     a = ap.parse_args()
     if not (math.isfinite(a.luck_repeat_weight) and a.luck_repeat_weight >= 0): ap.error("--luck-repeat-weight must be a number ≥ 0")
+    if a.year_month_terms and a.seasons: ap.error("--year-month-terms is part of --seasons; use it with --no-seasons")
     outfits = {}
     for w, txt in (("A", a.outfit_A), ("B", a.outfit_B)):
         if txt is None: continue

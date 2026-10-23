@@ -237,6 +237,11 @@ class ATime(unittest.TestCase):
         self.assertEqual(AB.computed(day), AB.view(D.main(day)))
         self.assertNotEqual(AB.computed(day, "noon")["A pull"], AB.computed(day)["A pull"])   # 1.8 vs 2.1 on 2026-10-21
 
+    def test_no_seasons_reruns_the_v2_engine(self):         # v3: rows written before v3 used seasons off
+        day = DAYS[0]
+        self.assertEqual(AB.computed(day, None, False), AB.view(D.main(day, dict(D.DEFAULT_OPT, seasons=False))))
+        self.assertNotEqual(AB.computed(day, None, False)["B charge"], AB.computed(day)["B charge"])   # 57 vs 96 on 10-21
+
     def test_bad_mode_exits_2(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as cm:
             AB.main(["x.md", "--a-time", "dusk"])

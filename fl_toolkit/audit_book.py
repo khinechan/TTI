@@ -26,7 +26,8 @@ finding   {date, line, column, kind: mismatch · unreadable row · unreadable ce
 NOTE      rows written before v2 can differ for reasons that are not typos: A is time-free by default since v2 (the
           biggest mover — rerun with --a-time noon to compare against her noon chart), and the v2 fixes (pull sampled
           over the BaZi day 23:00–22:50, chemistry read at local noon New York): CHANGES.md lists which numbers moved.
-Usage: cd fl_toolkit && python3 audit_book.py EXPORT.md [--json] [--a-time tf|noon]
+          Rows written before v3 used seasons off: rerun them with --no-seasons (v3's default is seasons on).
+Usage: cd fl_toolkit && python3 audit_book.py EXPORT.md [--json] [--a-time tf|noon] [--no-seasons]
 Exit: 0 every row matches · 1 mismatches or unreadable rows/cells · 2 input or tool error (file missing or not UTF-8,
 no Daily log table, no rows, daily.py raised; an unknown flag too). Human output and --json print ONE report dict;
 findings are in date order, then column order (undated rows last, by line).
@@ -68,9 +69,10 @@ MD_MARKS = str.maketrans({"*": None, "_": None, "`": None, "~": None, "\ufe0f": 
 LEAD_NOISE = re.compile(r"[\s·•/|,;:]")             # dropped before testing what precedes a lone pull for a dash
 NOTE = ("rows written before v2 can differ for reasons that are not typos: A is time-free by default since v2 (the "
         "biggest mover — rerun with --a-time noon to compare against her noon chart), and the v2 fixes (BaZi-day pull "
-        "sampling, local-noon chemistry); CHANGES.md lists which numbers moved")
+        "sampling, local-noon chemistry); CHANGES.md lists which numbers moved. Rows written before v3 used seasons off: "
+        "rerun them with --no-seasons")
 NO_TABLE = "no Daily log table: no pipe table has Date, Pillar, Chemistry, A charge, B charge and A with C headers"
-_MEMO = {}                                          # (date, A-chart mode) → view(daily.main(...)), one run each per process
+_MEMO = {}                                          # (date, A-chart mode, seasons) → view(daily.main(...)), one run each
 
 
 def clean(cell):
@@ -190,13 +192,14 @@ def view(res):
     return out
 
 
-def computed(day, a_time=None):
-    """view(daily.main(day)), once per date (and A-chart mode) per process. daily is imported here, so a broken daily.py
-       is an error finding (exit 2), not a traceback. a_time None = daily's default (time-free A)."""
-    if (day, a_time) not in _MEMO:
+def computed(day, a_time=None, seasons=None):
+    """view(daily.main(day)), once per date (A-chart mode, seasons) per process. daily is imported here, so a broken
+       daily.py is an error finding (exit 2), not a traceback. None = daily's default (time-free A; seasons on)."""
+    if (day, a_time, seasons) not in _MEMO:
         import daily as D
-        _MEMO[(day, a_time)] = view(D.main(day) if a_time is None else D.main(day, dict(D.DEFAULT_OPT, a_time=a_time)))
-    return _MEMO[(day, a_time)]
+        opt = {k: v for k, v in (("a_time", a_time), ("seasons", seasons)) if v is not None}
+        _MEMO[(day, a_time, seasons)] = view(D.main(day, dict(D.DEFAULT_OPT, **opt)) if opt else D.main(day))
+    return _MEMO[(day, a_time, seasons)]
 
 
 def finding(date, line, col, kind, written, value):
@@ -293,8 +296,10 @@ def main(argv=None, compute=None):
     ap.add_argument("export", help="the Days tab exported as Markdown (.md)")
     ap.add_argument("--json", action="store_true", help="print the report as JSON")
     ap.add_argument("--a-time", choices=("tf", "noon"), help="A's chart for the rerun (default: daily.py's, time-free)")
+    ap.add_argument("--seasons", action=argparse.BooleanOptionalAction, default=None,
+                    help="v3 seasons for the rerun (default: daily.py's, on); --no-seasons for rows written before v3")
     a = ap.parse_args(argv)
-    try: rep = run(a.export, compute or (lambda day: computed(day, a.a_time)))
+    try: rep = run(a.export, compute or (lambda day: computed(day, a.a_time, a.seasons)))
     except Exception as e:                          # crash floor: one line, exit 2, never a traceback
         rep = dict(new_report(a.export), error="CRASH (%s): %s" % (type(e).__name__, e))
     if a.json: print(json.dumps(rep, ensure_ascii=False, indent=1))
