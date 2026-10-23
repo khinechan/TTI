@@ -115,3 +115,5 @@ v3 status: built, reviewed twice (code + spec), fixed (split-day raw identical o
 percentile tie bands; audit_book --no-seasons; v2-era check scripts pin seasons off; ym refused under seasons; engine
 follows the switch; A_with_C raw). Khai 2026-10-23: partner's decade only; receipt shows "[p% tier]".
 Tests 167 (88 + 79) on 3.11, 3.12, 3.13; whole-window outputs hash the same on all three.
+LIVE: v3.0 verified by the book chat and live from 2026-10-23 (zip 7c2e2634…532f, base64 559dcd6a…7be0 = commit
+06007f3). Next version, noted not done: README's "Book audit" line does not mention --no-seasons (audit_book has it).
